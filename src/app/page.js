@@ -1,95 +1,306 @@
+'use client';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import styles from './page.module.css';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import Lenis from 'lenis';
+import { Sparkles, Zap, Shield, Search, ArrowRight, Github } from 'lucide-react';
+import '@/app/landing.css';
+
+gsap.registerPlugin(ScrollTrigger);
 
 export default function Home() {
+  const [count, setCount] = useState(0);
+  const cursorRef = useRef(null);
+  const preloaderRef = useRef(null);
+
+  useEffect(() => {
+    // --- PRELOADER COUNTER ---
+    let start = 0;
+    const interval = setInterval(() => {
+      start++;
+      setCount(start);
+      if (start >= 100) {
+        clearInterval(interval);
+        // Hide preloader
+        gsap.to(preloaderRef.current, {
+          yPercent: -100,
+          duration: 1.5,
+          ease: 'power4.inOut',
+          delay: 0.5,
+          onComplete: () => {
+            startHeroAnimation();
+          }
+        });
+      }
+    }, 20);
+
+    // --- LENIS SMOOTH SCROLL ---
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smooth: true,
+    });
+
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+    requestAnimationFrame(raf);
+
+    // --- CUSTOM CURSOR ---
+    const moveCursor = (e) => {
+      gsap.to(cursorRef.current, {
+        x: e.clientX,
+        y: e.clientY,
+        duration: 0.1,
+        ease: 'power2.out'
+      });
+    };
+    window.addEventListener('mousemove', moveCursor);
+
+    // Cursor click effect
+    const handleClick = (e) => {
+      gsap.to(e.currentTarget, { scale: 0.95, duration: 0.1, yoyo: true, repeat: 1 });
+      // Minor ripple on cursor
+      gsap.to(cursorRef.current, { scale: 0.5, duration: 0.1, yoyo: true, repeat: 1 });
+    };
+
+    // Cursor hover effects
+    const targets = document.querySelectorAll('a, button, .feature-item, .gallery-item');
+    targets.forEach(el => {
+      el.addEventListener('mouseenter', () => cursorRef.current?.classList.add('hovered'));
+      el.addEventListener('mouseleave', () => cursorRef.current?.classList.remove('hovered'));
+      el.addEventListener('click', handleClick);
+    });
+
+    // --- HERO ANIMATIONS ---
+    const startHeroAnimation = () => {
+      const tl = gsap.timeline();
+      tl.from('.glitch-text', {
+        y: 100,
+        opacity: 0,
+        duration: 1.5,
+        ease: 'power4.out',
+        skewY: 7
+      })
+        .from('.subtitle', {
+          opacity: 0,
+          y: 20,
+          duration: 1,
+          ease: 'power2.out'
+        }, '-=1');
+    };
+
+    // Parallax Hero
+    gsap.to('.hero-bg img', {
+      yPercent: 20,
+      ease: 'none',
+      scrollTrigger: {
+        trigger: '.hero',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: true
+      }
+    });
+
+    // --- SECTION REVEALS ---
+    gsap.from('.event-image-wrapper', {
+      clipPath: 'inset(100% 0 0 0)',
+      duration: 1.5,
+      ease: 'power4.out',
+      scrollTrigger: {
+        trigger: '.section-event',
+        start: 'top 70%'
+      }
+    });
+
+    gsap.from('.bio-image', {
+      x: -50,
+      opacity: 0,
+      duration: 1.5,
+      scrollTrigger: {
+        trigger: '.section-bio',
+        start: 'top 70%'
+      }
+    });
+
+    gsap.from('.feature-item', {
+      y: 50,
+      opacity: 0,
+      duration: 0.8,
+      stagger: 0.2,
+      scrollTrigger: {
+        trigger: '.section-features',
+        start: 'top 80%'
+      }
+    });
+
+    gsap.from('.gallery-item', {
+      y: 50,
+      opacity: 0,
+      duration: 0.8,
+      stagger: 0.1,
+      scrollTrigger: {
+        trigger: '.section-gallery',
+        start: 'top 80%'
+      }
+    });
+
+    return () => {
+      window.removeEventListener('mousemove', moveCursor);
+      lenis.destroy();
+      ScrollTrigger.getAll().forEach(t => t.kill());
+    };
+  }, []);
+
   return (
-    <main className={styles.main}>
-      {/* Animated Background */}
-      <div className={styles.background}>
-        <div className={styles.bgGradient1}></div>
-        <div className={styles.bgGradient2}></div>
-        <div className={styles.bgGradient3}></div>
-        <div className={styles.gridOverlay}></div>
+    <div className="landing-page">
+      <div ref={cursorRef} className="cursor"></div>
+
+      {/* Preloader */}
+      <div ref={preloaderRef} className="preloader">
+        <div className="counter">{count}</div>
       </div>
 
-      <div className={styles.content}>
-        {/* Animated Logo */}
-        <div className={styles.logoContainer}>
-          <div className={styles.logoGlow}></div>
-          <div className={styles.logo}>🤖</div>
+      <nav className="navbar">
+        <Link href="/" className="navbar-brand">Sigma AI</Link>
+        <div className="nav-links">
+          <a href="#features" className="nav-link">Modelos</a>
+          <a href="#about" className="nav-link">Sobre Nosotros</a>
+          <Link href="/login" className="nav-link">Login</Link>
         </div>
+        <Link href="/login" className="magnetic-btn" style={{ padding: '0.8rem 2rem', marginTop: 0 }}>Entrar</Link>
+      </nav>
 
-        {/* Main Title with Gradient Animation */}
-        <h1 className={styles.title}>
-          <span className={styles.titleWord}>SIGMA</span>
-          <span className={`${styles.titleWord} ${styles.titleWordAI}`}>AI</span>
-        </h1>
-
-        <p className={styles.subtitle}>
-          La próxima generación de inteligencia artificial
-        </p>
-
-        <p className={styles.description}>
-          Accede a los modelos de IA más avanzados del mundo en una sola plataforma.
-          GPT-4, Claude, Gemini, DeepSeek y más, sin configuraciones complejas.
-        </p>
-
-        {/* Feature Cards */}
-        <div className={styles.features}>
-          <div className={`${styles.featureCard} ${styles.feature1}`}>
-            <div className={styles.featureIcon}>⚡</div>
-            <h3>Ultra Rápido</h3>
-            <p>Respuestas en tiempo real con streaming</p>
-          </div>
-          <div className={`${styles.featureCard} ${styles.feature2}`}>
-            <div className={styles.featureIcon}>🔒</div>
-            <h3>Privacidad Total</h3>
-            <p>Tus datos nunca se usan para entrenar</p>
-          </div>
-          <div className={`${styles.featureCard} ${styles.feature3}`}>
-            <div className={styles.featureIcon}>🎨</div>
-            <h3>Interfaz Premium</h3>
-            <p>Diseño moderno y personalizable</p>
-          </div>
+      <header className="hero">
+        <div className="hero-bg">
+          <img src="https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=2074&auto=format&fit=crop" alt="Abstract Background" />
         </div>
-
-        {/* CTA Buttons */}
-        <div className={styles.actions}>
-          <Link href="/login" className={styles.btnPrimary}>
-            <span>Empezar Ahora</span>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+        <div className="hero-content">
+          <p className="subtitle">Explora la Frontera</p>
+          <h1 className="glitch-text" data-value="SIGMA AI">SIGMA AI</h1>
+          <Link href="/login" className="magnetic-btn">
+            Empezar Experiencia <ArrowRight size={20} style={{ marginLeft: '1rem' }} />
           </Link>
-          <a href="https://github.com/sigma-ai" target="_blank" rel="noopener noreferrer" className={styles.btnSecondary}>
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 0C4.477 0 0 4.477 0 10c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0110 4.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C17.137 18.165 20 14.418 20 10c0-5.523-4.477-10-10-10z" clipRule="evenodd" />
-            </svg>
-            <span>Ver en GitHub</span>
-          </a>
         </div>
+      </header>
 
-        {/* Stats */}
-        <div className={styles.stats}>
-          <div className={styles.stat}>
-            <div className={styles.statValue}>10+</div>
-            <div className={styles.statLabel}>Modelos de IA</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.statValue}>100%</div>
-            <div className={styles.statLabel}>Open Source</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.statValue}>0ms</div>
-            <div className={styles.statLabel}>Latencia (Streaming)</div>
-          </div>
+      <div className="marquee-container">
+        <div className="marquee-content">
+          <span className="marquee-item">DEEPSEEK R1</span>
+          <span className="marquee-item">GEMMA 3 4B</span>
+          <span className="marquee-item">GLM-4.5 AIR</span>
+          <span className="marquee-item">MISTRAL SMALL</span>
+          <span className="marquee-item">GPT-OSS 120B</span>
+          <span className="marquee-item">TRINITY LARGE</span>
+          <span className="marquee-item">PONY ALPHA</span>
+          <span className="marquee-item">STEP-3.5 FLASH</span>
+          {/* Duplicate for infinite effect */}
+          <span className="marquee-item">DEEPSEEK R1</span>
+          <span className="marquee-item">GEMMA 3 4B</span>
+          <span className="marquee-item">GLM-4.5 AIR</span>
+          <span className="marquee-item">MISTRAL SMALL</span>
         </div>
-
-        <footer className={styles.footer}>
-          <p>© {new Date().getFullYear()} Sigma AI • Creado por <strong>Ayoub Louah</strong></p>
-          <p className={styles.footerSubtext}>Powered by OpenRouter</p>
-        </footer>
       </div>
-    </main>
+
+      <section className="section-event">
+        <div className="section-event-content" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6rem', alignItems: 'center' }}>
+          <div>
+            <span className="event-label">Cómo Funciona</span>
+            <h2 className="event-title">Tu Cerebro Digital, Sin Fricciones</h2>
+            <div className="step-list" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              <div className="step-item">
+                <h4 style={{ color: 'white', marginBottom: '0.5rem', fontFamily: 'Syne' }}>1. Eliges tu Modelo</h4>
+                <p style={{ color: '#666' }}>Selecciona entre DeepSeek R1, GPT-OSS, Gemma 3 o cualquier otro modelo disponible en nuestra librería.</p>
+              </div>
+              <div className="step-item">
+                <h4 style={{ color: 'white', marginBottom: '0.5rem', fontFamily: 'Syne' }}>2. Consultas en Tiempo Real</h4>
+                <p style={{ color: '#666' }}>Tus preguntas viajan a través de nuestra arquitectura de baja latencia vía OpenRouter.</p>
+              </div>
+              <div className="step-item">
+                <h4 style={{ color: 'white', marginBottom: '0.5rem', fontFamily: 'Syne' }}>3. Obtienes Resultados</h4>
+                <p style={{ color: '#666' }}>Recibe respuestas inteligentes, genera código o analiza imágenes de forma instantánea.</p>
+              </div>
+            </div>
+            <Link href="/login" className="magnetic-btn">Pruébalo Gratis</Link>
+          </div>
+          <div className="event-image-wrapper">
+            <img src="https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=2070&auto=format&fit=crop" alt="Complex AI Grid" />
+          </div>
+        </div>
+      </section>
+
+      <section className="section-bio" id="about">
+        <div className="bio-image">
+          <img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?q=80&w=2070&auto=format&fit=crop" alt="Futuristic Tech" />
+        </div>
+        <div className="bio-content">
+          <h2>Creado para Creadores.</h2>
+          <p>
+            Sigma Company impulsa las herramientas del mañana. Liderado por <strong>Ayoub Louah</strong>, Sigma AI es el resultado de la búsqueda de la simplicidad en la complejidad.
+          </p>
+          <p>
+            Nuestra misión es democratizar el acceso a la computación cognitiva avanzada para cada desarrollador, artista y soñador.
+          </p>
+          <Link href="https://github.com/sigma-ai" target="_blank" className="magnetic-btn">
+            <Github size={20} style={{ marginRight: '1rem' }} /> GitHub
+          </Link>
+        </div>
+      </section>
+
+      <section className="section-features" id="features">
+        <div className="feature-item">
+          <Zap className="feature-icon" />
+          <h3 className="feature-title">Ultra Flash</h3>
+          <p style={{ color: '#666' }}>Respuestas en milisegundos con nuestra arquitectura optimizada de streaming.</p>
+        </div>
+        <div className="feature-item">
+          <Shield className="feature-icon" />
+          <h3 className="feature-title">Seguridad Sigma</h3>
+          <p style={{ color: '#666' }}>Tus datos son sagrados. Encriptación de grado militar en cada consulta.</p>
+        </div>
+        <div className="feature-item">
+          <Sparkles className="feature-icon" />
+          <h3 className="feature-title">Visión Pro</h3>
+          <p style={{ color: '#666' }}>Análisis de imágenes en tiempo real con modelos de visión de última generación.</p>
+        </div>
+      </section>
+
+      <section className="section-gallery">
+        <div className="gallery-grid">
+          <div className="gallery-item">
+            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1964&auto=format&fit=crop" alt="Art 1" />
+          </div>
+          <div className="gallery-item">
+            <img src="https://images.unsplash.com/photo-1633167606207-d840b5070fc2?q=80&w=1964&auto=format&fit=crop" alt="Art 2" />
+          </div>
+          <div className="gallery-item">
+            <img src="https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=2070&auto=format&fit=crop" alt="Art 3" />
+          </div>
+          <div className="gallery-item">
+            <img src="https://images.unsplash.com/photo-1614728263952-84ea206f99b6?q=80&w=1926&auto=format&fit=crop" alt="Art 4" />
+          </div>
+          <div className="gallery-item">
+            <img src="https://images.unsplash.com/photo-1620121692029-d088224ddc74?q=80&w=1932&auto=format&fit=crop" alt="Art 5" />
+          </div>
+          <div className="gallery-item">
+            <img src="https://images.unsplash.com/photo-1618005198919-d3d4b5a92ead?q=80&w=1974&auto=format&fit=crop" alt="Art 6" />
+          </div>
+        </div>
+      </section>
+
+      <footer className="footer">
+        <div className="footer-brand">SIGMA AI</div>
+        <div className="footer-links">
+          <a href="#">Instagram</a>
+          <a href="#">X (Twitter)</a>
+          <a href="https://github.com/sigma-ai">GitHub</a>
+          <p style={{ marginTop: '2rem', color: '#333', fontSize: '0.8rem' }}>
+            © 2026 SIGMA COMPANY • BY AYOUB LOUAH
+          </p>
+        </div>
+      </footer>
+    </div>
   );
 }

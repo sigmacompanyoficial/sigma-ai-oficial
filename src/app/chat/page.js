@@ -3,7 +3,8 @@ import { useState, useRef, useEffect } from 'react';
 import {
     Plus, Search, Image as ImageIcon, X,
     ChevronDown, Settings, Mic, Send, User, Bot, Sparkles, MessageSquare, LogOut, Camera,
-    Copy, Check, Trash2, AlertCircle, Upload
+    Copy, Check, Trash2, AlertCircle, Upload,
+    ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal
 } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 import { full as emoji } from 'markdown-it-emoji';
@@ -57,21 +58,34 @@ export default function ChatPage() {
     const [savedChats, setSavedChats] = useState([]);
     const [currentChatId, setCurrentChatId] = useState(null);
     const [user, setUser] = useState(null);
+    const [mounted, setMounted] = useState(false);
+    const [isReadOnly, setIsReadOnly] = useState(false);
+    const [messageFeedback, setMessageFeedback] = useState({}); // { index: 'like' | 'dislike' }
+    const chatContainerRef = useRef(null);
+    const isAtBottomRef = useRef(true);
     const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
 
-    const scrollToBottom = (behavior = "auto") => {
-        if (messagesEndRef.current) {
-            // Check if user is near bottom before scrolling
-            const container = messagesEndRef.current.closest(`.${styles.chatContainer}`);
-            if (container) {
-                const isNearBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 150;
-                if (isNearBottom || behavior === "smooth") {
-                    messagesEndRef.current.scrollIntoView({ behavior });
-                }
+    const handleScroll = () => {
+        if (chatContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+            // Threshold of 100px to consider "at bottom"
+            const atBottom = scrollHeight - scrollTop <= clientHeight + 100;
+            isAtBottomRef.current = atBottom;
+        }
+    };
+
+    const scrollToBottom = (behavior = "auto", force = false) => {
+        if (chatContainerRef.current && (isAtBottomRef.current || force)) {
+            const container = chatContainerRef.current;
+            if (behavior === "smooth") {
+                container.scrollTo({
+                    top: container.scrollHeight,
+                    behavior: "smooth"
+                });
             } else {
-                messagesEndRef.current.scrollIntoView({ behavior });
+                container.scrollTop = container.scrollHeight;
             }
         }
     };
@@ -80,14 +94,29 @@ export default function ChatPage() {
     useEffect(() => {
         if (isLoading) {
             scrollToBottom("auto");
-        } else {
+        } else if (messages.length > 0) {
             scrollToBottom("smooth");
         }
-    }, [messages, isLoading]);
+    }, [messages]);
 
     useEffect(() => {
+        setMounted(true);
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
+            const urlParams = new URLSearchParams(window.location.search);
+            const chatIdFromUrl = urlParams.get('id');
+
+            if (!user) {
+                // If there's a chat ID, we definitely want them to login first
+                if (chatIdFromUrl) {
+                    window.location.href = `/login?redirectTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                    return;
+                }
+                // Regular access to chat without session -> login
+                window.location.href = '/login';
+                return;
+            }
+
             setUser(user);
             if (user) {
                 fetchChats(user.id);
@@ -99,6 +128,10 @@ export default function ChatPage() {
                     setProfilePic(parsed.profilePic || profilePic);
                     setUseEmojis(parsed.useEmojis !== undefined ? parsed.useEmojis : true);
                     setSystemInstructions(parsed.systemInstructions || systemInstructions);
+                }
+
+                if (chatIdFromUrl) {
+                    loadChat(chatIdFromUrl, user.id);
                 }
             }
         };
@@ -216,6 +249,8 @@ export default function ChatPage() {
 
             // Add user message
             setMessages(prev => [...prev, userMessageData]);
+            // Force scroll to bottom for new message
+            setTimeout(() => scrollToBottom("auto", true), 10);
 
             // Add bot placeholder
             setMessages(prev => [...prev, { role: 'assistant', content: '...' }]);
@@ -241,6 +276,9 @@ export default function ChatPage() {
             });
 
             if (!response.ok) {
+                if (response.status === 429) {
+                    throw new Error('Límite de peticiones alcanzado. Por favor, espera un minuto o prueba con otro modelo.');
+                }
                 console.error('❌ Chat API HTTP Error:', response.status);
                 throw new Error('Error al obtener respuesta');
             }
@@ -442,13 +480,29 @@ export default function ChatPage() {
         }
     };
 
-    const loadChat = async (chatId) => {
+    const loadChat = async (chatId, currentUserId) => {
         if (!chatId) return;
         console.log('📂 Loading chat:', chatId);
         setCurrentChatId(chatId);
+
+        // Update URL without reloading
+        const newUrl = `${window.location.pathname}?id=${chatId}`;
+        window.history.pushState({ path: newUrl }, '', newUrl);
+
         setIsLoading(true);
         setError(null);
         try {
+            // Fetch chat info to check ownership
+            const { data: chatData, error: chatError } = await supabase
+                .from('chats')
+                .select('user_id')
+                .eq('id', chatId)
+                .single();
+
+            if (chatData) {
+                setIsReadOnly(chatData.user_id !== currentUserId);
+            }
+
             const { data: msgData, error: msgError } = await supabase
                 .from('messages')
                 .select('*')
@@ -470,7 +524,9 @@ export default function ChatPage() {
         } finally {
             setIsLoading(false);
             // Focus textarea after loading
-            setTimeout(() => textareaRef.current?.focus(), 100);
+            if (!isReadOnly) {
+                setTimeout(() => textareaRef.current?.focus(), 100);
+            }
         }
     };
 
@@ -498,13 +554,40 @@ export default function ChatPage() {
         window.location.href = '/login';
     };
 
-    const saveSettings = () => {
-        if (user) {
-            localStorage.setItem(`sigma_settings_${user.id}`, JSON.stringify({
-                userName, botName, profilePic, useEmojis, systemInstructions
-            }));
+    const handleShare = (text) => {
+        if (!currentChatId) {
+            alert('Guarda el chat enviando un mensaje antes de compartir');
+            return;
         }
-        setShowSettings(false);
+        const shareUrl = `${window.location.origin}${window.location.pathname}?id=${currentChatId}`;
+        navigator.clipboard.writeText(shareUrl);
+        alert('Enlace del chat copiado al portapapeles');
+    };
+
+    const handleFeedback = (index, type) => {
+        setMessageFeedback(prev => ({
+            ...prev,
+            [index]: prev[index] === type ? null : type
+        }));
+    };
+
+    const handleRegenerate = async (index) => {
+        // Find the last user message before this assistant message
+        let lastUserMsg = null;
+        for (let i = index - 1; i >= 0; i--) {
+            if (messages[i].role === 'user') {
+                lastUserMsg = messages[i].content;
+                break;
+            }
+        }
+
+        if (lastUserMsg) {
+            setInput(lastUserMsg);
+            // We use a timeout to ensure setInput finishes if needed, 
+            // but handleSend can take the prompt directly.
+            // For simplicity, let's just trigger a new send.
+            setTimeout(() => handleSend(), 10);
+        }
     };
 
     const copyToClipboard = (text, id) => {
@@ -540,6 +623,9 @@ export default function ChatPage() {
                 <button className={styles.newChatBtn} onClick={() => {
                     setMessages([]);
                     setCurrentChatId(null);
+                    setIsReadOnly(false);
+                    // Clear URL ID
+                    window.history.pushState({}, '', window.location.pathname);
                     setError(null);
                     setIsLoading(false);
                     setInput('');
@@ -637,7 +723,7 @@ export default function ChatPage() {
                     </div>
                 )}
 
-                <div className={styles.chatContainer}>
+                <div className={styles.chatContainer} ref={chatContainerRef} onScroll={handleScroll}>
                     {messages.length === 0 ? (
                         <div className={styles.emptyState}>
                             <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🤖</div>
@@ -672,12 +758,44 @@ export default function ChatPage() {
                                         )}
                                         <div className={styles.messageContent} dangerouslySetInnerHTML={renderMessage(msg.content)} />
                                         {msg.role === 'assistant' && msg.content && msg.content !== '...' && (
-                                            <button
-                                                onClick={() => copyToClipboard(msg.content, idx)}
-                                                style={{ marginTop: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#888' }}
-                                            >
-                                                {copiedId === idx ? <><Check size={12} /> Copiado</> : <><Copy size={12} /> Copiar</>}
-                                            </button>
+                                            <div className={styles.messageActions}>
+                                                <button
+                                                    className={styles.actionBtn}
+                                                    onClick={() => copyToClipboard(msg.content, idx)}
+                                                    title="Copiar"
+                                                >
+                                                    {copiedId === idx ? <Check size={16} /> : <Copy size={16} />}
+                                                </button>
+                                                <button
+                                                    className={`${styles.actionBtn} ${messageFeedback[idx] === 'like' ? styles.activeAction : ''}`}
+                                                    onClick={() => handleFeedback(idx, 'like')}
+                                                    title="Buen resultado"
+                                                >
+                                                    <ThumbsUp size={16} fill={messageFeedback[idx] === 'like' ? 'currentColor' : 'none'} />
+                                                </button>
+                                                <button
+                                                    className={`${styles.actionBtn} ${messageFeedback[idx] === 'dislike' ? styles.activeAction : ''}`}
+                                                    onClick={() => handleFeedback(idx, 'dislike')}
+                                                    title="Mal resultado"
+                                                >
+                                                    <ThumbsDown size={16} fill={messageFeedback[idx] === 'dislike' ? 'currentColor' : 'none'} />
+                                                </button>
+                                                <button
+                                                    className={styles.actionBtn}
+                                                    onClick={() => handleShare(msg.content)}
+                                                    title="Exportar"
+                                                >
+                                                    <Share size={16} />
+                                                </button>
+                                                <button
+                                                    className={styles.actionBtn}
+                                                    onClick={() => handleRegenerate(idx)}
+                                                    title="Regenerar"
+                                                >
+                                                    <RotateCcw size={16} />
+                                                </button>
+                                                <button className={styles.actionBtn} title="Más"><MoreHorizontal size={16} /></button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -688,117 +806,135 @@ export default function ChatPage() {
                 </div>
 
                 <div className={styles.inputSection}>
-                    {/* Image Preview */}
-                    {imagePreview && (
+                    {isReadOnly ? (
                         <div style={{
-                            maxWidth: '768px',
+                            padding: '1.5rem',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderRadius: '1rem',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            color: '#888',
+                            fontSize: '0.9rem',
+                            textAlign: 'center',
                             width: '100%',
-                            marginBottom: '12px',
-                            position: 'relative',
-                            animation: 'fadeIn 0.3s ease-out'
+                            maxWidth: '768px'
                         }}>
-                            <div style={{
-                                position: 'relative',
-                                display: 'inline-block',
-                                background: 'rgba(255,255,255,0.05)',
-                                borderRadius: '12px',
-                                padding: '8px',
-                                border: '1px solid rgba(99, 102, 241, 0.3)'
-                            }}>
-                                <img
-                                    src={imagePreview}
-                                    alt="Preview"
-                                    style={{
-                                        maxWidth: '200px',
-                                        maxHeight: '200px',
-                                        borderRadius: '8px',
-                                        display: 'block'
-                                    }}
+                            🔒 Esta conversación es de solo lectura porque pertenece a otro usuario.
+                        </div>
+                    ) : (
+                        <>
+                            {/* Image Preview */}
+                            {imagePreview && (
+                                <div style={{
+                                    maxWidth: '768px',
+                                    width: '100%',
+                                    marginBottom: '12px',
+                                    position: 'relative',
+                                    animation: 'fadeIn 0.3s ease-out'
+                                }}>
+                                    <div style={{
+                                        position: 'relative',
+                                        display: 'inline-block',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        borderRadius: '12px',
+                                        padding: '8px',
+                                        border: '1px solid rgba(99, 102, 241, 0.3)'
+                                    }}>
+                                        <img
+                                            src={imagePreview}
+                                            alt="Preview"
+                                            style={{
+                                                maxWidth: '200px',
+                                                maxHeight: '200px',
+                                                borderRadius: '8px',
+                                                display: 'block'
+                                            }}
+                                        />
+                                        <button
+                                            onClick={removeImage}
+                                            style={{
+                                                position: 'absolute',
+                                                top: '4px',
+                                                right: '4px',
+                                                background: 'rgba(239, 68, 68, 0.9)',
+                                                border: 'none',
+                                                borderRadius: '50%',
+                                                width: '28px',
+                                                height: '28px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer',
+                                                color: 'white',
+                                                transition: 'transform 0.2s ease'
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                                            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                        {isProcessingImage && (
+                                            <div className={styles.shimmer} style={{
+                                                position: 'absolute',
+                                                inset: 0,
+                                                borderRadius: '8px',
+                                                pointerEvents: 'none'
+                                            }} />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <form onSubmit={handleSend} className={styles.inputWrapper}>
+                                {/* Hidden file input */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleImageSelect}
+                                    style={{ display: 'none' }}
                                 />
+
                                 <button
-                                    onClick={removeImage}
-                                    style={{
-                                        position: 'absolute',
-                                        top: '4px',
-                                        right: '4px',
-                                        background: 'rgba(239, 68, 68, 0.9)',
-                                        border: 'none',
-                                        borderRadius: '50%',
-                                        width: '28px',
-                                        height: '28px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        cursor: 'pointer',
-                                        color: 'white',
-                                        transition: 'transform 0.2s ease'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                    type="button"
+                                    className={styles.attachButton}
+                                    onClick={() => fileInputRef.current?.click()}
+                                    title="Subir imagen (analizada con IA)"
+                                    disabled={isLoading || isProcessingImage}
                                 >
-                                    <X size={16} />
+                                    <ImageIcon size={20} />
                                 </button>
-                                {isProcessingImage && (
-                                    <div className={styles.shimmer} style={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        borderRadius: '8px',
-                                        pointerEvents: 'none'
-                                    }} />
-                                )}
-                            </div>
-                        </div>
+                                <textarea
+                                    ref={textareaRef}
+                                    className={styles.textarea}
+                                    placeholder={selectedImage ? "Describe qué quieres saber de la imagen..." : `Mensaje a ${botName}...`}
+                                    rows={1}
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSend(e);
+                                        }
+                                    }}
+                                    disabled={isLoading}
+                                />
+                                <div className={styles.inputActions}>
+                                    <button type="button" className={styles.iconBtn} title="Voz (próximamente)"><Mic size={20} /></button>
+                                    <button
+                                        type="submit"
+                                        className={styles.sendBtn}
+                                        disabled={isLoading || (!input.trim() && !selectedImage) || isProcessingImage}
+                                        style={{
+                                            background: (input.trim() || selectedImage) && !isLoading && !isProcessingImage ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.1)',
+                                            cursor: (input.trim() || selectedImage) && !isLoading && !isProcessingImage ? 'pointer' : 'not-allowed'
+                                        }}
+                                    >
+                                        <Send size={16} />
+                                    </button>
+                                </div>
+                            </form>
+                        </>
                     )}
-
-                    <form onSubmit={handleSend} className={styles.inputWrapper}>
-                        {/* Hidden file input */}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageSelect}
-                            style={{ display: 'none' }}
-                        />
-
-                        <button
-                            type="button"
-                            className={styles.attachButton}
-                            onClick={() => fileInputRef.current?.click()}
-                            title="Subir imagen (analizada con IA)"
-                            disabled={isLoading || isProcessingImage}
-                        >
-                            <ImageIcon size={20} />
-                        </button>
-                        <textarea
-                            ref={textareaRef}
-                            className={styles.textarea}
-                            placeholder={selectedImage ? "Describe qué quieres saber de la imagen..." : `Mensaje a ${botName}...`}
-                            rows={1}
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSend(e);
-                                }
-                            }}
-                            disabled={isLoading}
-                        />
-                        <div className={styles.inputActions}>
-                            <button type="button" className={styles.iconBtn} title="Voz (próximamente)"><Mic size={20} /></button>
-                            <button
-                                type="submit"
-                                className={styles.sendBtn}
-                                disabled={isLoading || (!input.trim() && !selectedImage) || isProcessingImage}
-                                style={{
-                                    background: (input.trim() || selectedImage) && !isLoading && !isProcessingImage ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.1)',
-                                    cursor: (input.trim() || selectedImage) && !isLoading && !isProcessingImage ? 'pointer' : 'not-allowed'
-                                }}
-                            >
-                                <Send size={16} />
-                            </button>
-                        </div>
-                    </form>
                     <p className={styles.footer}>
                         {botName} puede cometer errores. Verifica información importante. Creado por <strong>{userName}</strong>.
                     </p>

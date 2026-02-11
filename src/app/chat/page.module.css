@@ -1135,6 +1135,87 @@
     animation: shimmer 2s infinite;
 }
 
+/* Markdown Tables */
+.messageContent table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1.5rem 0;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    display: block;
+    overflow-x: auto;
+}
+
+.messageContent th,
+.messageContent td {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 16px;
+    text-align: left;
+}
+
+.messageContent th {
+    background: rgba(255, 255, 255, 0.05);
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+}
+
+.messageContent tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.messageContent tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* Message Action Buttons */
+.messageActions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.actionBtn {
+    background: transparent;
+    border: none;
+    color: #666;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+}
+
+.actionBtn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.actionBtn:active {
+    transform: scale(0.92);
+}
+
+.actionBtn svg {
+    transition: transform 0.3s ease;
+}
+
+.actionBtn:hover svg {
+    transform: scale(1.1);
+}
+
+
 @media (max-width: 768px) {
     .sidebar {
         display: none;
@@ -1143,4 +1224,5 @@
     .emptyTitle {
         font-size: 1.75rem;
     }
+    .messageActions { flex-wrap: wrap; }
 }

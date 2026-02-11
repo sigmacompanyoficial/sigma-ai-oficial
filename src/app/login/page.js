@@ -1,9 +1,12 @@
-'use client';
-import { useState, useEffect } from 'react';
+"use client";
+
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import styles from './page.module.css';
-import { Sparkles, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import gsap from 'gsap';
 
 export default function LoginPage() {
     const [isSignUp, setIsSignUp] = useState(false);
@@ -16,6 +19,7 @@ export default function LoginPage() {
     const [success, setSuccess] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
+    const cardRef = useRef(null);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -23,12 +27,19 @@ export default function LoginPage() {
             if (user) router.push('/chat');
         };
         checkUser();
+
+        // Entrance animation
+        gsap.from(cardRef.current, {
+            y: 30,
+            opacity: 0,
+            duration: 1.2,
+            ease: 'power4.out',
+            delay: 0.2
+        });
     }, [router]);
 
     const checkUserStatus = async (user) => {
         if (!user) return;
-
-        // Check if onboarding is completed
         const { data, error } = await supabase
             .from('profiles')
             .select('onboarding_completed')
@@ -49,7 +60,8 @@ export default function LoginPage() {
 
         try {
             if (isSignUp) {
-                const { data, error } = await supabase.auth.signUp({
+                if (password !== confirmPassword) throw new Error('Las contraseñas no coinciden');
+                const { error } = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
@@ -59,7 +71,6 @@ export default function LoginPage() {
                 });
                 if (error) throw error;
                 setSuccess(true);
-                // Onboarding check after signup (triggered by trigger in DB ideally, but here for safety)
                 setTimeout(() => router.push('/onboarding'), 2000);
             } else {
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -75,6 +86,7 @@ export default function LoginPage() {
     };
 
     const handleGoogleLogin = async () => {
+        gsap.to('.google-btn-anim', { scale: 0.95, duration: 0.1, yoyo: true, repeat: 1 });
         try {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
@@ -88,8 +100,23 @@ export default function LoginPage() {
         }
     };
 
+    const animateButton = (e) => {
+        gsap.to(e.currentTarget, {
+            scale: 0.96,
+            duration: 0.1,
+            ease: "power2.out",
+            yoyo: true,
+            repeat: 1
+        });
+    }
+
     return (
         <div className={styles.container}>
+            <Link href="/" className={styles.backBtn}>
+                <ArrowLeft size={18} />
+                <span>Volver</span>
+            </Link>
+
             {/* Animated Background */}
             <div className={styles.background}>
                 <div className={styles.bgOrb1}></div>
@@ -98,32 +125,21 @@ export default function LoginPage() {
                 <div className={styles.gridPattern}></div>
             </div>
 
-            {/* Floating Particles */}
-            <div className={styles.particles}>
-                {[...Array(20)].map((_, i) => (
-                    <div key={i} className={styles.particle} style={{
-                        left: `${Math.random() * 100}%`,
-                        animationDelay: `${Math.random() * 5}s`,
-                        animationDuration: `${5 + Math.random() * 10}s`
-                    }}></div>
-                ))}
-            </div>
-
             <div className={styles.content}>
-                {/* Logo */}
+                {/* Logo Section */}
                 <div className={styles.logoSection}>
                     <div className={styles.logoIcon}>
                         <Sparkles size={40} />
                     </div>
-                    <h1 className={styles.logoText}>Sigma AI</h1>
-                    <p className={styles.logoSubtext}>Tu asistente de IA de nueva generación</p>
+                    <h1 className={styles.logoText}>SIGMA AI</h1>
+                    <p className={styles.logoSubtext}>Tu puerta al futuro de la inteligencia</p>
                 </div>
 
                 {/* Auth Card */}
-                <div className={styles.card}>
+                <div ref={cardRef} className={styles.card}>
                     <div className={styles.cardHeader}>
-                        <h2>{isSignUp ? '✨ Crear Cuenta' : '👋 Bienvenido de Vuelta'}</h2>
-                        <p>{isSignUp ? 'Únete a la revolución de la IA' : 'Inicia sesión para continuar'}</p>
+                        <h2>{isSignUp ? '✨ Únete a Sigma' : '👋 Hola de nuevo'}</h2>
+                        <p>{isSignUp ? 'Crea tu cuenta en segundos' : 'Accede a tus modelos favoritos'}</p>
                     </div>
 
                     <form onSubmit={handleAuth} className={styles.form}>
@@ -131,13 +147,13 @@ export default function LoginPage() {
                             <div className={styles.inputGroup}>
                                 <label className={styles.label}>
                                     <User size={18} />
-                                    <span>Nombre Completo</span>
+                                    <span>Tu Nombre</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="Ayoub Louah"
+                                    placeholder="Nombre"
                                     className={styles.input}
                                     required={isSignUp}
                                 />
@@ -147,7 +163,7 @@ export default function LoginPage() {
                         <div className={styles.inputGroup}>
                             <label className={styles.label}>
                                 <Mail size={18} />
-                                <span>Email</span>
+                                <span>Correo Electrónico</span>
                             </label>
                             <input
                                 type="email"
@@ -187,7 +203,7 @@ export default function LoginPage() {
                             <div className={styles.inputGroup}>
                                 <label className={styles.label}>
                                     <Lock size={18} />
-                                    <span>Confirmar Contraseña</span>
+                                    <span>Confirma Contraseña</span>
                                 </label>
                                 <input
                                     type={showPassword ? "text" : "password"}
@@ -200,60 +216,38 @@ export default function LoginPage() {
                             </div>
                         )}
 
-                        {error && (
-                            <div className={styles.error}>
-                                {error}
-                            </div>
-                        )}
+                        {error && <div className={styles.error}>{error}</div>}
+                        {success && <div className={styles.success}>✅ Redirigiendo...</div>}
 
-                        {success && (
-                            <div className={styles.success}>
-                                ✅ {isSignUp ? '¡Cuenta creada! Redirigiendo...' : '¡Login exitoso! Redirigiendo...'}
-                            </div>
-                        )}
-
-                        <button
-                            type="submit"
-                            className={styles.submitBtn}
-                            disabled={loading}
-                        >
-                            {loading ? (
-                                <div className={styles.loader}></div>
-                            ) : (
-                                <span>{isSignUp ? 'Crear Cuenta' : 'Iniciar Sesión'}</span>
-                            )}
+                        <button type="submit" className={styles.submitBtn} disabled={loading} onClick={animateButton}>
+                            {loading ? <div className={styles.loader}></div> : <span>{isSignUp ? 'Registrarse' : 'Entrar Now'}</span>}
                         </button>
                     </form>
 
                     <div className={styles.divider}>
-                        <span>o entra con</span>
+                        <span>o</span>
                     </div>
 
-                    <button
-                        type="button"
-                        className={styles.googleBtn}
-                        onClick={handleGoogleLogin}
-                        disabled={loading}
-                    >
+                    <button type="button" className={`${styles.googleBtn} google-btn-anim`} onClick={handleGoogleLogin}>
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className={styles.googleIcon} />
-                        <span>Continuar con Google</span>
+                        <span>Google</span>
                     </button>
 
                     <button
                         type="button"
                         className={styles.switchBtn}
-                        onClick={() => {
+                        onClick={(e) => {
+                            animateButton(e);
                             setIsSignUp(!isSignUp);
                             setError(null);
-                            setSuccess(false);
                         }}
                     >
-                        {isSignUp ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+                        {isSignUp ? '¿Ya tienes cuenta? Login' : '¿No tienes cuenta? Registro'}
                     </button>
                 </div>
 
                 <p className={styles.footer}>
-                    Creado con 💜 por <strong>Ayoub Louah</strong> @ Sigma Company
+                    BY <strong>SIGMA COMPANY</strong>
                 </p>
             </div>
         </div>

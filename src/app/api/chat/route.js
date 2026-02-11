@@ -67,23 +67,38 @@ export async function POST(req) {
             }))
         ];
 
-        // Call OpenRouter with optimized settings
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
-                'X-Title': 'Sigma AI',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: modelId,
-                messages: formattedMessages,
-                stream: true,
-                temperature: 0.7, // Balanced creativity
-                max_tokens: 4000, // Reasonable limit
-            })
-        });
+        // Call OpenRouter with optimized settings and limited retries for 429
+        let response;
+        let retries = 2;
+        let delay = 1000;
+
+        while (retries >= 0) {
+            response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+                    'X-Title': 'Sigma AI',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: modelId,
+                    messages: formattedMessages,
+                    stream: true,
+                    temperature: 0.7,
+                    max_tokens: 4000,
+                })
+            });
+
+            if (response.status === 429 && retries > 0) {
+                console.warn(`⚠️ Rate limited by OpenRouter. Retrying in ${delay}ms... (${retries} retries left)`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                retries--;
+                delay *= 2; // Exponential backoff
+                continue;
+            }
+            break;
+        }
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
