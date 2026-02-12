@@ -1,5 +1,7 @@
 
 import './globals.css';
+import 'katex/dist/katex.min.css';
+
 
 export const metadata = {
   title: 'Sigma AI - Advanced AI Chatbot',

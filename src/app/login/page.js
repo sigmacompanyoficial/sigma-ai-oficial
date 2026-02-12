@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
+import { formatAndLogSupabaseError, formatAndLogSupabaseResult } from '@/lib/supabaseHelpers';
 import styles from './page.module.css';
 import { Sparkles, Mail, Lock, User, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -71,15 +72,18 @@ export default function LoginPage() {
                 });
                 if (error) throw error;
                 setSuccess(true);
-                setTimeout(() => router.push('/onboarding'), 2000);
+                // Redirect immediately to onboarding to avoid delays
+                router.push('/onboarding');
             } else {
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
                 setSuccess(true);
-                setTimeout(() => checkUserStatus(data.user), 1000);
+                // Check user status and redirect immediately
+                await checkUserStatus(data.user);
             }
         } catch (err) {
-            setError(err.message || 'Error en la autenticación');
+            const { ui } = formatAndLogSupabaseError(err);
+            setError(ui || 'Error en la autenticación');
         } finally {
             setLoading(false);
         }
@@ -96,7 +100,8 @@ export default function LoginPage() {
             });
             if (error) throw error;
         } catch (err) {
-            setError(err.message);
+            const { ui } = formatAndLogSupabaseError(err);
+            setError(ui || 'Error en la autenticación');
         }
     };
 

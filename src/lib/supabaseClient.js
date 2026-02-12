@@ -1,8 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+'use client';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+/*
+ * Client-side Supabase instance.
+ *
+ * IMPORTANT:
+ * This project uses a cookie-based auth callback route
+ * (see `src/app/auth/callback/route.js`).
+ *
+ * Therefore, the browser client must also use the cookie-based helpers,
+ * otherwise `supabase.auth.getUser()` can be null after OAuth and DB
+ * reads/writes will never run.
+ */
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { createBrowserClient } from '@supabase/auth-helpers-nextjs';
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+export const supabase = createBrowserClient(supabaseUrl ?? '', supabaseAnonKey ?? '');
 export default supabase;

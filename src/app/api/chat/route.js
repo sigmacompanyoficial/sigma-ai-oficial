@@ -1,28 +1,47 @@
 import { NextResponse } from 'next/server';
+import { getIntEnv, getPublicSiteUrl, getRequiredEnv } from '@/lib/env';
+
+function jsonError(message, status = 500, extras = {}) {
+    return NextResponse.json({ error: message, ...extras }, { status });
+}
+
+function normalizeMessages(messages) {
+    // Keep only fields the model expects.
+    return messages.map((m) => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content : String(m.content ?? ''),
+    }));
+}
 
 export async function POST(req) {
     try {
-        const { messages, modelId, systemPrompt, botName } = await req.json();
-        console.log('🤖 Chat API Request:', { modelId, botName, messagesCount: messages.length });
+        const { messages, modelId, systemPrompt, botName, stream } = await req.json();
+        const requestId = globalThis.crypto?.randomUUID?.() || String(Date.now());
+        console.log('🤖 Chat API Request:', { requestId, modelId, botName, messagesCount: messages?.length });
 
         // Validation
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             console.warn('⚠️ Chat API: Messages array is missing or empty');
-            return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
+            return jsonError('Messages array is required', 400, { requestId });
         }
         if (!modelId || typeof modelId !== 'string') {
             console.warn('⚠️ Chat API: modelId is missing');
-            return NextResponse.json({ error: 'Valid modelId is required' }, { status: 400 });
+            return jsonError('Valid modelId is required', 400, { requestId });
         }
 
-        const apiKey = process.env.OPENROUTER_API_KEY;
-        if (!apiKey || apiKey === 'your_openrouter_api_key') {
-            return NextResponse.json({
-                error: 'Server configuration error. Please contact support.'
-            }, { status: 500 });
+        // Basic abuse protection (keeps costs + latency in check)
+        if (messages.length > 60) {
+            return jsonError('Too many messages in a single request', 413, { requestId });
         }
 
-        const activeBotName = botName || 'Sigma AI';
+        let apiKey;
+        try {
+            apiKey = getRequiredEnv('OPENROUTER_API_KEY');
+        } catch {
+            return jsonError('Server configuration error (OPENROUTER_API_KEY missing)', 500, { requestId });
+        }
+
+        const activeBotName = botName || 'sigmaLLM 1';
 
         // Enhanced system prompt with search capability
         const CORE_IDENTITY = `Eres ${activeBotName} 🤖, creado por Sigma Company (autor: Ayoub Louah).
@@ -37,6 +56,7 @@ export async function POST(req) {
 **Formato de Respuesta:**
 - Usa Markdown: títulos (##), listas (-), **negritas**, \`código\`
 - Bloques de código con sintaxis específica
+- Matemáticas: Usa LaTeX encerrado en $...$ para cálculos en línea y $$...$$ para bloques destacados. Ejemplo: $$E=mc^2$$
 - Estructura clara y organizada
 
 **Capacidad de Búsqueda en Internet:**
@@ -48,7 +68,7 @@ export async function POST(req) {
 - Después de recibir los resultados, formúlalos de manera clara y amigable
 
 **Reglas:**
-1. Si te preguntan quién eres → "${activeBotName}, creado por Sigma Company, autor Ayoub Louah"
+1. Si te preguntan quién eres o cuál es tu modelo → "Soy Sigma AI, el modelo SigmaLMM 1, creado por Sigma Company, autor Ayoub Louah"
 2. No inventes información, si no estás seguro usa SEARCH
 3. Si no sabes algo actual, usa SEARCH
 4. Sé educado y profesional siempre
@@ -61,10 +81,7 @@ export async function POST(req) {
                 role: 'system',
                 content: CORE_IDENTITY + ENHANCED_INSTRUCTIONS
             },
-            ...messages.map(msg => ({
-                role: msg.role,
-                content: msg.content
-            }))
+            ...normalizeMessages(messages)
         ];
 
         // Call OpenRouter with optimized settings and limited retries for 429
@@ -72,23 +89,33 @@ export async function POST(req) {
         let retries = 2;
         let delay = 1000;
 
+        const timeoutMs = getIntEnv('OPENROUTER_TIMEOUT_MS', 60_000);
+        const maxTokens = getIntEnv('OPENROUTER_MAX_TOKENS', 2400);
+        const wantStream = stream !== false;
+
         while (retries >= 0) {
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), timeoutMs);
+
             response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,
-                    'HTTP-Referer': process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+                    'HTTP-Referer': getPublicSiteUrl(),
                     'X-Title': 'Sigma AI',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     model: modelId,
                     messages: formattedMessages,
-                    stream: true,
+                    stream: wantStream,
                     temperature: 0.7,
-                    max_tokens: 4000,
-                })
+                    max_tokens: maxTokens,
+                }),
+                signal: controller.signal,
             });
+
+            clearTimeout(t);
 
             if (response.status === 429 && retries > 0) {
                 console.warn(`⚠️ Rate limited by OpenRouter. Retrying in ${delay}ms... (${retries} retries left)`);
@@ -103,9 +130,17 @@ export async function POST(req) {
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
             console.error('❌ OpenRouter API Error:', errorData);
-            return NextResponse.json({
-                error: (errorData.error?.message || 'AI service temporarily unavailable') + ` (${response.status})`
-            }, { status: response.status });
+            return jsonError(
+                (errorData.error?.message || 'AI service temporarily unavailable') + ` (${response.status})`,
+                response.status,
+                { requestId }
+            );
+        }
+
+        if (!wantStream) {
+            const data = await response.json();
+            const content = data?.choices?.[0]?.message?.content ?? '';
+            return NextResponse.json({ requestId, content, raw: data });
         }
 
         console.log('✅ OpenRouter Response OK. Starting stream...');
@@ -117,13 +152,16 @@ export async function POST(req) {
                 'Cache-Control': 'no-cache, no-transform',
                 'Connection': 'keep-alive',
                 'X-Accel-Buffering': 'no', // Disable nginx buffering
+                'X-Request-Id': requestId,
             },
         });
 
     } catch (error) {
+        const isAbort = error?.name === 'AbortError';
         console.error('Critical API Error:', error);
-        return NextResponse.json({
-            error: 'Internal server error. Please try again.'
-        }, { status: 500 });
+        return jsonError(
+            isAbort ? 'Upstream request timed out' : 'Internal server error. Please try again.',
+            isAbort ? 504 : 500
+        );
     }
 }

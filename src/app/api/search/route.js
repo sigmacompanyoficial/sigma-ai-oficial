@@ -1,4 +1,9 @@
 import { NextResponse } from 'next/server';
+import { getRequiredEnv } from '@/lib/env';
+
+function jsonError(message, status = 500) {
+    return NextResponse.json({ error: message }, { status });
+}
 
 export async function POST(req) {
     try {
@@ -7,13 +12,15 @@ export async function POST(req) {
 
         if (!query) {
             console.warn('⚠️ [SEARCH] No query provided');
-            return NextResponse.json({ error: 'Query required' }, { status: 400 });
+            return jsonError('Query required', 400);
         }
 
-        const apiKey = process.env.TAVILY_API_KEY;
-        if (!apiKey) {
-            console.error('❌ [SEARCH] TAVILY_API_KEY is missing in .env');
-            return NextResponse.json({ error: 'Search API key not configured' }, { status: 500 });
+        let apiKey;
+        try {
+            apiKey = getRequiredEnv('TAVILY_API_KEY');
+        } catch {
+            console.error('❌ [SEARCH] TAVILY_API_KEY is missing');
+            return jsonError('Search API key not configured', 500);
         }
 
         console.log('📡 [SEARCH] Calling Tavily API...');
@@ -37,7 +44,7 @@ export async function POST(req) {
 
         if (!response.ok) {
             console.error('❌ [SEARCH] Tavily API Error:', data);
-            return NextResponse.json({ error: 'Error calling search service' }, { status: response.status });
+            return jsonError('Error calling search service', response.status);
         }
 
         // Tavily usually provides a direct 'answer' if requested, or results
@@ -68,8 +75,6 @@ export async function POST(req) {
 
     } catch (error) {
         console.error('💥 [SEARCH] Critical Error:', error);
-        return NextResponse.json({
-            error: 'Error interno al procesar la búsqueda'
-        }, { status: 500 });
+        return jsonError('Error interno al procesar la búsqueda', 500);
     }
 }
