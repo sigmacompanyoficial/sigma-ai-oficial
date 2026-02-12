@@ -1,5 +1,6 @@
 "use client";
 
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
@@ -15,6 +16,7 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [name, setName] = useState('');
+    const [captchaValue, setCaptchaValue] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
@@ -57,6 +59,10 @@ export default function LoginPage() {
 
     const handleAuth = async (e) => {
         e.preventDefault();
+        if (!captchaValue) {
+            setError("Por favor, completa el hCaptcha.");
+            return;
+        }
         setLoading(true);
         setError(null);
 
@@ -68,7 +74,8 @@ export default function LoginPage() {
                     password,
                     options: {
                         data: { name: name },
-                        emailRedirectTo: `${window.location.origin}/auth/callback`
+                        emailRedirectTo: `${window.location.origin}/auth/callback`,
+                        captchaToken: captchaValue
                     }
                 });
                 if (error) throw error;
@@ -79,7 +86,13 @@ export default function LoginPage() {
                 setConfirmPassword('');
                 setName('');
             } else {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                const { data, error } = await supabase.auth.signInWithPassword({ 
+                    email, 
+                    password,
+                    options: {
+                        captchaToken: captchaValue
+                    }
+                });
                 if (error) throw error;
                 setSuccess(true);
                 // Check user status and redirect immediately
@@ -284,6 +297,14 @@ export default function LoginPage() {
                                 {error && <div className={styles.error}>{error}</div>}
                                 {success && <div className={styles.success}>✅ Redirigiendo...</div>}
 
+                                <div className={styles.recaptchaContainer}>
+                                    <HCaptcha
+                                        sitekey="1e5416e8-7dbe-451a-a77c-06eefca60052"
+                                        onVerify={(token) => setCaptchaValue(token)}
+                                        theme="dark"
+                                    />
+                                </div>
+
                                 <button type="submit" className={styles.submitBtn} disabled={loading} onClick={animateButton}>
                                     {loading ? <div className={styles.loader}></div> : <span>{isSignUp ? 'Registrarse' : 'Entrar Now'}</span>}
                                 </button>
@@ -316,6 +337,7 @@ export default function LoginPage() {
                 <p className={styles.footer}>
                     BY <strong>SIGMA COMPANY</strong>
                 </p>
+                <p className={styles.disclaimer}>sigma ai puede cometer errores</p>
             </div>
         </div>
     );

@@ -999,29 +999,16 @@ export default function ChatPage() {
                             <form onSubmit={handleSend} className={styles.inputWrapper}>
                                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
                                 
-                                <div ref={attachMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
                                     <button 
                                         type="button" 
                                         className={styles.attachButton} 
-                                        onClick={() => setShowAttachMenu(!showAttachMenu)} 
+                                        onClick={() => fileInputRef.current?.click()} 
                                         disabled={isLoading}
+                                        title="Subir archivos"
                                     >
-                                        <Plus size={20} style={{ transform: showAttachMenu ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
+                                        <Plus size={20} />
                                     </button>
-
-                                    {showAttachMenu && (
-                                        <div className={styles.attachMenu}>
-                                            <button type="button" onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}>
-                                                <Upload size={16} /> Subir Archivo
-                                            </button>
-                                            <button type="button" onClick={() => { setUseReasoning(!useReasoning); setShowAttachMenu(false); }} className={useReasoning ? styles.activeOption : ''}>
-                                                <Brain size={16} /> Razonamiento {useReasoning ? '(On)' : ''}
-                                            </button>
-                                            <button type="button" onClick={() => { setUseWebSearch(!useWebSearch); setShowAttachMenu(false); }} className={useWebSearch ? styles.activeOption : ''}>
-                                                <Search size={16} /> Buscar en Internet {useWebSearch ? '(On)' : ''}
-                                            </button>
-                                        </div>
-                                    )}
                                 </div>
 
                                 <textarea
@@ -1047,7 +1034,7 @@ export default function ChatPage() {
                             </form>
                         </>
                     )}
-                    <p className={styles.footer}>{botName} puede cometer errores. Creado por <strong>{userName}</strong>.</p>
+                    <p className={styles.footer}>sigma ai puede cometer errores</p>
                 </div>
             </main>
 
