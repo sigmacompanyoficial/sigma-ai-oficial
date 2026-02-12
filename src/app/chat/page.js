@@ -35,6 +35,8 @@ export default function ChatPage() {
     const [systemInstructions, setSystemInstructions] = useState('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
     const [useEmojis, setUseEmojis] = useState(true);
     const [useReasoning, setUseReasoning] = useState(false);
+    const [showAttachMenu, setShowAttachMenu] = useState(false);
+    const [useWebSearch, setUseWebSearch] = useState(false);
     const [copiedId, setCopiedId] = useState(null);
 
     const [selectedImage, setSelectedImage] = useState(null);
@@ -57,8 +59,19 @@ export default function ChatPage() {
     const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
+    const attachMenuRef = useRef(null);
     const messagesRef = useRef(messages);
     const streamAbortRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (attachMenuRef.current && !attachMenuRef.current.contains(event.target)) {
+                setShowAttachMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     useEffect(() => {
         setMounted(true);
@@ -252,6 +265,42 @@ export default function ChatPage() {
         setIsStreaming(true);
         setError(null);
 
+        // Save User Message and Get Chat ID
+        let chatId = currentChatId;
+        if (user) {
+            console.log('💾 Saving user message to DB...');
+            try {
+                if (!chatId) {
+                    console.log('🆕 Creating new chat thread...');
+                    const { data: chatData, error: chatError } = await supabase
+                        .from('chats')
+                        .insert({
+                            user_id: user.id,
+                            title: (input || '').slice(0, 30) || 'Nuevo Chat',
+                            created_at: new Date().toISOString()
+                        })
+                        .select()
+                        .single();
+                    if (chatError) throw chatError;
+                    chatId = chatData.id;
+                    setCurrentChatId(chatId);
+                    console.log('✅ Chat created with ID:', chatId);
+                    fetchChats(user.id);
+                }
+
+                await supabase.from('messages').insert({
+                    chat_id: chatId,
+                    role: 'user',
+                    content: input,
+                    image: userMsg.image,
+                    created_at: new Date().toISOString()
+                });
+                console.log('✅ User message saved');
+            } catch (err) {
+                console.warn('❌ Error saving user message:', err);
+            }
+        }
+
         // Add assistant placeholder
         setMessages(prev => [...prev, { role: 'assistant', content: '...', timestamp: new Date().toISOString() }]);
 
@@ -259,13 +308,66 @@ export default function ChatPage() {
         streamAbortRef.current = controller;
 
         try {
-            const modelToUse = useReasoning ? 'nvidia/nemotron-nano-12b-v2-vl:free' : selectedModel.modelId;
+            let modelToUse = useReasoning ? 'nvidia/nemotron-nano-12b-v2-vl:free' : selectedModel.modelId;
+            console.log('🚀 Using model:', modelToUse);
+            
+            // Real Web Search Logic
+            let searchContext = "";
+            if (useWebSearch) {
+                console.log('🌐 Web Search enabled, searching Tavily...');
+                setMessages(prev => {
+                    const last = [...prev];
+                    last[last.length - 1] = { ...last[last.length - 1], isSearching: true };
+                    return last;
+                });
+
+                try {
+                    const searchResp = await fetch('/api/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: input })
+                    });
+                    
+                    if (searchResp.ok) {
+                        const searchData = await searchResp.json();
+                        if (searchData.success) {
+                            searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB (Tavily)]:\n${searchData.result}\n\nUtiliza esta información para responder de forma precisa y actualizada. Menciona las fuentes si es posible.`;
+                            console.log('✅ Search results retrieved from Tavily:', searchData.result.slice(0, 100) + '...');
+                        } else {
+                            console.warn('⚠️ Search returned no results');
+                        }
+                    } else {
+                        console.error('❌ Search API error:', searchResp.status);
+                    }
+                } catch (searchErr) {
+                    console.error('💥 Search fetch failed:', searchErr);
+                }
+
+                setMessages(prev => {
+                    const last = [...prev];
+                    last[last.length - 1] = { ...last[last.length - 1], isSearching: false };
+                    return last;
+                });
+            }
+
+            console.log('📤 Sending final request to OpenRouter/Chat API...');
+            
+            // Inject search context into the last user message to ensure the model sees it and uses it
+            const messagesForAPI = [...newMessages];
+            if (searchContext) {
+                const lastIdx = messagesForAPI.length - 1;
+                messagesForAPI[lastIdx] = {
+                    ...messagesForAPI[lastIdx],
+                    content: messagesForAPI[lastIdx].content + searchContext
+                };
+                console.log('💉 Search context injected into last USER message');
+            }
 
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: newMessages,
+                    messages: messagesForAPI,
                     modelId: modelToUse,
                     systemPrompt: systemInstructions,
                     botName: botName,
@@ -279,10 +381,14 @@ export default function ChatPage() {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let botResponse = '';
+            let hasCollapsedThinking = false;
 
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done) {
+                    console.log('✅ Stream finished');
+                    break;
+                }
 
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n');
@@ -290,17 +396,38 @@ export default function ChatPage() {
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const dataStr = line.replace('data: ', '').trim();
-                        if (dataStr === '[DONE]') continue;
+                        if (dataStr === '[DONE]') {
+                            console.log('🏁 Stream data [DONE]');
+                            continue;
+                        }
                         try {
                             const json = JSON.parse(dataStr);
                             const content = json.choices?.[0]?.delta?.content || '';
+                            
+                            // Even if content is empty (start of stream), we update to clear the '...' placeholder
                             botResponse += content;
+                            console.log('📥 Chunk received:', content ? `"${content}"` : '(metadata)');
+
+                            // Auto-collapse thinking block AS SOON AS </think> is detected
+                            if (!hasCollapsedThinking && botResponse.includes('</think>')) {
+                                hasCollapsedThinking = true;
+                                console.log('🧠 Thinking block completed, collapsing...');
+                                setMessages(prev => {
+                                    const lastIdx = prev.length - 1;
+                                    setCollapsedThinking(c => ({ ...c, [lastIdx]: true }));
+                                    return prev;
+                                });
+                            }
 
                             setMessages(prev => {
                                 const last = [...prev];
+                                const lastMsg = last[last.length - 1];
+                                
+                                // Update content and ensure isSearching is false
                                 last[last.length - 1] = {
-                                    ...last[last.length - 1],
-                                    content: botResponse
+                                    ...lastMsg,
+                                    content: botResponse,
+                                    isSearching: false
                                 };
                                 return last;
                             });
@@ -309,52 +436,15 @@ export default function ChatPage() {
                 }
             }
 
-            // Auto-collapse thinking block when finished
-            if (botResponse.includes('</think>')) {
-                setMessages(prev => {
-                    const lastIdx = prev.length - 1;
-                    setCollapsedThinking(c => ({ ...c, [lastIdx]: true }));
-                    return prev;
+            // Save Assistant Message
+            if (user && chatId && botResponse) {
+                await supabase.from('messages').insert({
+                    chat_id: chatId,
+                    role: 'assistant',
+                    content: botResponse,
+                    created_at: new Date().toISOString()
                 });
-            }
-
-            // Save to DB
-            if (user) {
-                try {
-                    const payload = {
-                        id: currentChatId || undefined,
-                        user_id: user.id,
-                        title: (input || '').slice(0, 30) || 'Nuevo Chat',
-                        created_at: new Date().toISOString()
-                    };
-
-                    const { data, error } = await supabase.from('chats').upsert(payload).select().single();
-
-                    // Insert messages separately if needed
-                    if (!currentChatId && botResponse) {
-                        await supabase.from('messages').insert({
-                            chat_id: data.id,
-                            role: 'assistant',
-                            content: botResponse,
-                            created_at: new Date().toISOString()
-                        });
-                    }
-                    if (error) {
-                        const { ui } = formatAndLogSupabaseError(error);
-                        console.warn('Upsert chat error:', ui);
-                    }
-
-                    if (data && !currentChatId) {
-                        setCurrentChatId(data.id);
-                        fetchChats(user.id);
-                    } else {
-                        // Refresh list to reflect update
-                        fetchChats(user.id);
-                    }
-                } catch (err) {
-                    const { ui } = formatAndLogSupabaseError(err);
-                    console.warn('Save chat failed:', ui);
-                }
+                fetchChats(user.id);
             }
 
         } catch (err) {
@@ -402,6 +492,36 @@ export default function ChatPage() {
                     timestamp: new Date().toISOString()
                 };
                 setMessages(prev => [...prev, userMsg]);
+
+                // Save User Message to DB
+                let chatId = currentChatId;
+                if (user) {
+                    try {
+                        if (!chatId) {
+                            const { data: chatData } = await supabase.from('chats').insert({
+                                user_id: user.id,
+                                title: 'Análisis de Imagen',
+                                created_at: new Date().toISOString()
+                            }).select().single();
+                            if (chatData) {
+                                chatId = chatData.id;
+                                setCurrentChatId(chatId);
+                                fetchChats(user.id);
+                            }
+                        }
+                        if (chatId) {
+                            await supabase.from('messages').insert({
+                                chat_id: chatId,
+                                role: 'user',
+                                content: userMsg.content,
+                                image: userMsg.image,
+                                created_at: new Date().toISOString()
+                            });
+                        }
+                    } catch (dbErr) {
+                        console.error('❌ Error saving user image message:', dbErr);
+                    }
+                }
 
                 // Add thinking placeholder
                 setMessages(prev => [...prev, {
@@ -466,17 +586,9 @@ export default function ChatPage() {
                         }
                     }
 
-                    // Update assistant message with analysis
+                    // Update assistant message with analysis (SILENT - only in console for debugging)
                     console.log('✅ Vision analysis complete (' + chunkCount + ' chunks):', description.slice(0, 100) + '...');
-                    setMessages(prev => {
-                        const updated = [...prev];
-                        updated[updated.length - 1] = {
-                            ...updated[updated.length - 1],
-                            content: description || 'Análisis completado.'
-                        };
-                        return updated;
-                    });
-
+                    
                     // Now send this analysis to SigmaLLM 1 for response
                     console.log('📋 Building chat messages for SigmaLLM 1...');
                     const messagesForChat = [
@@ -487,17 +599,10 @@ export default function ChatPage() {
                         },
                         {
                             role: 'user',
-                            content: description
+                            content: `Basado en el análisis de la imagen: ${description}. Responde a lo que se ve o a la consulta del usuario.`
                         }
                     ];
                     console.log('📤 Calling /api/chat with model:', selectedModel.modelId);
-
-                    // Call chat API with selected model (SigmaLLM 1) to respond
-                    setMessages(prev => [...prev, {
-                        role: 'assistant',
-                        content: '...',
-                        timestamp: new Date().toISOString()
-                    }]);
 
                     const chatResponse = await fetch('/api/chat', {
                         method: 'POST',
@@ -519,7 +624,8 @@ export default function ChatPage() {
 
                     const chatReader = chatResponse.body.getReader();
                     let sigmaResponse = '';
-                    let chatChunkCount = 0;
+                    let reasoningContent = '';
+                    let hasCollapsedThinking = false;
 
                     while (true) {
                         const { done, value } = await chatReader.read();
@@ -534,25 +640,62 @@ export default function ChatPage() {
                                 if (dataStr === '[DONE]') continue;
                                 try {
                                     const json = JSON.parse(dataStr);
-                                    const content = json.choices?.[0]?.delta?.content || '';
-                                    sigmaResponse += content;
-                                    chatChunkCount++;
+                                    const delta = json.choices?.[0]?.delta || {};
+                                    const content = delta.content || '';
+                                    const reasoning = delta.reasoning || '';
+                                    
+                                    if (reasoning) {
+                                        reasoningContent += reasoning;
+                                    }
+
+                                    if (content) {
+                                        sigmaResponse += content;
+                                    }
+
+                                    // Combine reasoning and content
+                                    let fullDisplayContent = sigmaResponse;
+                                    if (reasoningContent) {
+                                        fullDisplayContent = `<think>\n${reasoningContent}\n</think>\n${sigmaResponse}`;
+                                        
+                                        if (!hasCollapsedThinking && sigmaResponse.length > 0) {
+                                            hasCollapsedThinking = true;
+                                            setMessages(prev => {
+                                                const lastIdx = prev.length - 1;
+                                                setCollapsedThinking(c => ({ ...c, [lastIdx]: true }));
+                                                return prev;
+                                            });
+                                        }
+                                    }
 
                                     setMessages(prev => {
                                         const last = [...prev];
                                         last[last.length - 1] = {
                                             ...last[last.length - 1],
-                                            content: sigmaResponse
+                                            content: fullDisplayContent || '...'
                                         };
                                         return last;
                                     });
-                                    if (chatChunkCount % 10 === 0) console.log(`💬 Chat chunk ${chatChunkCount}: "${content.slice(0, 30)}..."`);
                                 } catch (e) { console.log('⚠️ Chat parse error'); }
                             }
                         }
                     }
 
-                    console.log('✅ Chat response complete (' + chatChunkCount + ' chunks)');
+                    console.log('✅ Chat response complete');
+
+                    // Save Assistant Message to DB
+                    if (user && chatId && (sigmaResponse || reasoningContent)) {
+                        const finalContent = reasoningContent 
+                            ? `<think>\n${reasoningContent}\n</think>\n${sigmaResponse}`
+                            : sigmaResponse;
+                            
+                        await supabase.from('messages').insert({
+                            chat_id: chatId,
+                            role: 'assistant',
+                            content: finalContent,
+                            created_at: new Date().toISOString()
+                        });
+                        console.log('✅ Assistant message saved to chat:', chatId);
+                    }
 
                 } catch (err) {
                     console.error('❌ Vision/Chat call failed:', err);
@@ -746,12 +889,11 @@ export default function ChatPage() {
             {/* Main Chat Area */}
             <main className={styles.main}>
                 <header className={styles.header}>
-                    <div className={styles.mobileLeft}>
-                        <button className={styles.iconBtn} onClick={() => setIsSidebarOpen(true)} title="Menú (Ctrl+B)">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <button className={styles.iconBtn} onClick={() => setIsSidebarOpen(true)} style={{ display: 'none' }} title="Menú">
                             <PanelLeft size={20} />
                         </button>
-                    </div>
-                    <div style={{ position: 'relative' }}>
+                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.logoImg} />
                         <div className={styles.modelSelector}>
                             {botName} 🤖
                         </div>
@@ -775,27 +917,32 @@ export default function ChatPage() {
                 <div className={styles.chatContainer} ref={chatContainerRef} onScroll={handleScroll}>
                     {messages.length === 0 ? (
                         <div className={styles.emptyState}>
-                            <img src="/logo_fondo_negro-removebg-preview.png" style={{ width: '80px', height: '80px', marginBottom: '1.5rem', filter: 'drop-shadow(0 0 15px rgba(99, 102, 241, 0.4))' }} alt="Logo" />
                             <h1 className={styles.emptyTitle}>¡{getTimeBasedGreeting()}, {userName.split(' ')[0]}!</h1>
-                            <p style={{ color: '#888', marginTop: '0.5rem' }}>Modelo activo: SigmaLMM 1</p>
+                            <p style={{ color: '#BDBDBD', marginTop: '0.5rem', fontSize: '0.95rem' }}>Modelo activo: {botName}</p>
                         </div>
                     ) : (
                         <div className={styles.messagesList}>
                             {messages.map((msg, idx) => (
-                                <div key={msg.id || idx} className={styles.message}>
+                                <div key={msg.id || idx} className={`${styles.message} ${msg.role === 'user' ? styles.user : ''}`}>
                                     <div className={`${styles.messageAvatar} ${msg.role === 'user' ? styles.userAvatar : styles.botAvatar}`}>
                                         {msg.role === 'user' ? (
                                             profilePic ? <img src={profilePic} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} alt="User" /> : <User size={18} />
                                         ) : <img src="/logo_fondo_negro-removebg-preview.png" style={{ width: '22px', height: '22px', objectFit: 'contain' }} alt="Bot" />}
                                     </div>
-                                    <div style={{ flex: 1 }}>
+                                    <div className={styles.messageWrapper}>
                                         {msg.image && (
-                                            <div style={{ marginBottom: '12px' }}>
+                                            <div style={{ marginBottom: '12px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                                                 <img src={msg.image} alt="Uploaded" style={{ maxWidth: '400px', width: '100%', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
                                             </div>
                                         )}
                                         <div className={styles.messageContent}>
-                                            {msg.content === '...' ? (
+                                            {msg.isSearching && (
+                                                <div className={styles.searchingAnimation}>
+                                                    <Search size={16} className={styles.searchIconAnim} />
+                                                    <span>Buscando en la web...</span>
+                                                </div>
+                                            )}
+                                            {msg.content === '...' && !msg.isSearching ? (
                                                 <div className={styles.loadingContainer}>
                                                     <div className={styles.loadingSpinner}></div>
                                                     <span className={styles.typingText}>{botName} está pensando...</span>
@@ -851,7 +998,32 @@ export default function ChatPage() {
 
                             <form onSubmit={handleSend} className={styles.inputWrapper}>
                                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
-                                <button type="button" className={styles.attachButton} onClick={() => fileInputRef.current?.click()} disabled={isLoading}><Upload size={20} /></button>
+                                
+                                <div ref={attachMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                    <button 
+                                        type="button" 
+                                        className={styles.attachButton} 
+                                        onClick={() => setShowAttachMenu(!showAttachMenu)} 
+                                        disabled={isLoading}
+                                    >
+                                        <Plus size={20} style={{ transform: showAttachMenu ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+
+                                    {showAttachMenu && (
+                                        <div className={styles.attachMenu}>
+                                            <button type="button" onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}>
+                                                <Upload size={16} /> Subir Archivo
+                                            </button>
+                                            <button type="button" onClick={() => { setUseReasoning(!useReasoning); setShowAttachMenu(false); }} className={useReasoning ? styles.activeOption : ''}>
+                                                <Brain size={16} /> Razonamiento {useReasoning ? '(On)' : ''}
+                                            </button>
+                                            <button type="button" onClick={() => { setUseWebSearch(!useWebSearch); setShowAttachMenu(false); }} className={useWebSearch ? styles.activeOption : ''}>
+                                                <Search size={16} /> Buscar en Internet {useWebSearch ? '(On)' : ''}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
                                 <textarea
                                     ref={textareaRef}
                                     className={styles.textarea}
@@ -862,7 +1034,16 @@ export default function ChatPage() {
                                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
                                     disabled={isLoading}
                                 />
-                                <button type="submit" className={styles.sendBtn} disabled={!canSend}><Send size={16} /></button>
+                                
+                                {isLoading || isStreaming ? (
+                                    <button type="button" className={styles.stopBtnInline} onClick={stopStreaming}>
+                                        <Square size={16} fill="white" />
+                                    </button>
+                                ) : (
+                                    <button type="submit" className={styles.sendBtn} disabled={!canSend}>
+                                        <Send size={16} />
+                                    </button>
+                                )}
                             </form>
                         </>
                     )}

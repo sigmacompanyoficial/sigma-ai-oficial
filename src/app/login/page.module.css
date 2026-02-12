@@ -366,6 +366,29 @@
     color: #444;
 }
 
+/* Verification Section */
+.verificationSection {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.verificationText {
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #E2E2E2;
+    background: rgba(99, 102, 241, 0.05);
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.verificationText strong {
+    color: #6366F1;
+    font-weight: 600;
+}
+
 /* RESPONSIVE */
 @media (max-width: 600px) {
     .card {

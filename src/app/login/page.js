@@ -18,6 +18,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
     const cardRef = useRef(null);
@@ -72,8 +73,11 @@ export default function LoginPage() {
                 });
                 if (error) throw error;
                 setSuccess(true);
-                // Redirect immediately to onboarding to avoid delays
-                router.push('/onboarding');
+                setEmailSent(true);
+                setEmail('');
+                setPassword('');
+                setConfirmPassword('');
+                setName('');
             } else {
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
@@ -84,6 +88,34 @@ export default function LoginPage() {
         } catch (err) {
             const { ui } = formatAndLogSupabaseError(err);
             setError(ui || 'Error en la autenticación');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleVerifyEmail = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                setError('Usuario no autenticado');
+                setLoading(false);
+                return;
+            }
+
+            if (!user.email_confirmed_at) {
+                setError('❌ No te has verificado. Revisa tu correo y verifica tu cuenta.');
+                setLoading(false);
+                return;
+            }
+
+            setSuccess(true);
+            setEmailSent(false);
+            await checkUserStatus(user);
+        } catch (err) {
+            const { ui } = formatAndLogSupabaseError(err);
+            setError(ui || 'Error al verificar');
         } finally {
             setLoading(false);
         }
@@ -143,112 +175,142 @@ export default function LoginPage() {
                 {/* Auth Card */}
                 <div ref={cardRef} className={styles.card}>
                     <div className={styles.cardHeader}>
-                        <h2>{isSignUp ? '✨ Únete a Sigma' : '👋 Hola de nuevo'}</h2>
-                        <p>{isSignUp ? 'Crea tu cuenta en segundos' : 'Accede a tus modelos favoritos'}</p>
+                        <h2>{emailSent ? '📧 Verificación Enviada' : isSignUp ? '✨ Únete a Sigma' : '👋 Hola de nuevo'}</h2>
+                        <p>{emailSent ? 'Revisa tu correo para confirmar tu cuenta' : isSignUp ? 'Crea tu cuenta en segundos' : 'Accede a tus modelos favoritos'}</p>
                     </div>
 
-                    <form onSubmit={handleAuth} className={styles.form}>
-                        {isSignUp && (
-                            <div className={styles.inputGroup}>
-                                <label className={styles.label}>
-                                    <User size={18} />
-                                    <span>Tu Nombre</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Nombre"
-                                    className={styles.input}
-                                    required={isSignUp}
-                                />
-                            </div>
-                        )}
-
-                        <div className={styles.inputGroup}>
-                            <label className={styles.label}>
-                                <Mail size={18} />
-                                <span>Correo Electrónico</span>
-                            </label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="tu@email.com"
-                                className={styles.input}
-                                required
-                            />
+                    {emailSent ? (
+                        <div className={styles.verificationSection}>
+                            <p className={styles.verificationText}>
+                                Hemos enviado un correo de confirmación a <strong>{email}</strong>. 
+                                Verifica tu cuenta haciendo clic en el enlace que recibiste.
+                            </p>
+                            <button 
+                                type="button" 
+                                className={styles.submitBtn} 
+                                onClick={handleVerifyEmail}
+                                disabled={loading}
+                            >
+                                {loading ? <div className={styles.loader}></div> : <span>✅ Ya he verificado</span>}
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.switchBtn}
+                                onClick={() => {
+                                    setEmailSent(false);
+                                    setError(null);
+                                    setIsSignUp(true);
+                                }}
+                            >
+                                ← Volver al registro
+                            </button>
                         </div>
+                    ) : (
+                        <>
+                            <form onSubmit={handleAuth} className={styles.form}>
+                                {isSignUp && (
+                                    <div className={styles.inputGroup}>
+                                        <label className={styles.label}>
+                                            <User size={18} />
+                                            <span>Tu Nombre</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            placeholder="Nombre"
+                                            className={styles.input}
+                                            required={isSignUp}
+                                        />
+                                    </div>
+                                )}
 
-                        <div className={styles.inputGroup}>
-                            <label className={styles.label}>
-                                <Lock size={18} />
-                                <span>Contraseña</span>
-                            </label>
-                            <div className={styles.passwordWrapper}>
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className={styles.input}
-                                    required
-                                />
-                                <button
-                                    type="button"
-                                    className={styles.eyeBtn}
-                                    onClick={() => setShowPassword(!showPassword)}
-                                >
-                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.label}>
+                                        <Mail size={18} />
+                                        <span>Correo Electrónico</span>
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="tu@email.com"
+                                        className={styles.input}
+                                        required
+                                    />
+                                </div>
+
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.label}>
+                                        <Lock size={18} />
+                                        <span>Contraseña</span>
+                                    </label>
+                                    <div className={styles.passwordWrapper}>
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            placeholder="••••••••"
+                                            className={styles.input}
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            className={styles.eyeBtn}
+                                            onClick={() => setShowPassword(!showPassword)}
+                                        >
+                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {isSignUp && (
+                                    <div className={styles.inputGroup}>
+                                        <label className={styles.label}>
+                                            <Lock size={18} />
+                                            <span>Confirma Contraseña</span>
+                                        </label>
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            placeholder="••••••••"
+                                            className={styles.input}
+                                            required={isSignUp}
+                                        />
+                                    </div>
+                                )}
+
+                                {error && <div className={styles.error}>{error}</div>}
+                                {success && <div className={styles.success}>✅ Redirigiendo...</div>}
+
+                                <button type="submit" className={styles.submitBtn} disabled={loading} onClick={animateButton}>
+                                    {loading ? <div className={styles.loader}></div> : <span>{isSignUp ? 'Registrarse' : 'Entrar Now'}</span>}
                                 </button>
+                            </form>
+
+                            <div className={styles.divider}>
+                                <span>o</span>
                             </div>
-                        </div>
 
-                        {isSignUp && (
-                            <div className={styles.inputGroup}>
-                                <label className={styles.label}>
-                                    <Lock size={18} />
-                                    <span>Confirma Contraseña</span>
-                                </label>
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="••••••••"
-                                    className={styles.input}
-                                    required={isSignUp}
-                                />
-                            </div>
-                        )}
+                            <button type="button" className={`${styles.googleBtn} google-btn-anim`} onClick={handleGoogleLogin}>
+                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className={styles.googleIcon} />
+                                <span>Google</span>
+                            </button>
 
-                        {error && <div className={styles.error}>{error}</div>}
-                        {success && <div className={styles.success}>✅ Redirigiendo...</div>}
-
-                        <button type="submit" className={styles.submitBtn} disabled={loading} onClick={animateButton}>
-                            {loading ? <div className={styles.loader}></div> : <span>{isSignUp ? 'Registrarse' : 'Entrar Now'}</span>}
-                        </button>
-                    </form>
-
-                    <div className={styles.divider}>
-                        <span>o</span>
-                    </div>
-
-                    <button type="button" className={`${styles.googleBtn} google-btn-anim`} onClick={handleGoogleLogin}>
-                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className={styles.googleIcon} />
-                        <span>Google</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        className={styles.switchBtn}
-                        onClick={(e) => {
-                            animateButton(e);
-                            setIsSignUp(!isSignUp);
-                            setError(null);
-                        }}
-                    >
-                        {isSignUp ? '¿Ya tienes cuenta? Login' : '¿No tienes cuenta? Registro'}
-                    </button>
+                            <button
+                                type="button"
+                                className={styles.switchBtn}
+                                onClick={(e) => {
+                                    animateButton(e);
+                                    setIsSignUp(!isSignUp);
+                                    setError(null);
+                                }}
+                            >
+                                {isSignUp ? '¿Ya tienes cuenta? Login' : '¿No tienes cuenta? Registro'}
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 <p className={styles.footer}>
