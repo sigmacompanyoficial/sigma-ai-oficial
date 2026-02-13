@@ -207,12 +207,78 @@
     }
 }
 
+.inputGroup {
+    width: 100%;
+    margin: 1.5rem 0;
+}
+
+.input {
+    width: 100%;
+    padding: 1.2rem;
+    background: #111111;
+    border: 1px solid #222222;
+    border-radius: 16px;
+    color: #ffffff;
+    font-size: 1.1rem;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.input:focus {
+    border-color: #6366f1;
+    background: #151515;
+    outline: none;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.1);
+}
+
+.inputError {
+    border-color: #ef4444;
+}
+
+.errorText {
+    color: #ef4444;
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+.stepDescription {
+    color: #666;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
 @media (max-width: 640px) {
+    .container {
+        padding: 1rem;
+    }
+
     .card {
         padding: 2rem 1.5rem;
+        border-radius: 24px;
+        width: 100%;
+    }
+
+    .header h1 {
+        font-size: 1.8rem;
+    }
+
+    .header p {
+        font-size: 0.85rem;
     }
 
     .options {
         grid-template-columns: 1fr;
+    }
+
+    .optionBtn {
+        padding: 0.8rem;
+        font-size: 0.85rem;
+    }
+
+    .nextBtn, .finishBtn {
+        padding: 1rem;
     }
 }

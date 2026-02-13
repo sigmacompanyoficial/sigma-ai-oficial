@@ -4,7 +4,8 @@ import {
     Plus, Search, Image as ImageIcon, X,
     ChevronDown, Settings, Mic, Send, User, Bot, Sparkles, MessageSquare, LogOut, Camera,
     Copy, Check, Trash2, AlertCircle, Upload,
-    ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square
+    ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square,
+    Archive, Flag, BarChart3, Zap
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -18,19 +19,23 @@ import styles from './page.module.css';
 import { models } from '@/lib/models';
 import { uploadAndExtractFile } from '@/lib/fileParser';
 
+const guestModel = { modelId: 'openai/gpt-oss-120b:free', modelName: 'Sigma LLM 1 Mini', provider: 'openrouter', hostedId: 'openai/gpt-oss-120b:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
+
 export default function ChatPage() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [selectedModel, setSelectedModel] = useState(models[0]);
+    const [isGuest, setIsGuest] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [showModelDropdown, setShowModelDropdown] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [error, setError] = useState(null);
 
     // User Profile States
     const [userName, setUserName] = useState('Ayoub Louah');
     const [userRole, setUserRole] = useState('Admin @ Sigma');
-    const [botName, setBotName] = useState('SigmaLMM 1');
+    const [botName, setBotName] = useState('Sigma LLM 1');
     const [profilePic, setProfilePic] = useState('');
     const [systemInstructions, setSystemInstructions] = useState('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
     const [useEmojis, setUseEmojis] = useState(true);
@@ -47,6 +52,8 @@ export default function ChatPage() {
     const [botTone, setBotTone] = useState('Profesional');
     const [detailLevel, setDetailLevel] = useState('Medio');
     const [memoryEnabled, setMemoryEnabled] = useState(true);
+    const [totalMessages, setTotalMessages] = useState(0);
+    const [totalTokens, setTotalTokens] = useState(0);
 
     const [selectedImage, setSelectedImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -64,7 +71,7 @@ export default function ChatPage() {
     const [mounted, setMounted] = useState(false);
 
     const chatContainerRef = useRef(null);
-    const isAtBottomRef = useRef(true);
+    const isAtBottomRef = useRef(true); // Inicializar como true para hacer scroll al inicio
     const messagesEndRef = useRef(null);
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -110,26 +117,46 @@ export default function ChatPage() {
     };
 
     const scrollToBottom = (behavior = "auto", force = false) => {
-        if (chatContainerRef.current && (isAtBottomRef.current || force)) {
-            const container = chatContainerRef.current;
-            if (behavior === "smooth") {
-                container.scrollTo({
-                    top: container.scrollHeight,
-                    behavior: "smooth"
-                });
-            } else {
-                container.scrollTop = container.scrollHeight;
+        if (!chatContainerRef.current) return;
+        
+        const doScroll = () => {
+            if (chatContainerRef.current) {
+                const container = chatContainerRef.current;
+                if (behavior === "smooth") {
+                    container.scrollTo({
+                        top: container.scrollHeight,
+                        behavior: "smooth"
+                    });
+                } else {
+                    container.scrollTop = container.scrollHeight;
+                }
             }
+        };
+        
+        // Usar requestAnimationFrame para asegurar que el DOM se ha actualizado
+        if (force || isAtBottomRef.current) {
+            requestAnimationFrame(() => {
+                setTimeout(doScroll, 0);
+            });
         }
     };
 
+    // Agregar event listener de scroll
     useEffect(() => {
-        if (isLoading) {
-            scrollToBottom("auto");
-        } else if (messages.length > 0) {
-            scrollToBottom("smooth");
+        const container = chatContainerRef.current;
+        if (container) {
+            container.addEventListener('scroll', handleScroll);
+            return () => container.removeEventListener('scroll', handleScroll);
         }
-    }, [messages]);
+    }, []);
+
+    // Scroll cuando cambian los mensajes
+    useEffect(() => {
+        if (messages.length > 0) {
+            // Force scroll cuando hay nuevos mensajes (usuario agrega mensaje)
+            scrollToBottom("auto", true);
+        }
+    }, [messages.length]);
 
     useEffect(() => {
         const checkUser = async () => {
@@ -138,16 +165,33 @@ export default function ChatPage() {
             const chatIdFromUrl = urlParams.get('id');
 
             if (!user) {
-                if (chatIdFromUrl) {
-                    window.location.href = `/login?redirectTo=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-                    return;
-                }
-                window.location.href = '/login';
+                console.log('👤 Modo Invitado activado');
+                setIsGuest(true);
+                setSelectedModel(guestModel);
+                setBotName('Sigma LLM 1 Mini');
+                setSystemInstructions('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
+                console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
+                console.log('📋 Instrucciones del sistema establecidas');
                 return;
             }
 
             setUser(user);
+            setIsGuest(false);
+            
+            // Verificación de Onboarding
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('onboarding_completed')
+                .eq('id', user.id)
+                .single();
+
+            if (!profile || !profile.onboarding_completed) {
+                window.location.href = '/onboarding';
+                return;
+            }
+
             fetchChats(user.id);
+            fetchStats(user.id);
 
             if (chatIdFromUrl) {
                 loadChat(chatIdFromUrl, user.id);
@@ -155,6 +199,19 @@ export default function ChatPage() {
         };
         if (mounted) checkUser();
     }, [mounted]);
+
+    const fetchStats = async (userId) => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('total_messages, total_tokens')
+            .eq('id', userId)
+            .single();
+        
+        if (!error && data) {
+            setTotalMessages(data.total_messages || 0);
+            setTotalTokens(data.total_tokens || 0);
+        }
+    };
 
     const fetchChats = async (userId) => {
         try {
@@ -165,6 +222,7 @@ export default function ChatPage() {
                     title,
                     user_id,
                     created_at,
+                    is_archived,
                     messages (
                         id,
                         role,
@@ -202,6 +260,7 @@ export default function ChatPage() {
                     title,
                     user_id,
                     created_at,
+                    is_archived,
                     messages (
                         id,
                         role,
@@ -239,12 +298,37 @@ export default function ChatPage() {
         setIsSidebarOpen(false); // Close sidebar on mobile
     };
 
+    const archiveChat = async (chatId, undo = false) => {
+        const { error } = await supabase
+            .from('chats')
+            .update({ is_archived: !undo })
+            .eq('id', chatId);
+        
+        if (!error) {
+            fetchChats(user.id);
+            if (currentChatId === chatId && !undo) createNewChat();
+            setShowMoreMenu(false);
+        } else {
+            console.warn('Error archiving/unarchiving chat:', error);
+            // Fallback local
+            setSavedChats(prev => prev.map(c => c.id === chatId ? { ...c, is_archived: !undo } : c));
+            if (currentChatId === chatId && !undo) createNewChat();
+            setShowMoreMenu(false);
+        }
+    };
+
+    const reportChat = (chatId) => {
+        alert('Este chat ha sido denunciado. Revisaremos el contenido a la brevedad.');
+        setShowMoreMenu(false);
+    };
+
     const deleteChat = async (chatId, e) => {
-        e.stopPropagation();
+        if (e) e.stopPropagation();
         const { error } = await supabase.from('chats').delete().eq('id', chatId);
         if (!error) {
             fetchChats(user.id);
             if (currentChatId === chatId) createNewChat();
+            setShowMoreMenu(false);
         }
     };
 
@@ -254,6 +338,30 @@ export default function ChatPage() {
             setIsStreaming(false);
             setIsLoading(false);
         }
+    };
+
+    const updateUserStats = async (tokens) => {
+        if (isGuest) {
+            console.log('📊 [INVITADO] Mensaje enviado, tokens estimados:', tokens);
+            return;
+        }
+        if (!user) return;
+        
+        const newTotalMessages = totalMessages + 1;
+        const newTotalTokens = totalTokens + tokens;
+        
+        setTotalMessages(newTotalMessages);
+        setTotalTokens(newTotalTokens);
+
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                total_messages: newTotalMessages,
+                total_tokens: newTotalTokens
+            })
+            .eq('id', user.id);
+        
+        if (error) console.warn('Error updating user stats:', error);
     };
 
     const handleSend = async (e) => {
@@ -278,7 +386,10 @@ export default function ChatPage() {
 
         // Save User Message and Get Chat ID
         let chatId = currentChatId;
-        if (user) {
+        if (isGuest) {
+            console.log('💬 [INVITADO] Mensaje de usuario:', input);
+            console.log('🖼️ [INVITADO] Imagen adjunta:', !!userMsg.image);
+        } else if (user) {
             console.log('💾 Saving user message to DB...');
             try {
                 if (!chatId) {
@@ -320,7 +431,13 @@ export default function ChatPage() {
 
         try {
             let modelToUse = useReasoning ? 'nvidia/nemotron-nano-12b-v2-vl:free' : selectedModel.modelId;
-            console.log('🚀 Using model:', modelToUse);
+            if (isGuest) {
+                console.log('🚀 [INVITADO] Modelo: Sigma LLM 1 Mini');
+                console.log('🆔 [INVITADO] ID del modelo:', modelToUse);
+                console.log('📤 [INVITADO] Enviando solicitud a OpenRouter/Chat API...');
+            } else {
+                console.log('🚀 Using model:', modelToUse);
+            }
             
             // Real Web Search Logic
             let searchContext = "";
@@ -400,7 +517,12 @@ export default function ChatPage() {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) {
-                    console.log('✅ Stream finished');
+                    if (isGuest) {
+                        console.log('✅ [INVITADO] Stream completado');
+                        console.log('📊 [INVITADO] Longitud de respuesta:', botResponse.length);
+                    } else {
+                        console.log('✅ Stream finished');
+                    }
                     break;
                 }
 
@@ -420,7 +542,9 @@ export default function ChatPage() {
                             
                             // Even if content is empty (start of stream), we update to clear the '...' placeholder
                             botResponse += content;
-                            console.log('📥 Chunk received:', content ? `"${content}"` : '(metadata)');
+                            if (isGuest && content) {
+                                console.log('📥 [INVITADO] Chunk recibido:', `"${content}"`);
+                            }
 
                             // Auto-collapse thinking block AS SOON AS </think> is detected
                             if (!hasCollapsedThinking && botResponse.includes('</think>')) {
@@ -451,7 +575,9 @@ export default function ChatPage() {
             }
 
             // Save Assistant Message
-            if (user && chatId && botResponse) {
+            if (isGuest) {
+                console.log('🤖 [INVITADO] Respuesta de Sigma LLM 1 Mini:', botResponse.slice(0, 100) + '...');
+            } else if (user && chatId && botResponse) {
                 // Check if the response is a SEARCH command
                 if (botResponse.startsWith('SEARCH:')) {
                     const searchQuery = botResponse.replace('SEARCH:', '').trim();
@@ -566,6 +692,11 @@ export default function ChatPage() {
                     content: botResponse,
                     created_at: new Date().toISOString()
                 });
+                
+                // Update Statistics
+                const estimatedTokens = Math.ceil(botResponse.length / 4) + 10;
+                updateUserStats(estimatedTokens);
+
                 fetchChats(user.id);
             }
 
@@ -816,6 +947,11 @@ export default function ChatPage() {
                             content: finalContent,
                             created_at: new Date().toISOString()
                         });
+                        
+                        // Update Statistics
+                        const estimatedTokens = Math.ceil(finalContent.length / 4) + 50; // Extra tokens for image analysis
+                        updateUserStats(estimatedTokens);
+
                         console.log('✅ Assistant message saved to chat:', chatId);
                     }
 
@@ -989,11 +1125,11 @@ export default function ChatPage() {
                 <div className={styles.sidebarContent}>
                     <div className={styles.sidebarSection}>
                         <div className={styles.sidebarHeading}>{sidebarSearch ? 'Resultados de búsqueda' : 'Recientes'}</div>
-                        {savedChats.filter(chat => 
+                        {savedChats.filter(chat => !chat.is_archived).filter(chat => 
                             chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
                             chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
                         ).length > 0 ? (
-                            savedChats.filter(chat => 
+                            savedChats.filter(chat => !chat.is_archived).filter(chat => 
                                 chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
                                 chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
                             ).map(chat => (
@@ -1003,14 +1139,46 @@ export default function ChatPage() {
                                     onClick={() => loadChat(chat.id, user?.id)}
                                 >
                                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
-                                    <button onClick={(e) => deleteChat(chat.id, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }}>
-                                        <Trash2 size={14} />
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Archivar">
+                                            <Archive size={14} />
+                                        </button>
+                                        <button onClick={(e) => deleteChat(chat.id, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Eliminar">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         ) : (
                             <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
-                                {sidebarSearch ? 'No se encontraron chats' : 'Sin chats guardados'}
+                                {sidebarSearch ? 'No se encontraron chats' : 'Sin chats recientes'}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className={styles.sidebarSection}>
+                        <div className={styles.sidebarHeading}>Chats archivados</div>
+                        {savedChats.filter(chat => chat.is_archived).length > 0 ? (
+                            savedChats.filter(chat => chat.is_archived).map(chat => (
+                                <div
+                                    key={chat.id}
+                                    className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
+                                    onClick={() => loadChat(chat.id, user?.id)}
+                                >
+                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                        <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id, true); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Desarchivar">
+                                            <RotateCcw size={14} />
+                                        </button>
+                                        <button onClick={(e) => deleteChat(chat.id, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Eliminar">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
+                                No hay chats archivados
                             </div>
                         )}
                     </div>
@@ -1037,34 +1205,91 @@ export default function ChatPage() {
             {/* Main Chat Area */}
             <main className={styles.main}>
                 <header className={styles.header}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div className={styles.headerLeft}>
                         <button className={styles.mobileMenuBtn} onClick={() => setIsSidebarOpen(true)} title="Menú">
                             <PanelLeft size={20} />
                         </button>
-                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.logoImg} />
-                        <div className={styles.modelSelector}>
-                            {botName} 🤖
+                        <div className={styles.modelSelectorWrapper}>
+                            <div className={styles.modelSelector} onClick={() => setShowModelDropdown(!showModelDropdown)}>
+                                <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : 'Sigma LLM 1'}</span>
+                                <ChevronDown size={16} className={styles.chevronIcon} />
+                            </div>
+                            
+                            {showModelDropdown && (
+                                <div className={styles.modelDropdown}>
+                                    <div 
+                                        className={`${styles.modelOption} ${!useReasoning ? styles.activeModel : ''}`}
+                                        onClick={() => {
+                                            setUseReasoning(false);
+                                            setShowModelDropdown(false);
+                                            setBotName('SigmaLLM 1');
+                                        }}
+                                    >
+                                        <div className={styles.modelOptionHeader}>
+                                            <Sparkles size={16} />
+                                            <span>Sigma LLM 1</span>
+                                        </div>
+                                        <p className={styles.modelDescription}>Nuestro modelo estándar, rápido y eficiente.</p>
+                                    </div>
+                                    <div 
+                                        className={`${styles.modelOption} ${useReasoning ? styles.activeModel : ''}`}
+                                        onClick={() => {
+                                            setUseReasoning(true);
+                                            setShowModelDropdown(false);
+                                            setBotName('SigmaLLM 1 Reasoning');
+                                        }}
+                                    >
+                                        <div className={styles.modelOptionHeader}>
+                                            <Brain size={16} />
+                                            <span>Sigma LLM 1 Reasoning</span>
+                                        </div>
+                                        <p className={styles.modelDescription}>Pensamiento avanzado para tareas complejas.</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
+
                     <div className={styles.headerActions}>
-                        <div style={{ background: 'linear-gradient(135deg, #00c853, #00e676)', color: 'white', padding: '6px 16px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ width: '6px', height: '6px', background: 'white', borderRadius: '50%', animation: 'pulse 2s infinite' }}></div>
-                            Online
-                        </div>
-                        {isStreaming ? (
-                            <button className={styles.stopBtn} onClick={stopStreaming} title="Detener generación">
-                                <Square size={18} />
-                                <span className={styles.stopLabel}>Stop</span>
+                        <button 
+                            className={styles.shareButton}
+                            onClick={() => {
+                                navigator.clipboard.writeText(window.location.href);
+                                alert('Enlace copiado al portapapeles');
+                            }}
+                        >
+                            <Upload size={16} />
+                            <span>Compartir</span>
+                        </button>
+                        <div className={styles.moreMenuWrapper}>
+                            <button className={styles.iconBtn} onClick={() => setShowMoreMenu(!showMoreMenu)}>
+                                <MoreHorizontal size={20} />
                             </button>
-                        ) : (
-                            <button className={styles.iconBtn} onClick={() => setShowSettings(true)} title="Configuración"><Settings size={20} /></button>
-                        )}
+                            
+                            {showMoreMenu && (
+                                <div className={styles.moreMenuDropdown}>
+                                    <div className={styles.moreMenuOption} onClick={() => archiveChat(currentChatId)}>
+                                        <Archive size={16} />
+                                        <span>Archivar chat</span>
+                                    </div>
+                                    <div className={styles.moreMenuOption} onClick={() => reportChat(currentChatId)}>
+                                        <Flag size={16} />
+                                        <span>Denunciar chat</span>
+                                    </div>
+                                    <div className={`${styles.moreMenuOption} ${styles.deleteOption}`} onClick={() => deleteChat(currentChatId)}>
+                                        <Trash2 size={16} />
+                                        <span>Eliminar chat</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </header>
 
                 <div className={styles.chatContainer} ref={chatContainerRef} onScroll={handleScroll}>
                     {messages.length === 0 ? (
                         <div className={styles.emptyState}>
+                            <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.emptyLogo} />
                             <h1 className={styles.emptyTitle}>¡{getTimeBasedGreeting()}, {userName.split(' ')[0]}!</h1>
                             <p style={{ color: '#BDBDBD', marginTop: '0.5rem', fontSize: '0.95rem' }}>Modelo activo: {botName}</p>
                         </div>
@@ -1200,13 +1425,14 @@ export default function ChatPage() {
                         <div className={styles.settingsSidebar}>
                             <h2 className={styles.settingsTitle}>Ajustes</h2>
                             <div className={styles.settingsNav}>
-                                {['General', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta'].map(tab => (
+                                {['General', 'Estadísticas', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta'].map(tab => (
                                     <button 
                                         key={tab}
                                         className={`${styles.settingsTab} ${activeSettingsTab === tab ? styles.activeSettingsTab : ''}`}
                                         onClick={() => setActiveSettingsTab(tab)}
                                     >
                                         {tab === 'General' && <Settings size={16} />}
+                                        {tab === 'Estadísticas' && <BarChart3 size={16} />}
                                         {tab === 'Notificaciones' && <AlertCircle size={16} />}
                                         {tab === 'Personalización' && <Sparkles size={16} />}
                                         {tab === 'Aplicaciones' && <Plus size={16} />}
@@ -1259,6 +1485,45 @@ export default function ChatPage() {
                                                 <option>Inglés</option>
                                                 <option>Francés</option>
                                             </select>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Estadísticas' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.statsGrid}>
+                                            <div className={styles.statCard}>
+                                                <div className={styles.statIcon} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                                                    <MessageSquare size={20} />
+                                                </div>
+                                                <div className={styles.statInfo}>
+                                                    <span className={styles.statLabel}>Mensajes enviados</span>
+                                                    <span className={styles.statValue}>{totalMessages}</span>
+                                                </div>
+                                            </div>
+                                            <div className={styles.statCard}>
+                                                <div className={styles.statIcon} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
+                                                    <Zap size={20} />
+                                                </div>
+                                                <div className={styles.statInfo}>
+                                                    <span className={styles.statLabel}>Tokens utilizados</span>
+                                                    <span className={styles.statValue}>{totalTokens.toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                            <div className={styles.statCard}>
+                                                <div className={styles.statIcon} style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                                                    <Check size={20} />
+                                                </div>
+                                                <div className={styles.statInfo}>
+                                                    <span className={styles.statLabel}>Chats creados</span>
+                                                    <span className={styles.statValue}>{savedChats.length}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className={styles.usageChartPlaceholder}>
+                                            <div className={styles.placeholderIcon}><BarChart3 size={32} /></div>
+                                            <p>El historial detallado de uso estará disponible próximamente.</p>
                                         </div>
                                     </div>
                                 )}

@@ -9,6 +9,8 @@ export default function OnboardingPage() {
     const [step, setStep] = useState(1);
     const [howKnown, setHowKnown] = useState('');
     const [usageIntent, setUsageIntent] = useState('');
+    const [username, setUsername] = useState('');
+    const [usernameError, setUsernameError] = useState('');
     const [loading, setLoading] = useState(false);
     const [user, setUser] = useState(null);
     const router = useRouter();
@@ -37,19 +39,39 @@ export default function OnboardingPage() {
 
     const handleComplete = async () => {
         if (!user) return;
+        if (!username) {
+            setStep(1);
+            setUsernameError('Por favor elige un nombre de usuario.');
+            return;
+        }
+
+        // Check if username already exists
+        const { data: existingUser } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('username', username.trim().toLowerCase())
+            .single();
+
+        if (existingUser && existingUser.id !== user.id) {
+            setStep(1);
+            setUsernameError('Este nombre de usuario ya está en uso.');
+            return;
+        }
+
         console.log('🏁 Completing onboarding for user:', user.email);
         setLoading(true);
         try {
-            console.log('📝 Saving profile data:', { howKnown, usageIntent });
+            console.log('📝 Saving profile data:', { howKnown, usageIntent, username });
             const { error } = await supabase
                 .from('profiles')
-                .update({
+                .upsert({
+                    id: user.id,
+                    username: username.trim().toLowerCase(),
                     how_known: howKnown,
                     usage_intent: usageIntent,
                     onboarding_completed: true,
                     updated_at: new Date().toISOString()
-                })
-                .eq('id', user.id);
+                });
 
             if (error) throw error;
             console.log('✅ Onboarding completed successfully.');
@@ -84,9 +106,35 @@ export default function OnboardingPage() {
                     <div className={styles.steps}>
                         <div className={`${styles.stepIndicator} ${step >= 1 ? styles.active : ''}`}></div>
                         <div className={`${styles.stepIndicator} ${step >= 2 ? styles.active : ''}`}></div>
+                        <div className={`${styles.stepIndicator} ${step >= 3 ? styles.active : ''}`}></div>
                     </div>
 
                     {step === 1 ? (
+                        <div className={styles.stepContent}>
+                            <h2>Elige tu nombre de usuario</h2>
+                            <p className={styles.stepDescription}>Con este nombre podrás iniciar sesión en lugar de tu correo.</p>
+                            <div className={styles.inputGroup}>
+                                <input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => {
+                                        setUsername(e.target.value);
+                                        setUsernameError('');
+                                    }}
+                                    placeholder="@usuario"
+                                    className={`${styles.input} ${usernameError ? styles.inputError : ''}`}
+                                />
+                                {usernameError && <p className={styles.errorText}>{usernameError}</p>}
+                            </div>
+                            <button
+                                className={styles.nextBtn}
+                                disabled={!username}
+                                onClick={() => setStep(2)}
+                            >
+                                Siguiente <Send size={18} />
+                            </button>
+                        </div>
+                    ) : step === 2 ? (
                         <div className={styles.stepContent}>
                             <h2>¿De dónde nos has conocido?</h2>
                             <div className={styles.options}>
@@ -100,13 +148,16 @@ export default function OnboardingPage() {
                                     </button>
                                 ))}
                             </div>
-                            <button
-                                className={styles.nextBtn}
-                                disabled={!howKnown}
-                                onClick={() => setStep(2)}
-                            >
-                                Siguiente <Send size={18} />
-                            </button>
+                            <div className={styles.actions}>
+                                <button className={styles.backBtn} onClick={() => setStep(1)}>Atrás</button>
+                                <button
+                                    className={styles.nextBtn}
+                                    disabled={!howKnown}
+                                    onClick={() => setStep(3)}
+                                >
+                                    Siguiente <Send size={18} />
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <div className={styles.stepContent}>
@@ -123,7 +174,7 @@ export default function OnboardingPage() {
                                 ))}
                             </div>
                             <div className={styles.actions}>
-                                <button className={styles.backBtn} onClick={() => setStep(1)}>Atrás</button>
+                                <button className={styles.backBtn} onClick={() => setStep(2)}>Atrás</button>
                                 <button
                                     className={styles.finishBtn}
                                     disabled={!usageIntent || loading}

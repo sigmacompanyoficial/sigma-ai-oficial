@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import supabase from '@/lib/supabaseClient';
 import { formatAndLogSupabaseError, formatAndLogSupabaseResult } from '@/lib/supabaseHelpers';
 import styles from './page.module.css';
-import { Sparkles, Mail, Lock, User, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, Eye, EyeOff, ArrowLeft, Github, AlertTriangle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import gsap from 'gsap';
 
 export default function LoginPage() {
     const [isSignUp, setIsSignUp] = useState(false);
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -19,14 +20,26 @@ export default function LoginPage() {
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
     const [emailSent, setEmailSent] = useState(false);
+    const [needsVerification, setNeedsVerification] = useState(false);
+    const [resendCooldown, setResendCooldown] = useState(0);
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
     const cardRef = useRef(null);
 
     useEffect(() => {
+        let timer;
+        if (resendCooldown > 0) {
+            timer = setInterval(() => {
+                setResendCooldown(prev => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(timer);
+    }, [resendCooldown]);
+
+    useEffect(() => {
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (user) router.push('/chat');
+            if (user) await checkUserStatus(user);
         };
         checkUser();
 
@@ -61,6 +74,16 @@ export default function LoginPage() {
         setError(null);
 
         try {
+            if (isForgotPassword) {
+                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+                });
+                if (error) throw error;
+                setSuccess(true);
+                setError('✅ Hemos enviado un correo para restablecer tu contraseña.');
+                return;
+            }
+
             if (isSignUp) {
                 if (password !== confirmPassword) throw new Error('Las contraseñas no coinciden');
                 const { error } = await supabase.auth.signUp({
@@ -79,8 +102,31 @@ export default function LoginPage() {
                 setConfirmPassword('');
                 setName('');
             } else {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) throw error;
+                let loginEmail = email;
+                
+                // If it doesn't look like an email, assume it's a username
+                if (!email.includes('@')) {
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('email')
+                        .eq('username', email.trim())
+                        .single();
+                    
+                    if (profileError || !profile) {
+                        throw new Error('Nombre de usuario no encontrado.');
+                    }
+                    loginEmail = profile.email;
+                }
+
+                const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
+                if (error) {
+                    if (error.message.includes('Email not confirmed')) {
+                        setNeedsVerification(true);
+                        setEmailSent(true);
+                        throw new Error('Tu correo no está verificado.');
+                    }
+                    throw error;
+                }
                 setSuccess(true);
                 // Check user status and redirect immediately
                 await checkUserStatus(data.user);
@@ -121,6 +167,28 @@ export default function LoginPage() {
         }
     };
 
+    const handleResendVerification = async () => {
+        if (resendCooldown > 0) return;
+        setLoading(true);
+        try {
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email: email,
+                options: {
+                    emailRedirectTo: "https://sigma-ai-oficial.vercel.app/auth/callback"
+                }
+            });
+            if (error) throw error;
+            setResendCooldown(180); // 3 minutes
+            setError('✅ Nuevo correo enviado. Revisa tu bandeja de entrada.');
+        } catch (err) {
+            const { ui } = formatAndLogSupabaseError(err);
+            setError(ui || 'Error al reenviar el correo');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleGoogleLogin = async () => {
         gsap.to('.google-btn-anim', { scale: 0.95, duration: 0.1, yoyo: true, repeat: 1 });
         try {
@@ -134,6 +202,22 @@ export default function LoginPage() {
         } catch (err) {
             const { ui } = formatAndLogSupabaseError(err);
             setError(ui || 'Error en la autenticación');
+        }
+    };
+
+    const handleGitHubLogin = async () => {
+        gsap.to('.github-btn-anim', { scale: 0.95, duration: 0.1, yoyo: true, repeat: 1 });
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'github',
+                options: {
+                    redirectTo: `${window.location.origin}/auth/callback`
+                }
+            });
+            if (error) throw error;
+        } catch (err) {
+            const { ui } = formatAndLogSupabaseError(err);
+            setError(ui || 'Error en la autenticación con GitHub');
         }
     };
 
@@ -175,34 +259,57 @@ export default function LoginPage() {
                 {/* Auth Card */}
                 <div ref={cardRef} className={styles.card}>
                     <div className={styles.cardHeader}>
-                        <h2>{emailSent ? '📧 Verificación Enviada' : isSignUp ? '✨ Únete a Sigma' : '👋 Hola de nuevo'}</h2>
-                        <p>{emailSent ? 'Revisa tu correo para confirmar tu cuenta' : isSignUp ? 'Crea tu cuenta en segundos' : 'Accede a tus modelos favoritos'}</p>
+                        <h2>{emailSent ? '📧 Verificación Enviada' : isForgotPassword ? '🔑 Recuperar cuenta' : isSignUp ? '✨ Únete a Sigma' : '👋 Hola de nuevo'}</h2>
+                        <p>{emailSent ? 'Revisa tu correo para confirmar tu cuenta' : isForgotPassword ? 'Introduce tu email para restablecer tu contraseña' : isSignUp ? 'Crea tu cuenta en segundos' : 'Accede a tus modelos favoritos'}</p>
                     </div>
 
                     {emailSent ? (
                         <div className={styles.verificationSection}>
+                            <div className={styles.verificationIcon}>
+                                <Mail size={48} />
+                            </div>
                             <p className={styles.verificationText}>
-                                Hemos enviado un correo de confirmación a <strong>{email}</strong>. 
-                                Verifica tu cuenta haciendo clic en el enlace que recibiste.
+                                {needsVerification 
+                                    ? "Tu cuenta aún no ha sido verificada. Revisa tu correo."
+                                    : `Hemos enviado un correo de confirmación a ${email}.`
+                                }
+                                <br />
+                                <span>Verifica tu cuenta haciendo clic en el enlace que recibiste.</span>
                             </p>
-                            <button 
-                                type="button" 
-                                className={styles.submitBtn} 
-                                onClick={handleVerifyEmail}
-                                disabled={loading}
-                            >
-                                {loading ? <div className={styles.loader}></div> : <span>✅ Ya he verificado</span>}
-                            </button>
+                            
+                            <div className={styles.verificationActions}>
+                                <button 
+                                    type="button" 
+                                    className={styles.submitBtn} 
+                                    onClick={handleVerifyEmail}
+                                    disabled={loading}
+                                >
+                                    {loading ? <div className={styles.loader}></div> : <span>✅ Ya he verificado</span>}
+                                </button>
+
+                                <button 
+                                    type="button" 
+                                    className={`${styles.resendBtn} ${resendCooldown > 0 ? styles.disabled : ''}`}
+                                    onClick={handleResendVerification}
+                                    disabled={loading || resendCooldown > 0}
+                                >
+                                    {resendCooldown > 0 
+                                        ? `Reenviar en ${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
+                                        : <span><RefreshCw size={16} /> Reenviar correo</span>
+                                    }
+                                </button>
+                            </div>
+
                             <button
                                 type="button"
                                 className={styles.switchBtn}
                                 onClick={() => {
                                     setEmailSent(false);
+                                    setNeedsVerification(false);
                                     setError(null);
-                                    setIsSignUp(true);
                                 }}
                             >
-                                ← Volver al registro
+                                ← Volver al inicio
                             </button>
                         </div>
                     ) : (
@@ -228,41 +335,54 @@ export default function LoginPage() {
                                 <div className={styles.inputGroup}>
                                     <label className={styles.label}>
                                         <Mail size={18} />
-                                        <span>Correo Electrónico</span>
+                                        <span>{isForgotPassword ? 'Correo Electrónico' : 'Correo o Usuario'}</span>
                                     </label>
                                     <input
-                                        type="email"
+                                        type={isForgotPassword ? "email" : "text"}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="tu@email.com"
+                                        placeholder={isForgotPassword ? "tu@email.com" : "Email o @usuario"}
                                         className={styles.input}
                                         required
                                     />
                                 </div>
 
-                                <div className={styles.inputGroup}>
-                                    <label className={styles.label}>
-                                        <Lock size={18} />
-                                        <span>Contraseña</span>
-                                    </label>
-                                    <div className={styles.passwordWrapper}>
-                                        <input
-                                            type={showPassword ? "text" : "password"}
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            placeholder="••••••••"
-                                            className={styles.input}
-                                            required
-                                        />
-                                        <button
-                                            type="button"
-                                            className={styles.eyeBtn}
-                                            onClick={() => setShowPassword(!showPassword)}
-                                        >
-                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                                        </button>
+                                {!isForgotPassword && (
+                                    <div className={styles.inputGroup}>
+                                        <div className={styles.labelRow}>
+                                            <label className={styles.label}>
+                                                <Lock size={18} />
+                                                <span>Contraseña</span>
+                                            </label>
+                                            {!isSignUp && (
+                                                <button 
+                                                    type="button" 
+                                                    className={styles.forgotLink}
+                                                    onClick={() => setIsForgotPassword(true)}
+                                                >
+                                                    ¿Olvidaste tu contraseña?
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className={styles.passwordWrapper}>
+                                            <input
+                                                type={showPassword ? "text" : "password"}
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                placeholder="••••••••"
+                                                className={styles.input}
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                className={styles.eyeBtn}
+                                                onClick={() => setShowPassword(!showPassword)}
+                                            >
+                                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {isSignUp && (
                                     <div className={styles.inputGroup}>
@@ -281,22 +401,42 @@ export default function LoginPage() {
                                     </div>
                                 )}
 
-                                {error && <div className={styles.error}>{error}</div>}
-                                {success && <div className={styles.success}>✅ Redirigiendo...</div>}
+                                {error && <div className={error.startsWith('✅') ? styles.success : styles.error}>{error}</div>}
+                                {success && !error?.startsWith('✅') && <div className={styles.success}>✅ Redirigiendo...</div>}
 
                                 <button type="submit" className={styles.submitBtn} disabled={loading} onClick={animateButton}>
-                                    {loading ? <div className={styles.loader}></div> : <span>{isSignUp ? 'Registrarse' : 'Entrar Now'}</span>}
+                                    {loading ? <div className={styles.loader}></div> : <span>{isForgotPassword ? 'Enviar enlace' : isSignUp ? 'Registrarse' : 'Entrar Now'}</span>}
                                 </button>
+                                
+                                {isForgotPassword && (
+                                    <button
+                                        type="button"
+                                        className={styles.switchBtn}
+                                        onClick={() => {
+                                            setIsForgotPassword(false);
+                                            setError(null);
+                                        }}
+                                    >
+                                        ← Volver al login
+                                    </button>
+                                )}
                             </form>
 
                             <div className={styles.divider}>
                                 <span>o</span>
                             </div>
 
-                            <button type="button" className={`${styles.googleBtn} google-btn-anim`} onClick={handleGoogleLogin}>
-                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className={styles.googleIcon} />
-                                <span>Google</span>
-                            </button>
+                            <div className={styles.socialLogins}>
+                                <button type="button" className={`${styles.socialBtn} google-btn-anim`} onClick={handleGoogleLogin}>
+                                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className={styles.socialIcon} />
+                                    <span>Google</span>
+                                </button>
+
+                                <button type="button" className={`${styles.socialBtn} github-btn-anim`} onClick={handleGitHubLogin}>
+                                    <Github size={20} className={styles.socialIcon} />
+                                    <span>GitHub</span>
+                                </button>
+                            </div>
 
                             <button
                                 type="button"
