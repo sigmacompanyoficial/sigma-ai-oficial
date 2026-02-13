@@ -38,6 +38,15 @@ export default function ChatPage() {
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [useWebSearch, setUseWebSearch] = useState(false);
     const [copiedId, setCopiedId] = useState(null);
+    const [sidebarSearch, setSidebarSearch] = useState('');
+
+    // Detailed Settings States
+    const [activeSettingsTab, setActiveSettingsTab] = useState('General');
+    const [appearance, setAppearance] = useState('Oscuro');
+    const [language, setLanguage] = useState('Español');
+    const [botTone, setBotTone] = useState('Profesional');
+    const [detailLevel, setDetailLevel] = useState('Medio');
+    const [memoryEnabled, setMemoryEnabled] = useState(true);
 
     const [selectedImage, setSelectedImage] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -184,6 +193,7 @@ export default function ChatPage() {
 
     const loadChat = async (chatId, userId) => {
         setCurrentChatId(chatId);
+        setIsSidebarOpen(false); // Close sidebar on mobile after selection
         try {
             const { data, error } = await supabase
                 .from('chats')
@@ -226,6 +236,7 @@ export default function ChatPage() {
         setInput('');
         setSelectedImage(null);
         setImagePreview(null);
+        setIsSidebarOpen(false); // Close sidebar on mobile
     };
 
     const deleteChat = async (chatId, e) => {
@@ -371,7 +382,10 @@ export default function ChatPage() {
                     modelId: modelToUse,
                     systemPrompt: systemInstructions,
                     botName: botName,
-                    stream: true
+                    stream: true,
+                    tone: botTone,
+                    detailLevel: detailLevel,
+                    language: language
                 }),
                 signal: controller.signal
             });
@@ -438,6 +452,114 @@ export default function ChatPage() {
 
             // Save Assistant Message
             if (user && chatId && botResponse) {
+                // Check if the response is a SEARCH command
+                if (botResponse.startsWith('SEARCH:')) {
+                    const searchQuery = botResponse.replace('SEARCH:', '').trim();
+                    console.log('🔍 Auto-Search detected for:', searchQuery);
+                    
+                    setMessages(prev => {
+                        const last = [...prev];
+                        last[last.length - 1] = { 
+                            ...last[last.length - 1], 
+                            isSearching: true,
+                            content: `Buscando información sobre: ${searchQuery}...`
+                        };
+                        return last;
+                    });
+
+                    try {
+                        const searchResp = await fetch('/api/search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query: searchQuery })
+                        });
+
+                        if (searchResp.ok) {
+                            const searchData = await searchResp.json();
+                            if (searchData.success) {
+                                const searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}\n\nResponde a la consulta original del usuario usando esta información de forma detallada.`;
+                                
+                                console.log('✅ Search context retrieved, re-calling Chat API...');
+                                
+                                // Reset for the second call
+                                let secondBotResponse = '';
+                                
+                                const secondMessagesForAPI = [...newMessages];
+                                const lastIdx = secondMessagesForAPI.length - 1;
+                                secondMessagesForAPI[lastIdx] = {
+                                    ...secondMessagesForAPI[lastIdx],
+                                    content: secondMessagesForAPI[lastIdx].content + searchContext
+                                };
+
+                                const secondResponse = await fetch('/api/chat', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        messages: secondMessagesForAPI,
+                                        modelId: modelToUse,
+                                        systemPrompt: systemInstructions,
+                                        botName: botName,
+                                        stream: true,
+                                        tone: botTone,
+                                        detailLevel: detailLevel,
+                                        language: language
+                                    }),
+                                    signal: controller.signal
+                                });
+
+                                if (secondResponse.ok) {
+                                    const secondReader = secondResponse.body.getReader();
+                                    
+                                    setMessages(prev => {
+                                        const last = [...prev];
+                                        last[last.length - 1] = { 
+                                            ...last[last.length - 1], 
+                                            isSearching: false,
+                                            content: '',
+                                            source: 'Tavily Search'
+                                        };
+                                        return last;
+                                    });
+
+                                    while (true) {
+                                        const { done, value } = await secondReader.read();
+                                        if (done) break;
+
+                                        const chunk = decoder.decode(value);
+                                        const lines = chunk.split('\n');
+
+                                        for (const line of lines) {
+                                            if (line.startsWith('data: ')) {
+                                                const dataStr = line.replace('data: ', '').trim();
+                                                if (dataStr === '[DONE]') continue;
+                                                try {
+                                                    const json = JSON.parse(dataStr);
+                                                    const content = json.choices?.[0]?.delta?.content || '';
+                                                    secondBotResponse += content;
+                                                    
+                                                    setMessages(prev => {
+                                                        const last = [...prev];
+                                                        last[last.length - 1] = {
+                                                            ...last[last.length - 1],
+                                                            content: secondBotResponse
+                                                        };
+                                                        return last;
+                                                    });
+                                                } catch (e) {}
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Final save of the second response
+                                    botResponse = secondBotResponse;
+                                }
+                            }
+                        }
+                    } catch (searchErr) {
+                        console.error('💥 Auto-search failed:', searchErr);
+                    }
+                }
+
                 await supabase.from('messages').insert({
                     chat_id: chatId,
                     role: 'assistant',
@@ -840,6 +962,22 @@ export default function ChatPage() {
             {/* Sidebar */}
             <aside className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ''}`}>
                 <div className={styles.sidebarHeader}>
+                    <div className={styles.sidebarLogoContainer}>
+                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.sidebarLogo} />
+                        <span className={styles.sidebarBrand}>Sigma AI</span>
+                    </div>
+                    
+                    <div className={styles.sidebarSearchWrapper}>
+                        <Search size={14} className={styles.sidebarSearchIcon} />
+                        <input 
+                            type="text" 
+                            placeholder="Buscar chats..." 
+                            className={styles.sidebarSearchInput}
+                            value={sidebarSearch}
+                            onChange={(e) => setSidebarSearch(e.target.value)}
+                        />
+                    </div>
+
                     <button className={styles.newChatBtn} onClick={createNewChat}>
                         <Plus size={18} /> Nueva conversación
                     </button>
@@ -850,9 +988,15 @@ export default function ChatPage() {
 
                 <div className={styles.sidebarContent}>
                     <div className={styles.sidebarSection}>
-                        <div className={styles.sidebarHeading}>Recientes</div>
-                        {savedChats.length > 0 ? (
-                            savedChats.map(chat => (
+                        <div className={styles.sidebarHeading}>{sidebarSearch ? 'Resultados de búsqueda' : 'Recientes'}</div>
+                        {savedChats.filter(chat => 
+                            chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+                            chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                        ).length > 0 ? (
+                            savedChats.filter(chat => 
+                                chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+                                chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                            ).map(chat => (
                                 <div
                                     key={chat.id}
                                     className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
@@ -865,7 +1009,9 @@ export default function ChatPage() {
                                 </div>
                             ))
                         ) : (
-                            <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>Sin chats guardados</div>
+                            <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
+                                {sidebarSearch ? 'No se encontraron chats' : 'Sin chats guardados'}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -886,11 +1032,13 @@ export default function ChatPage() {
                 </div>
             </aside>
 
+            {isSidebarOpen && <div className={styles.sidebarOverlay} onClick={() => setIsSidebarOpen(false)} />}
+
             {/* Main Chat Area */}
             <main className={styles.main}>
                 <header className={styles.header}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <button className={styles.iconBtn} onClick={() => setIsSidebarOpen(true)} style={{ display: 'none' }} title="Menú">
+                        <button className={styles.mobileMenuBtn} onClick={() => setIsSidebarOpen(true)} title="Menú">
                             <PanelLeft size={20} />
                         </button>
                         <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.logoImg} />
@@ -948,7 +1096,14 @@ export default function ChatPage() {
                                                     <span className={styles.typingText}>{botName} está pensando...</span>
                                                 </div>
                                             ) : (
-                                                renderMessage(msg.content, idx)
+                                                <>
+                                                    {renderMessage(msg.content, idx)}
+                                                    {msg.source && (
+                                                        <div style={{ marginTop: '8px', fontSize: '0.75rem', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <Search size={12} /> Fuente: {msg.source}
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                         {msg.role === 'assistant' && msg.content && msg.content !== '...' && (
@@ -1034,28 +1189,219 @@ export default function ChatPage() {
                             </form>
                         </>
                     )}
-                    <p className={styles.footer}>sigma ai puede cometer errores</p>
+                    <p className={styles.footer}>Sigma AI puede cometer errores. Verifica la información importante</p>
                 </div>
             </main>
 
             {showSettings && (
                 <div className={styles.modalOverlay} onClick={() => setShowSettings(false)}>
-                    <div className={styles.modal} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-                        <div className={styles.modalHeader}>
-                            <h2 className={styles.modalTitle}>⚙️ Panel de Control</h2>
-                            <X className={styles.closeBtn} onClick={() => setShowSettings(false)} />
-                        </div>
-                        <div className={styles.modalBody}>
-                            <div className={styles.sidebarHeading}>Usuario</div>
-                            <input className={styles.input} value={userName} onChange={(e) => setUserName(e.target.value)} />
-                            <div className={styles.sidebarHeading}>Bot</div>
-                            <input className={styles.input} value={botName} onChange={(e) => setBotName(e.target.value)} />
-                            <textarea className={styles.textareaField} value={systemInstructions} onChange={(e) => setSystemInstructions(e.target.value)} />
-                            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <input id="useReasoning" type="checkbox" checked={useReasoning} onChange={(e) => setUseReasoning(e.target.checked)} />
-                                <label htmlFor="useReasoning">Activar Razonamiento (usar modelo Nemotron)</label>
+                    <div className={styles.settingsModal} onClick={(e) => e.stopPropagation()}>
+                        {/* Settings Sidebar */}
+                        <div className={styles.settingsSidebar}>
+                            <h2 className={styles.settingsTitle}>Ajustes</h2>
+                            <div className={styles.settingsNav}>
+                                {['General', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta'].map(tab => (
+                                    <button 
+                                        key={tab}
+                                        className={`${styles.settingsTab} ${activeSettingsTab === tab ? styles.activeSettingsTab : ''}`}
+                                        onClick={() => setActiveSettingsTab(tab)}
+                                    >
+                                        {tab === 'General' && <Settings size={16} />}
+                                        {tab === 'Notificaciones' && <AlertCircle size={16} />}
+                                        {tab === 'Personalización' && <Sparkles size={16} />}
+                                        {tab === 'Aplicaciones' && <Plus size={16} />}
+                                        {tab === 'Datos' && <Trash2 size={16} />}
+                                        {tab === 'Seguridad' && <Check size={16} />}
+                                        {tab === 'Cuenta' && <User size={16} />}
+                                        {tab}
+                                    </button>
+                                ))}
                             </div>
-                            <button className="btn-primary" onClick={saveSettings}>Guardar</button>
+                            <div className={styles.settingsSidebarFooter}>
+                                <button className={styles.logoutBtn} onClick={handleLogout}>
+                                    <LogOut size={16} /> Cerrar sesión
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Settings Content */}
+                        <div className={styles.settingsContent}>
+                            <div className={styles.settingsContentHeader}>
+                                <h3>{activeSettingsTab}</h3>
+                                <X className={styles.closeBtn} onClick={() => setShowSettings(false)} />
+                            </div>
+
+                            <div className={styles.settingsScrollArea}>
+                                {activeSettingsTab === 'General' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.settingGroup}>
+                                            <label>Nombre de Usuario</label>
+                                            <input className={styles.input} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Tu nombre" />
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Apariencia</label>
+                                            <div className={styles.radioGroup}>
+                                                {['Claro', 'Oscuro', 'Sistema'].map(mode => (
+                                                    <button 
+                                                        key={mode} 
+                                                        className={`${styles.radioBtn} ${appearance === mode ? styles.activeRadio : ''}`}
+                                                        onClick={() => setAppearance(mode)}
+                                                    >
+                                                        {mode}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Idioma</label>
+                                            <select className={styles.select} value={language} onChange={(e) => setLanguage(e.target.value)}>
+                                                <option>Español</option>
+                                                <option>Inglés</option>
+                                                <option>Francés</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Personalización' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.settingGroup}>
+                                            <label>Nombre del Bot</label>
+                                            <input className={styles.input} value={botName} onChange={(e) => setBotName(e.target.value)} />
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Instrucciones del Sistema</label>
+                                            <textarea className={styles.textareaField} value={systemInstructions} onChange={(e) => setSystemInstructions(e.target.value)} rows={4} />
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Tonalidad de Respuesta</label>
+                                            <div className={styles.radioGroup}>
+                                                {['Formal', 'Casual', 'Profesional', 'Divertido'].map(tone => (
+                                                    <button 
+                                                        key={tone} 
+                                                        className={`${styles.radioBtn} ${botTone === tone ? styles.activeRadio : ''}`}
+                                                        onClick={() => setBotTone(tone)}
+                                                    >
+                                                        {tone}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className={styles.settingToggle}>
+                                            <span>Uso de Emojis</span>
+                                            <input type="checkbox" checked={useEmojis} onChange={(e) => setUseEmojis(e.target.checked)} />
+                                        </div>
+                                        <div className={styles.settingToggle}>
+                                            <span>Búsqueda Web (Tavily)</span>
+                                            <input type="checkbox" checked={useWebSearch} onChange={(e) => setUseWebSearch(e.target.checked)} />
+                                        </div>
+                                        <div className={styles.settingToggle}>
+                                            <span>Razonamiento (Nemotron)</span>
+                                            <input type="checkbox" checked={useReasoning} onChange={(e) => setUseReasoning(e.target.checked)} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Seguridad' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.bannerMFA}>
+                                            <div className={styles.bannerContent}>
+                                                <strong>🔒 Protege tu cuenta</strong>
+                                                <p>Activa la autenticación multifactor para mayor seguridad.</p>
+                                            </div>
+                                            <button className={styles.bannerBtn}>Configurar MFA</button>
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Correo Electrónico</label>
+                                            <input className={styles.input} value={user?.email || ''} readOnly />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Notificaciones' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.settingToggle}>
+                                            <div className={styles.toggleLabel}>
+                                                <span>Notificaciones por email</span>
+                                                <small>Recibe avisos de seguridad y resúmenes</small>
+                                            </div>
+                                            <input type="checkbox" defaultChecked />
+                                        </div>
+                                        <div className={styles.settingToggle}>
+                                            <div className={styles.toggleLabel}>
+                                                <span>Avisos en el navegador</span>
+                                                <small>Notificaciones push en tiempo real</small>
+                                            </div>
+                                            <input type="checkbox" defaultChecked />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Aplicaciones' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.bannerMFA} style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.05)' }}>
+                                            <div className={styles.bannerContent}>
+                                                <strong>🔌 Sigma API</strong>
+                                                <p>Conecta Sigma AI con tus propias aplicaciones.</p>
+                                            </div>
+                                            <button className={styles.bannerBtn} style={{ background: '#333' }}>Próximamente</button>
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Claves de API</label>
+                                            <div className={styles.apiKeysPlaceholder}>No hay claves activas</div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Datos' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.dangerZone}>
+                                            <div className={styles.dangerItem}>
+                                                <div className={styles.dangerText}>
+                                                    <span>Eliminar todo el historial</span>
+                                                    <p>Esta acción no se puede deshacer.</p>
+                                                </div>
+                                                <button className={styles.dangerBtn} onClick={async () => {
+                                                    if(confirm('¿Seguro que quieres borrar todo el historial?')) {
+                                                        const { error } = await supabase.from('chats').delete().eq('user_id', user.id);
+                                                        if(!error) fetchChats(user.id);
+                                                    }
+                                                }}>Borrar todo</button>
+                                            </div>
+                                            <div className={styles.dangerItem}>
+                                                <div className={styles.dangerText}>
+                                                    <span>Descargar mis datos</span>
+                                                    <p>Obtén un archivo JSON con todos tus chats.</p>
+                                                </div>
+                                                <button className={styles.secondaryBtn} onClick={() => handleShare(JSON.stringify(savedChats, null, 2))}>Descargar</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Cuenta' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.profileEditHeader}>
+                                            <div className={styles.profileAvatarLarge}>
+                                                {profilePic ? <img src={profilePic} alt="Avatar" /> : userName.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <button className={styles.secondaryBtn}>Cambiar foto</button>
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Estado de la cuenta</label>
+                                            <div className={styles.accountBadge}>Verificada ✓</div>
+                                        </div>
+                                        <div className={styles.settingGroup}>
+                                            <label>Rol</label>
+                                            <input className={styles.input} value={userRole} readOnly />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className={styles.settingsFooter}>
+                                <button className={styles.saveBtn} onClick={saveSettings}>Guardar Cambios</button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -15,11 +15,11 @@ function normalizeMessages(messages) {
 
 export async function POST(req) {
     try {
-        const { messages, modelId, systemPrompt, botName, stream } = await req.json();
+        const { messages, modelId, systemPrompt, botName, stream, tone, detailLevel, language } = await req.json();
         const requestId = globalThis.crypto?.randomUUID?.() || String(Date.now());
-        console.log('🤖 Chat API Request:', { requestId, modelId, botName, messagesCount: messages?.length });
+        console.log('🤖 Chat API Request:', { requestId, modelId, botName, tone, detailLevel, messagesCount: messages?.length });
 
-        // Validation
+        // ... existing validation ...
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             console.warn('⚠️ Chat API: Messages array is missing or empty');
             return jsonError('Messages array is required', 400, { requestId });
@@ -29,7 +29,7 @@ export async function POST(req) {
             return jsonError('Valid modelId is required', 400, { requestId });
         }
 
-        // Basic abuse protection (keeps costs + latency in check)
+        // Basic abuse protection
         if (messages.length > 60) {
             return jsonError('Too many messages in a single request', 413, { requestId });
         }
@@ -42,11 +42,23 @@ export async function POST(req) {
         }
 
         const activeBotName = botName || 'sigmaLLM 1';
+        const currentDate = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const currentTime = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+        // Personalization Directives
+        const toneDirective = tone ? `Responde con un tono **${tone}**.` : '';
+        const detailDirective = detailLevel ? `Tu nivel de detalle debe ser **${detailLevel}**.` : '';
+        const languageDirective = language ? `Responde siempre en **${language}**.` : '';
 
         // Enhanced system prompt with search capability
         const CORE_IDENTITY = `Eres ${activeBotName} 🤖, creado por Sigma Company (autor: Ayoub Louah).
+Fecha actual: ${currentDate}
+Hora actual: ${currentTime}
 
-**Personalidad Core:**
+**Personalidad y Estilo:**
+- ${toneDirective}
+- ${detailDirective}
+- ${languageDirective}
 - Amigable, cercano y positivo 😊✨
 - Explicas paso a paso, de forma clara
 - Usas ejemplos cuando ayudan
@@ -61,7 +73,8 @@ export async function POST(req) {
 
 **Capacidad de Búsqueda en Internet:**
 - Si te proporciono información bajo el encabezado [CONTEXTO DE BÚSQUEDA WEB], úsala como tu fuente principal de verdad para datos actuales.
-- Si no tienes la información y necesitas buscarla, responde exactamente: "SEARCH: [tu consulta aquí]"
+- IMPORTANTE: Si no tienes la información necesaria para responder con precisión o si el usuario pregunta algo sobre eventos actuales o datos que desconoces, DEBES responder únicamente con: "SEARCH: [tu consulta aquí]". No intentes adivinar ni decir que no sabes sin antes intentar buscar.
+- Una vez que recibas los resultados de la búsqueda, sintetiza la respuesta de forma clara.
 - Prioriza siempre los datos que te paso en el mensaje sobre tu conocimiento previo.
 
 **Reglas:**
