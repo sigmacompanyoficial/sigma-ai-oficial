@@ -14,7 +14,7 @@ import styles from './page.module.css';
 import { models } from '@/lib/models';
 import { uploadAndExtractFile } from '@/lib/fileParser';
 
-const guestModel = { modelId: 'qwen/qwen3-next-80b-a3b-instruct:free', modelName: 'Qwen 3 Next 80B', provider: 'openrouter', hostedId: 'qwen/qwen3-next-80b-a3b-instruct:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
+const guestModel = { modelId: 'openai/gpt-oss-120b:free', modelName: 'Sigma LMM 1 Mini', provider: 'openrouter', hostedId: 'openai/gpt-oss-120b:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
 
 export default function ChatPage() {
     const [messages, setMessages] = useState([]);
@@ -64,6 +64,8 @@ export default function ChatPage() {
     const [messageFeedback, setMessageFeedback] = useState({}); // { index: 'like' | 'dislike' }
     const [collapsedThinking, setCollapsedThinking] = useState({}); // { index: boolean }
     const [mounted, setMounted] = useState(false);
+    const [messageCount, setMessageCount] = useState(0);
+    const [showRegisterModal, setShowRegisterModal] = useState(false);
 
     const chatContainerRef = useRef(null);
     const isAtBottomRef = useRef(true); // Inicializar como true para hacer scroll al inicio
@@ -208,9 +210,9 @@ export default function ChatPage() {
                     await loadChat(chatIdFromUrl, null);
                 } else {
                     setSelectedModel(guestModel);
-                    setBotName('Sigma LLM 1 Mini');
-                    setSystemInstructions('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
-                    console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
+                    setBotName('Sigma LMM 1 Mini');
+                    setSystemInstructions('Eres sigmaLMM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
+                    console.log('🤖 Bot configurado:', 'Sigma LMM 1 Mini');
                 }
                 return;
             }
@@ -477,6 +479,14 @@ export default function ChatPage() {
 
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
+        if (isGuest) {
+            const nextCount = messageCount + 1;
+            setMessageCount(nextCount);
+            if (nextCount > 0 && nextCount % 5 === 0) {
+                setShowRegisterModal(true);
+            }
+        }
+
         setInput('');
         setSelectedImages([]);
         setImagePreviews([]);
@@ -486,7 +496,7 @@ export default function ChatPage() {
 
         let gemmaContext = "";
         if (currentImages.length > 0) {
-            console.log('📸 Gemma-3 is analyzing the images in the background...');
+            console.log(`📸 ${useReasoning ? 'Nvidia' : 'Gemma-3'} is analyzing the images in the background...`);
             try {
                 const analysisResults = [];
                 for (const imgBase64 of currentImages) {
@@ -494,7 +504,10 @@ export default function ChatPage() {
                     const visionResp = await fetch('/api/vision', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ imageBase64: base64Clean })
+                        body: JSON.stringify({
+                            imageBase64: base64Clean,
+                            useNemotron: useReasoning
+                        })
                     });
 
                     if (visionResp.ok) {
@@ -517,7 +530,7 @@ export default function ChatPage() {
                         }
                         vDesc = vDesc.trim();
                         analysisResults.push(vDesc);
-                        console.log(`📝 Gemma Analysis for image ${analysisResults.length}:`, vDesc);
+                        console.log(`📝 ${useReasoning ? 'Nvidia' : 'Gemma'} Analysis for image ${analysisResults.length}:`, vDesc);
                     }
                 }
                 if (analysisResults.length > 0) {
@@ -533,9 +546,36 @@ export default function ChatPage() {
         if (user) {
             try {
                 if (!chatId) {
+                    console.log('📝 Generating chat title with Gemma...');
+                    let finalTitle = (currentInput || 'Imagen adjunta').slice(0, 30) || 'Nuevo Chat';
+
+                    try {
+                        // Fast timeout for title generation
+                        const controller = new AbortController();
+                        const id = setTimeout(() => controller.abort(), 1500);
+
+                        const titleResp = await fetch('/api/chat/title', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt: currentInput || 'Imagen adjunta' }),
+                            signal: controller.signal
+                        });
+                        clearTimeout(id);
+
+                        if (titleResp.ok) {
+                            const titleData = await titleResp.json();
+                            if (titleData.title) {
+                                finalTitle = titleData.title;
+                                console.log('✅ Title generated:', finalTitle);
+                            }
+                        }
+                    } catch (tErr) {
+                        console.warn('Title gen too slow or failed, using fallback');
+                    }
+
                     const { data: chatData, error: chatError } = await supabase.from('chats').insert({
                         user_id: user.id,
-                        title: (currentInput || 'Imagen adjunta').slice(0, 30) || 'Nuevo Chat',
+                        title: finalTitle,
                         created_at: new Date().toISOString()
                     }).select().single();
                     if (!chatError && chatData) {
@@ -562,7 +602,7 @@ export default function ChatPage() {
         streamAbortRef.current = controller;
 
         try {
-            let modelToUse = useReasoning ? 'nvidia/nemotron-nano-12b-v2-vl:free' : selectedModel.modelId;
+            let modelToUse = (isGuest || !user) ? guestModel.modelId : (useReasoning ? 'nvidia/nemotron-3-nano-30b-a3b:free' : selectedModel.modelId);
             let searchContext = "";
             if (useWebSearch) {
                 try {
@@ -620,6 +660,9 @@ export default function ChatPage() {
                 return next;
             });
 
+            let hasDeterminedThinking = false;
+            const assistantMsgIndex = messages.length + 1; // User message then assistant message
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -633,6 +676,13 @@ export default function ChatPage() {
                             if (delta) {
                                 console.log('📥 Trinity chunk:', delta);
                                 botResponse += delta;
+
+                                // Auto-collapse if thought just ended
+                                if (!hasDeterminedThinking && botResponse.includes('</think>')) {
+                                    hasDeterminedThinking = true;
+                                    setCollapsedThinking(prev => ({ ...prev, [assistantMsgIndex]: true }));
+                                    console.log('🤖 Thought process finished, auto-collapsing block...');
+                                }
                             }
                             setMessages(prev => {
                                 const last = [...prev];
@@ -665,6 +715,11 @@ export default function ChatPage() {
     };
 
     const handleFileSelect = async (e) => {
+        if (isGuest || !user) {
+            alert('Debes iniciar sesión para subir fotos y archivos.');
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
         if (selectedImages.length + files.length > 5) {
@@ -801,6 +856,13 @@ export default function ChatPage() {
             }
         }
 
+        // Determine if it should be collapsed
+        // If state is not set, we collapse by default if the thinking is finished
+        const isFinished = thinkEnd !== -1;
+        const isCollapsed = collapsedThinking[index] !== undefined
+            ? collapsedThinking[index]
+            : isFinished;
+
         return (
             <>
                 {thinkingPart && (
@@ -811,11 +873,11 @@ export default function ChatPage() {
                         >
                             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Brain size={14} className={styles.thinkingIcon} />
-                                {thinkEnd !== -1 ? 'Pensamiento completado' : 'Reflexionando...'}
+                                {isFinished ? 'Pensamiento completado' : 'Reflexionando...'}
                             </span>
-                            {collapsedThinking[index] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                            {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                         </div>
-                        {!collapsedThinking[index] && (
+                        {!isCollapsed && (
                             <div className={styles.thinkingContent}>
                                 <SigmaMarkdown content={thinkingPart} theme="dark" />
                             </div>
@@ -953,17 +1015,24 @@ export default function ChatPage() {
                             <PanelLeft size={20} />
                         </button>
                         <div className={styles.modelSelectorWrapper}>
-                            <div className={styles.modelSelector} onClick={() => setShowModelDropdown(!showModelDropdown)}>
-                                <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : 'Sigma LLM 1'}</span>
+                            <div className={styles.modelSelector} onClick={() => {
+                                if (isGuest || !user) {
+                                    alert('Debes iniciar sesión para cambiar de modelo.');
+                                    return;
+                                }
+                                setShowModelDropdown(!showModelDropdown);
+                            }}>
+                                <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : selectedModel.modelName}</span>
                                 <ChevronDown size={16} className={styles.chevronIcon} />
                             </div>
 
                             {showModelDropdown && (
                                 <div className={styles.modelDropdown}>
                                     <div
-                                        className={`${styles.modelOption} ${!useReasoning ? styles.activeModel : ''}`}
+                                        className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[0].modelId ? styles.activeModel : ''}`}
                                         onClick={() => {
                                             setUseReasoning(false);
+                                            setSelectedModel(models[0]);
                                             setShowModelDropdown(false);
                                             setBotName('SigmaLLM 1');
                                         }}
@@ -973,6 +1042,24 @@ export default function ChatPage() {
                                             <span>Sigma LLM 1</span>
                                         </div>
                                         <p className={styles.modelDescription}>Nuestro modelo estándar, rápido y eficiente.</p>
+                                    </div>
+                                    <div
+                                        className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[1].modelId ? styles.activeModel : ''}`}
+                                        onClick={() => {
+                                            setUseReasoning(false);
+                                            setSelectedModel(models[1]);
+                                            setShowModelDropdown(false);
+                                            setBotName('SigmaLLM 1 Coder');
+                                        }}
+                                    >
+                                        <div className={styles.modelOptionHeader}>
+                                            <ImageIcon size={16} />
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Zap size={14} style={{ color: '#fbbf24' }} />
+                                                Sigma LLM 1 Coder
+                                            </span>
+                                        </div>
+                                        <p className={styles.modelDescription}>Especializado en programación y creación de apps.</p>
                                     </div>
                                     <div
                                         className={`${styles.modelOption} ${useReasoning ? styles.activeModel : ''}`}
@@ -1103,6 +1190,21 @@ export default function ChatPage() {
                     )}
                 </div>
 
+                {/* Guest Registration Modal */}
+                {isGuest && showRegisterModal && (
+                    <div className={styles.modalOverlay}>
+                        <div className={styles.modalContent}>
+                            <div className={styles.modalIcon}><Sparkles size={32} /></div>
+                            <h2>Desbloquea todo el potencial</h2>
+                            <p>Únete a Sigma AI para acceder al <b>Razonamiento Avanzado</b>, la <b>Búsqueda en Internet</b> y poder <b>subir archivos e imágenes</b>.</p>
+                            <div className={styles.modalActions}>
+                                <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
+                                <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className={styles.inputSection}>
                     {!isReadOnly && (
                         <>
@@ -1151,16 +1253,56 @@ export default function ChatPage() {
                             <form onSubmit={handleSend} className={styles.inputWrapper}>
                                 <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
 
-                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
                                     <button
                                         type="button"
-                                        className={styles.attachButton}
-                                        onClick={() => fileInputRef.current?.click()}
+                                        className={`${styles.attachButton} ${showAttachMenu ? styles.attachActive : ''}`}
+                                        onClick={() => {
+                                            if (isGuest || !user) {
+                                                alert('Debes iniciar sesión para usar estas funciones.');
+                                                return;
+                                            }
+                                            setShowAttachMenu(!showAttachMenu);
+                                        }}
                                         disabled={isLoading}
-                                        title="Subir archivos"
+                                        title={isGuest ? "Inicia sesión para subir archivos" : "Más opciones"}
+                                        style={isGuest ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                                     >
-                                        <Plus size={20} />
+                                        <Plus size={20} className={showAttachMenu ? styles.rotatePlus : ''} />
                                     </button>
+
+                                    {showAttachMenu && (
+                                        <div className={styles.attachMenu}>
+                                            <button
+                                                type="button"
+                                                className={styles.attachItem}
+                                                onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}
+                                            >
+                                                <ImageIcon size={18} />
+                                                <span>Añadir fotos y archivos</span>
+                                            </button>
+
+                                            <div className={styles.attachDivider} />
+
+                                            <button
+                                                type="button"
+                                                className={`${styles.attachItem} ${useReasoning ? styles.activeItem : ''}`}
+                                                onClick={() => { setUseReasoning(!useReasoning); setShowAttachMenu(false); }}
+                                            >
+                                                <Brain size={18} />
+                                                <span>Razonamiento</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className={`${styles.attachItem} ${useWebSearch ? styles.activeItem : ''}`}
+                                                onClick={() => { setUseWebSearch(!useWebSearch); setShowAttachMenu(false); }}
+                                            >
+                                                <Search size={18} />
+                                                <span>Búsqueda en Internet</span>
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <textarea

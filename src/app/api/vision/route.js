@@ -30,7 +30,7 @@ function getBase64Size(base64) {
 export async function POST(req) {
     try {
         const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-        
+
         if (!checkRateLimit(ip)) {
             console.warn('⚠️ [VISION] Rate limit exceeded for IP:', ip);
             return jsonError('Too many vision requests. Please wait.', 429);

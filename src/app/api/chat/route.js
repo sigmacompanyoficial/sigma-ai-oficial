@@ -50,7 +50,10 @@ export async function POST(req) {
         const detailDirective = detailLevel ? `Tu nivel de detalle debe ser **${detailLevel}**.` : '';
         const languageDirective = language ? `Responde siempre en **${language}**.` : '';
 
-        // Enhanced system prompt with search capability
+        const coderDirective = modelId.includes('coder')
+            ? 'Eres un experto en programación de élite. Escribe código limpio, optimizado y documentado. Explica las decisiones técnicas cuando sea necesario.'
+            : '';
+
         const CORE_IDENTITY = `Eres ${activeBotName} 🤖, creado por Sigma Company (autor: Ayoub Louah).
 Fecha actual: ${currentDate}
 Hora actual: ${currentTime}
@@ -59,6 +62,7 @@ Hora actual: ${currentTime}
 - ${toneDirective}
 - ${detailDirective}
 - ${languageDirective}
+- ${coderDirective}
 - Amigable, cercano y positivo 😊✨
 - Explicas paso a paso, de forma clara
 - Usas ejemplos cuando ayudan

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { 
-    Search, Plus, Send, ChevronDown, HelpCircle, Globe, Sparkles, X 
+import {
+    Search, Plus, Send, ChevronDown, HelpCircle, Globe, Sparkles, X
 } from 'lucide-react';
 import Link from 'next/link';
 import SigmaMarkdown from './SigmaMarkdown';
@@ -14,11 +14,13 @@ export default function GuestChat() {
     const [useWebSearch, setUseWebSearch] = useState(false); // Disabled by default to save costs
     const [error, setError] = useState(null);
     const [showRegisterMsg, setShowRegisterMsg] = useState(false);
+    const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [messageCount, setMessageCount] = useState(0);
     const [showCookies, setShowCookies] = useState(true);
     const textareaRef = useRef(null);
     const messagesEndRef = useRef(null);
 
-    const modelId = "qwen/qwen3-next-80b-a3b-instruct:free";
+    const modelId = "openai/gpt-oss-120b:free";
     const systemInstructions = "Eres Sigma LLM 1 Mini, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable. Responde de forma clara y concisa.";
 
     // Rate limiting & Retry logic
@@ -32,21 +34,21 @@ export default function GuestChat() {
     const fetchWithRetry = async (url, options, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
         try {
             const response = await fetch(url, options);
-            
+
             if (response.status === 429) {
                 if (retries > 0) {
-                    console.warn(`⏳ Límite de peticiones alcanzado. Reintentando en ${delay/1000}s... (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`);
+                    console.warn(`⏳ Límite de peticiones alcanzado. Reintentando en ${delay / 1000}s... (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`);
                     await sleep(delay);
                     return fetchWithRetry(url, options, retries - 1, delay * 1.5);
                 } else {
                     throw new Error('Demasiadas peticiones. Por favor espera un momento e intenta de nuevo.');
                 }
             }
-            
+
             return response;
         } catch (err) {
             if (retries > 0 && err.message.includes('Failed to fetch')) {
-                console.warn(`🔄 Error de conexión. Reintentando en ${delay/1000}s...`);
+                console.warn(`🔄 Error de conexión. Reintentando en ${delay / 1000}s...`);
                 await sleep(delay);
                 return fetchWithRetry(url, options, retries - 1, delay * 1.5);
             }
@@ -57,13 +59,13 @@ export default function GuestChat() {
     const checkRateLimit = () => {
         const now = Date.now();
         const timeSinceLastSend = now - lastSendTimeRef.current;
-        
+
         if (timeSinceLastSend < RATE_LIMIT_MS) {
             const waitTime = RATE_LIMIT_MS - timeSinceLastSend;
             console.log(`⏱️ Esperando ${waitTime}ms para enviar siguiente mensaje...`);
             return false;
         }
-        
+
         lastSendTimeRef.current = now;
         return true;
     };
@@ -113,13 +115,19 @@ export default function GuestChat() {
         setError(null);
         setShowRegisterMsg(false);
 
+        const nextCount = messageCount + 1;
+        setMessageCount(nextCount);
+        if (nextCount > 0 && nextCount % 5 === 0) {
+            setShowRegisterModal(true);
+        }
+
         // Placeholder for assistant
         setMessages(prev => [...prev, { role: 'assistant', content: '...' }]);
 
         try {
             const hasLink = /https?:\/\/[^\s]+/.test(input);
             let searchContext = "";
-            
+
             // Proactive search ONLY if a link is detected. 
             // Otherwise, let the model decide (reactive search).
             if (hasLink) {
@@ -130,7 +138,7 @@ export default function GuestChat() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ query: input })
                     });
-                    
+
                     if (searchResp.ok) {
                         const searchData = await searchResp.json();
                         if (searchData.success) {
@@ -191,7 +199,7 @@ export default function GuestChat() {
 
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n');
-                
+
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const dataStr = line.slice(6).trim();
@@ -200,7 +208,7 @@ export default function GuestChat() {
                             const data = JSON.parse(dataStr);
                             const content = data.choices[0]?.delta?.content || '';
                             assistantContent += content;
-                            
+
                             setMessages(prev => {
                                 const last = prev[prev.length - 1];
                                 if (last.role === 'assistant') {
@@ -208,7 +216,7 @@ export default function GuestChat() {
                                 }
                                 return prev;
                             });
-                        } catch (e) {}
+                        } catch (e) { }
                     }
                 }
             }
@@ -274,7 +282,7 @@ export default function GuestChat() {
                                                 const last = prev[prev.length - 1];
                                                 return [...prev.slice(0, -1), { ...last, content: secondAssistantContent }];
                                             });
-                                        } catch (e) {}
+                                        } catch (e) { }
                                     }
                                 }
                             }
@@ -339,15 +347,32 @@ export default function GuestChat() {
                         <div ref={messagesEndRef} />
                     </div>
                 )}
+            </main>
 
-                {/* Input Area */}
+            {/* Registration Modal (Every 5 messages) */}
+            {showRegisterModal && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.modalContent}>
+                        <div className={styles.modalIcon}><Sparkles size={32} /></div>
+                        <h2>Desbloquea todo el potencial</h2>
+                        <p>Te estás perdiendo funciones increíbles como el <b>Razonamiento Avanzado</b>, la <b>Búsqueda Web</b> y el <b>Análisis de Imágenes</b>.</p>
+                        <div className={styles.modalActions}>
+                            <Link href="/login" className={styles.modalLoginBtn}>Registrarse Gratis</Link>
+                            <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Input Area (Footer) */}
+            <div className={styles.footerInputWrapper}>
                 <div className={styles.inputWrapper}>
                     {showRegisterMsg && (
                         <div className={styles.registerMsg}>
                             <p>Si quieres subir un archivo, regístrate o inicia sesión</p>
                             <div className={styles.registerActions}>
                                 <Link href="/login" className={styles.smallLoginBtn}>Entrar</Link>
-                                <button onClick={() => setShowRegisterMsg(false)} className={styles.closeMsg}><X size={14}/></button>
+                                <button onClick={() => setShowRegisterMsg(false)} className={styles.closeMsg}><X size={14} /></button>
                             </div>
                         </div>
                     )}
@@ -377,7 +402,7 @@ export default function GuestChat() {
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
 
             {/* Footer */}
             <footer className={styles.footer}>

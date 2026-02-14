@@ -29,7 +29,7 @@ export async function POST(req) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "google/gemma-3n-e4b-it:free",
+                model: "google/gemini-2.0-flash-lite-preview-02-05:free",
                 messages: [
                     {
                         role: "system",

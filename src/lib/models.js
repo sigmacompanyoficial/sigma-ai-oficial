@@ -7,5 +7,14 @@ export const models = [
         platformLink: "https://openrouter.ai",
         imageInput: false,
         maxContext: 32768
+    },
+    {
+        modelId: "qwen/qwen3-coder:free",
+        modelName: "Sigma LLM 1 Coder",
+        provider: "openrouter",
+        hostedId: "qwen/qwen3-coder:free",
+        platformLink: "https://openrouter.ai",
+        imageInput: false,
+        maxContext: 32768
     }
 ];
