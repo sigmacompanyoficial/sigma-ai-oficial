@@ -4,11 +4,7 @@ import {
     Search, Plus, Send, ChevronDown, HelpCircle, Globe, Sparkles, X 
 } from 'lucide-react';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import rehypeHighlight from 'rehype-highlight';
-import remarkGfm from 'remark-gfm';
+import SigmaMarkdown from './SigmaMarkdown';
 import styles from './GuestChat.module.css';
 
 export default function GuestChat() {
@@ -22,8 +18,55 @@ export default function GuestChat() {
     const textareaRef = useRef(null);
     const messagesEndRef = useRef(null);
 
-    const modelId = "openai/gpt-oss-120b:free";
+    const modelId = "qwen/qwen3-next-80b-a3b-instruct:free";
     const systemInstructions = "Eres Sigma LLM 1 Mini, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable. Responde de forma clara y concisa.";
+
+    // Rate limiting & Retry logic
+    const lastSendTimeRef = useRef(0);
+    const RATE_LIMIT_MS = 1500; // 1.5 segundos entre mensajes
+    const MAX_RETRIES = 3;
+    const INITIAL_RETRY_DELAY = 2000; // 2 segundos
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const fetchWithRetry = async (url, options, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
+        try {
+            const response = await fetch(url, options);
+            
+            if (response.status === 429) {
+                if (retries > 0) {
+                    console.warn(`⏳ Límite de peticiones alcanzado. Reintentando en ${delay/1000}s... (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`);
+                    await sleep(delay);
+                    return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+                } else {
+                    throw new Error('Demasiadas peticiones. Por favor espera un momento e intenta de nuevo.');
+                }
+            }
+            
+            return response;
+        } catch (err) {
+            if (retries > 0 && err.message.includes('Failed to fetch')) {
+                console.warn(`🔄 Error de conexión. Reintentando en ${delay/1000}s...`);
+                await sleep(delay);
+                return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+            }
+            throw err;
+        }
+    };
+
+    const checkRateLimit = () => {
+        const now = Date.now();
+        const timeSinceLastSend = now - lastSendTimeRef.current;
+        
+        if (timeSinceLastSend < RATE_LIMIT_MS) {
+            const waitTime = RATE_LIMIT_MS - timeSinceLastSend;
+            console.log(`⏱️ Esperando ${waitTime}ms para enviar siguiente mensaje...`);
+            return false;
+        }
+        
+        lastSendTimeRef.current = now;
+        return true;
+    };
 
     useEffect(() => {
         const cookiesAccepted = localStorage.getItem('sigma_cookies_accepted');
@@ -54,6 +97,13 @@ export default function GuestChat() {
         e?.preventDefault();
         if (!input.trim() || isLoading) return;
 
+        // Rate limiting check
+        if (!checkRateLimit()) {
+            const now = Date.now();
+            const waitTime = RATE_LIMIT_MS - (now - lastSendTimeRef.current);
+            await sleep(waitTime);
+        }
+
         console.log('💬 GuestChat: User sent message:', input);
         const userMsg = { role: 'user', content: input };
         const newMessages = [...messages, userMsg];
@@ -75,7 +125,7 @@ export default function GuestChat() {
             if (hasLink) {
                 console.log('🌐 GuestChat: Link detected, triggering proactive search');
                 try {
-                    const searchResp = await fetch('/api/search', {
+                    const searchResp = await fetchWithRetry('/api/search', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ query: input })
@@ -102,7 +152,7 @@ export default function GuestChat() {
             }
 
             console.log('🚀 GuestChat: Calling Chat API with model:', modelId);
-            const response = await fetch('/api/chat', {
+            const response = await fetchWithRetry('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -173,7 +223,7 @@ export default function GuestChat() {
                     return last;
                 });
 
-                const searchResp = await fetch('/api/search', {
+                const searchResp = await fetchWithRetry('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: searchQuery })
@@ -187,7 +237,7 @@ export default function GuestChat() {
                         const secondMessagesForAPI = [...newMessages];
                         secondMessagesForAPI[secondMessagesForAPI.length - 1].content += secondSearchContext;
 
-                        const secondResponse = await fetch('/api/chat', {
+                        const secondResponse = await fetchWithRetry('/api/chat', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -281,12 +331,7 @@ export default function GuestChat() {
                         {messages.map((msg, idx) => (
                             <div key={idx} className={`${styles.message} ${styles[msg.role]}`}>
                                 <div className={styles.messageContent}>
-                                    <ReactMarkdown 
-                                        remarkPlugins={[remarkGfm, remarkMath]}
-                                        rehypePlugins={[rehypeKatex, rehypeHighlight]}
-                                    >
-                                        {msg.content}
-                                    </ReactMarkdown>
+                                    <SigmaMarkdown content={msg.content} theme="dark" />
                                 </div>
                             </div>
                         ))}

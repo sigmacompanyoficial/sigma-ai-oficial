@@ -7,19 +7,14 @@ import {
     ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square,
     Archive, Flag, BarChart3, Zap
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import rehypeHighlight from 'rehype-highlight';
-import remarkGfm from 'remark-gfm';
-import 'katex/dist/katex.min.css';
+import SigmaMarkdown from '@/components/SigmaMarkdown';
 import { supabase } from '@/lib/supabaseClient';
 import { formatAndLogSupabaseError } from '@/lib/supabaseHelpers';
 import styles from './page.module.css';
 import { models } from '@/lib/models';
 import { uploadAndExtractFile } from '@/lib/fileParser';
 
-const guestModel = { modelId: 'openai/gpt-oss-120b:free', modelName: 'Sigma LLM 1 Mini', provider: 'openrouter', hostedId: 'openai/gpt-oss-120b:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
+const guestModel = { modelId: 'qwen/qwen3-next-80b-a3b-instruct:free', modelName: 'Qwen 3 Next 80B', provider: 'openrouter', hostedId: 'qwen/qwen3-next-80b-a3b-instruct:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
 
 export default function ChatPage() {
     const [messages, setMessages] = useState([]);
@@ -33,8 +28,8 @@ export default function ChatPage() {
     const [error, setError] = useState(null);
 
     // User Profile States
-    const [userName, setUserName] = useState('Ayoub Louah');
-    const [userRole, setUserRole] = useState('Admin @ Sigma');
+    const [userName, setUserName] = useState('Invitado');
+    const [userRole, setUserRole] = useState('Visitante');
     const [botName, setBotName] = useState('Sigma LLM 1');
     const [profilePic, setProfilePic] = useState('');
     const [systemInstructions, setSystemInstructions] = useState('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
@@ -78,6 +73,46 @@ export default function ChatPage() {
     const attachMenuRef = useRef(null);
     const messagesRef = useRef(messages);
     const streamAbortRef = useRef(null);
+    const lastSentRef = useRef(0);
+
+    // Rate limiting & Retry logic
+    const RATE_LIMIT = 1000; // 1 segundo entre mensajes
+    const MAX_RETRIES = 3;
+    const INITIAL_RETRY_DELAY = 2000; // 2 segundos
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const fetchWithRetry = async (url, options, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
+        try {
+            const response = await fetch(url, options);
+
+            if (response.status === 429) {
+                if (retries > 0) {
+                    console.warn(`⏳ Límite de peticiones alcanzado. Reintentando en ${delay / 1000}s... (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`);
+                    await sleep(delay);
+                    return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+                } else {
+                    throw new Error('Demasiadas peticiones. Por favor espera un momento e intenta de nuevo.');
+                }
+            }
+
+            return response;
+        } catch (err) {
+            if (retries > 0 && err.message.includes('Failed to fetch')) {
+                console.warn(`🔄 Error de conexión. Reintentando en ${delay / 1000}s...`);
+                await sleep(delay);
+                return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+            }
+            throw err;
+        }
+    };
+
+    const canSendMessage = () => {
+        const now = Date.now();
+        if (now - lastSentRef.current < RATE_LIMIT) return false;
+        lastSentRef.current = now;
+        return true;
+    };
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -118,7 +153,7 @@ export default function ChatPage() {
 
     const scrollToBottom = (behavior = "auto", force = false) => {
         if (!chatContainerRef.current) return;
-        
+
         const doScroll = () => {
             if (chatContainerRef.current) {
                 const container = chatContainerRef.current;
@@ -132,7 +167,7 @@ export default function ChatPage() {
                 }
             }
         };
-        
+
         // Usar requestAnimationFrame para asegurar que el DOM se ha actualizado
         if (force || isAtBottomRef.current) {
             requestAnimationFrame(() => {
@@ -167,27 +202,49 @@ export default function ChatPage() {
             if (!user) {
                 console.log('👤 Modo Invitado activado');
                 setIsGuest(true);
-                setSelectedModel(guestModel);
-                setBotName('Sigma LLM 1 Mini');
-                setSystemInstructions('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
-                console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
-                console.log('📋 Instrucciones del sistema establecidas');
+
+                if (chatIdFromUrl) {
+                    console.log('👀 Viendo chat compartido como invitado...');
+                    await loadChat(chatIdFromUrl, null);
+                } else {
+                    setSelectedModel(guestModel);
+                    setBotName('Sigma LLM 1 Mini');
+                    setSystemInstructions('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
+                    console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
+                }
                 return;
             }
 
             setUser(user);
             setIsGuest(false);
-            
-            // Verificación de Onboarding
+
+            // Verificación de Onboarding y Rol
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('onboarding_completed')
+                .select('*')
                 .eq('id', user.id)
                 .single();
 
             if (!profile || !profile.onboarding_completed) {
                 window.location.href = '/onboarding';
                 return;
+            }
+
+            // Cargar datos del perfil
+            if (profile) {
+                setUserName(profile.full_name || user.email.split('@')[0]);
+                setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario Estándar');
+                setProfilePic(profile.avatar_url || '');
+
+                // Cargar configuraciones guardadas si existen
+                if (profile.settings) {
+                    const s = profile.settings;
+                    if (s.theme) setAppearance(s.theme);
+                    if (s.language) setLanguage(s.language);
+                    if (s.botName) setBotName(s.botName);
+                    if (s.botTone) setBotTone(s.botTone);
+                    if (s.systemInstructions) setSystemInstructions(s.systemInstructions);
+                }
             }
 
             fetchChats(user.id);
@@ -206,7 +263,7 @@ export default function ChatPage() {
             .select('total_messages, total_tokens')
             .eq('id', userId)
             .single();
-        
+
         if (!error && data) {
             setTotalMessages(data.total_messages || 0);
             setTotalTokens(data.total_tokens || 0);
@@ -221,6 +278,7 @@ export default function ChatPage() {
                     id,
                     title,
                     user_id,
+                    is_shared,
                     created_at,
                     is_archived,
                     messages (
@@ -259,6 +317,7 @@ export default function ChatPage() {
                     id,
                     title,
                     user_id,
+                    is_shared,
                     created_at,
                     is_archived,
                     messages (
@@ -280,7 +339,14 @@ export default function ChatPage() {
 
             if (data) {
                 setMessages(Array.isArray(data.messages) ? data.messages : []);
-                setIsReadOnly(data.user_id !== userId);
+                // If userId is null (guest), data.user_id !== null is true.
+                // If user is logged in, data.user_id !== userId checks ownership.
+                const isOwner = userId ? (data.user_id === userId) : false;
+                setIsReadOnly(!isOwner);
+
+                if (!isOwner) {
+                    setBotName('Sigma LLM 1 (Solo Lectura)');
+                }
             }
         } catch (err) {
             const { ui } = formatAndLogSupabaseError(err);
@@ -303,7 +369,7 @@ export default function ChatPage() {
             .from('chats')
             .update({ is_archived: !undo })
             .eq('id', chatId);
-        
+
         if (!error) {
             fetchChats(user.id);
             if (currentChatId === chatId && !undo) createNewChat();
@@ -346,10 +412,10 @@ export default function ChatPage() {
             return;
         }
         if (!user) return;
-        
+
         const newTotalMessages = totalMessages + 1;
         const newTotalTokens = totalTokens + tokens;
-        
+
         setTotalMessages(newTotalMessages);
         setTotalTokens(newTotalTokens);
 
@@ -360,13 +426,46 @@ export default function ChatPage() {
                 total_tokens: newTotalTokens
             })
             .eq('id', user.id);
-        
+
         if (error) console.warn('Error updating user stats:', error);
+    };
+
+    const handleShareChat = async () => {
+        if (!currentChatId) {
+            alert('No hay un chat activo para compartir.');
+            return;
+        }
+
+        if (isGuest) {
+            alert('Los invitados no pueden compartir chats. Inicia sesión para guardar y compartir.');
+            return;
+        }
+
+        try {
+            // Update the chat to be shared
+            const { error } = await supabase
+                .from('chats')
+                .update({ is_shared: true })
+                .eq('id', currentChatId);
+
+            if (error) throw error;
+
+            // Generate link
+            const url = `${window.location.origin}/chat?id=${currentChatId}`;
+            await navigator.clipboard.writeText(url);
+            alert('✅ Enlace público copiado al portapapeles.\n\nCualquier persona con el enlace podrá ver este chat (solo lectura).');
+        } catch (err) {
+            console.error('Error sharing chat:', err);
+            alert('Error al compartir el chat.');
+        }
     };
 
     const handleSend = async (e) => {
         e?.preventDefault();
         if (!canSend) return;
+
+        // Rate limiting check
+        if (!canSendMessage()) return;
 
         const userMsg = {
             role: 'user',
@@ -438,7 +537,7 @@ export default function ChatPage() {
             } else {
                 console.log('🚀 Using model:', modelToUse);
             }
-            
+
             // Real Web Search Logic
             let searchContext = "";
             if (useWebSearch) {
@@ -450,12 +549,12 @@ export default function ChatPage() {
                 });
 
                 try {
-                    const searchResp = await fetch('/api/search', {
+                    const searchResp = await fetchWithRetry('/api/search', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ query: input })
                     });
-                    
+
                     if (searchResp.ok) {
                         const searchData = await searchResp.json();
                         if (searchData.success) {
@@ -479,7 +578,7 @@ export default function ChatPage() {
             }
 
             console.log('📤 Sending final request to OpenRouter/Chat API...');
-            
+
             // Inject search context into the last user message to ensure the model sees it and uses it
             const messagesForAPI = [...newMessages];
             if (searchContext) {
@@ -491,7 +590,7 @@ export default function ChatPage() {
                 console.log('💉 Search context injected into last USER message');
             }
 
-            const response = await fetch('/api/chat', {
+            const response = await fetchWithRetry('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -507,30 +606,44 @@ export default function ChatPage() {
                 signal: controller.signal
             });
 
-            if (!response.ok) throw new Error('API Error');
+            console.log('📡 Response received. Status:', response.status, 'Content-Type:', response.headers.get('Content-Type'));
+
+            if (!response.ok) {
+                const errText = await response.text();
+                console.error('❌ API returned error:', response.status, errText);
+                throw new Error(`API Error: ${response.status} - ${errText}`);
+            }
+
+            if (!response.body) {
+                console.error('❌ Response body is null or undefined');
+                throw new Error('Response body is empty');
+            }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let botResponse = '';
             let hasCollapsedThinking = false;
+            let chunkCount = 0;
+
+            console.log('🔄 Starting to read stream...');
 
             while (true) {
                 const { done, value } = await reader.read();
+                chunkCount++;
+
                 if (done) {
-                    if (isGuest) {
-                        console.log('✅ [INVITADO] Stream completado');
-                        console.log('📊 [INVITADO] Longitud de respuesta:', botResponse.length);
-                    } else {
-                        console.log('✅ Stream finished');
-                    }
+                    console.log(`✅ Stream finished after ${chunkCount} chunks`);
+                    console.log(`📊 Total response length: ${botResponse.length} characters`);
                     break;
                 }
 
                 const chunk = decoder.decode(value);
+                console.log(`📥 Chunk #${chunkCount} received (${chunk.length} chars): ${chunk.substring(0, 150)}...`);
+
                 const lines = chunk.split('\n');
 
                 for (const line of lines) {
-                    if (line.startsWith('data: ')) {
+                    if (line.trim().startsWith('data: ')) {
                         const dataStr = line.replace('data: ', '').trim();
                         if (dataStr === '[DONE]') {
                             console.log('🏁 Stream data [DONE]');
@@ -539,11 +652,11 @@ export default function ChatPage() {
                         try {
                             const json = JSON.parse(dataStr);
                             const content = json.choices?.[0]?.delta?.content || '';
-                            
+
                             // Even if content is empty (start of stream), we update to clear the '...' placeholder
                             botResponse += content;
-                            if (isGuest && content) {
-                                console.log('📥 [INVITADO] Chunk recibido:', `"${content}"`);
+                            if (content) {
+                                console.log(`📝 Content received: "${content}"`);
                             }
 
                             // Auto-collapse thinking block AS SOON AS </think> is detected
@@ -560,7 +673,7 @@ export default function ChatPage() {
                             setMessages(prev => {
                                 const last = [...prev];
                                 const lastMsg = last[last.length - 1];
-                                
+
                                 // Update content and ensure isSearching is false
                                 last[last.length - 1] = {
                                     ...lastMsg,
@@ -569,7 +682,9 @@ export default function ChatPage() {
                                 };
                                 return last;
                             });
-                        } catch (e) { /* ignore partial json */ }
+                        } catch (e) {
+                            console.warn('⚠️ Failed to parse JSON from streaming data:', dataStr.slice(0, 100), e.message);
+                        }
                     }
                 }
             }
@@ -582,11 +697,11 @@ export default function ChatPage() {
                 if (botResponse.startsWith('SEARCH:')) {
                     const searchQuery = botResponse.replace('SEARCH:', '').trim();
                     console.log('🔍 Auto-Search detected for:', searchQuery);
-                    
+
                     setMessages(prev => {
                         const last = [...prev];
-                        last[last.length - 1] = { 
-                            ...last[last.length - 1], 
+                        last[last.length - 1] = {
+                            ...last[last.length - 1],
                             isSearching: true,
                             content: `Buscando información sobre: ${searchQuery}...`
                         };
@@ -594,7 +709,7 @@ export default function ChatPage() {
                     });
 
                     try {
-                        const searchResp = await fetch('/api/search', {
+                        const searchResp = await fetchWithRetry('/api/search', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ query: searchQuery })
@@ -604,12 +719,12 @@ export default function ChatPage() {
                             const searchData = await searchResp.json();
                             if (searchData.success) {
                                 const searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}\n\nResponde a la consulta original del usuario usando esta información de forma detallada.`;
-                                
+
                                 console.log('✅ Search context retrieved, re-calling Chat API...');
-                                
+
                                 // Reset for the second call
                                 let secondBotResponse = '';
-                                
+
                                 const secondMessagesForAPI = [...newMessages];
                                 const lastIdx = secondMessagesForAPI.length - 1;
                                 secondMessagesForAPI[lastIdx] = {
@@ -617,7 +732,7 @@ export default function ChatPage() {
                                     content: secondMessagesForAPI[lastIdx].content + searchContext
                                 };
 
-                                const secondResponse = await fetch('/api/chat', {
+                                const secondResponse = await fetchWithRetry('/api/chat', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
@@ -635,11 +750,11 @@ export default function ChatPage() {
 
                                 if (secondResponse.ok) {
                                     const secondReader = secondResponse.body.getReader();
-                                    
+
                                     setMessages(prev => {
                                         const last = [...prev];
-                                        last[last.length - 1] = { 
-                                            ...last[last.length - 1], 
+                                        last[last.length - 1] = {
+                                            ...last[last.length - 1],
                                             isSearching: false,
                                             content: '',
                                             source: 'Tavily Search'
@@ -662,7 +777,7 @@ export default function ChatPage() {
                                                     const json = JSON.parse(dataStr);
                                                     const content = json.choices?.[0]?.delta?.content || '';
                                                     secondBotResponse += content;
-                                                    
+
                                                     setMessages(prev => {
                                                         const last = [...prev];
                                                         last[last.length - 1] = {
@@ -671,11 +786,11 @@ export default function ChatPage() {
                                                         };
                                                         return last;
                                                     });
-                                                } catch (e) {}
+                                                } catch (e) { }
                                             }
                                         }
                                     }
-                                    
+
                                     // Final save of the second response
                                     botResponse = secondBotResponse;
                                 }
@@ -692,7 +807,7 @@ export default function ChatPage() {
                     content: botResponse,
                     created_at: new Date().toISOString()
                 });
-                
+
                 // Update Statistics
                 const estimatedTokens = Math.ceil(botResponse.length / 4) + 10;
                 updateUserStats(estimatedTokens);
@@ -701,9 +816,14 @@ export default function ChatPage() {
             }
 
         } catch (err) {
+            console.error('🔥 Fatal error in handleSend:', err);
             if (err.name !== 'AbortError') {
-                setError(err.message);
+                const errorMsg = err instanceof Error ? err.message : String(err);
+                console.error('❌ Error message:', errorMsg);
+                setError(errorMsg);
                 setMessages(prev => prev.slice(0, -1));
+            } else {
+                console.log('✋ Stream was aborted by user');
             }
         } finally {
             setIsLoading(false);
@@ -841,7 +961,7 @@ export default function ChatPage() {
 
                     // Update assistant message with analysis (SILENT - only in console for debugging)
                     console.log('✅ Vision analysis complete (' + chunkCount + ' chunks):', description.slice(0, 100) + '...');
-                    
+
                     // Now send this analysis to SigmaLLM 1 for response
                     console.log('📋 Building chat messages for SigmaLLM 1...');
                     const messagesForChat = [
@@ -896,7 +1016,7 @@ export default function ChatPage() {
                                     const delta = json.choices?.[0]?.delta || {};
                                     const content = delta.content || '';
                                     const reasoning = delta.reasoning || '';
-                                    
+
                                     if (reasoning) {
                                         reasoningContent += reasoning;
                                     }
@@ -909,7 +1029,7 @@ export default function ChatPage() {
                                     let fullDisplayContent = sigmaResponse;
                                     if (reasoningContent) {
                                         fullDisplayContent = `<think>\n${reasoningContent}\n</think>\n${sigmaResponse}`;
-                                        
+
                                         if (!hasCollapsedThinking && sigmaResponse.length > 0) {
                                             hasCollapsedThinking = true;
                                             setMessages(prev => {
@@ -937,17 +1057,17 @@ export default function ChatPage() {
 
                     // Save Assistant Message to DB
                     if (user && chatId && (sigmaResponse || reasoningContent)) {
-                        const finalContent = reasoningContent 
+                        const finalContent = reasoningContent
                             ? `<think>\n${reasoningContent}\n</think>\n${sigmaResponse}`
                             : sigmaResponse;
-                            
+
                         await supabase.from('messages').insert({
                             chat_id: chatId,
                             role: 'assistant',
                             content: finalContent,
                             created_at: new Date().toISOString()
                         });
-                        
+
                         // Update Statistics
                         const estimatedTokens = Math.ceil(finalContent.length / 4) + 50; // Extra tokens for image analysis
                         updateUserStats(estimatedTokens);
@@ -1025,9 +1145,33 @@ export default function ChatPage() {
         window.location.href = '/login';
     };
 
-    const saveSettings = () => {
+    const saveSettings = async () => {
         setShowSettings(false);
-        // Persist to DB or LocalStorage if needed
+        if (!user) return;
+
+        const newSettings = {
+            theme: appearance,
+            language: language,
+            botName: botName,
+            botTone: botTone,
+            systemInstructions: systemInstructions
+        };
+
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    full_name: userName,
+                    settings: newSettings
+                })
+                .eq('id', user.id);
+
+            if (error) throw error;
+            console.log('✅ Configuración guardada correctamente');
+        } catch (err) {
+            console.error('❌ Error al guardar configuración:', err);
+            // Fallback opcional o notificación de error
+        }
     };
 
     const renderMessage = (content, index) => {
@@ -1069,23 +1213,13 @@ export default function ChatPage() {
                         </div>
                         {!collapsedThinking[index] && (
                             <div className={styles.thinkingContent}>
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{thinkingPart}</ReactMarkdown>
+                                <SigmaMarkdown content={thinkingPart} theme="dark" />
                             </div>
                         )}
                     </div>
                 )}
                 {answerPart && (
-                    <ReactMarkdown
-                        remarkPlugins={[remarkMath, remarkGfm]}
-                        rehypePlugins={[rehypeKatex, rehypeHighlight]}
-                        components={{
-                            pre: ({ node, ...props }) => <div className={styles.preWrapper}><pre {...props} /></div>,
-                            code: ({ node, inline, ...props }) =>
-                                inline ? <code className={styles.inlineCode} {...props} /> : <code {...props} />
-                        }}
-                    >
-                        {answerPart}
-                    </ReactMarkdown>
+                    <SigmaMarkdown content={answerPart} theme="dark" />
                 )}
             </>
         );
@@ -1102,12 +1236,12 @@ export default function ChatPage() {
                         <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.sidebarLogo} />
                         <span className={styles.sidebarBrand}>Sigma AI</span>
                     </div>
-                    
+
                     <div className={styles.sidebarSearchWrapper}>
                         <Search size={14} className={styles.sidebarSearchIcon} />
-                        <input 
-                            type="text" 
-                            placeholder="Buscar chats..." 
+                        <input
+                            type="text"
+                            placeholder="Buscar chats..."
                             className={styles.sidebarSearchInput}
                             value={sidebarSearch}
                             onChange={(e) => setSidebarSearch(e.target.value)}
@@ -1125,11 +1259,11 @@ export default function ChatPage() {
                 <div className={styles.sidebarContent}>
                     <div className={styles.sidebarSection}>
                         <div className={styles.sidebarHeading}>{sidebarSearch ? 'Resultados de búsqueda' : 'Recientes'}</div>
-                        {savedChats.filter(chat => !chat.is_archived).filter(chat => 
+                        {savedChats.filter(chat => !chat.is_archived).filter(chat =>
                             chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
                             chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
                         ).length > 0 ? (
-                            savedChats.filter(chat => !chat.is_archived).filter(chat => 
+                            savedChats.filter(chat => !chat.is_archived).filter(chat =>
                                 chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
                                 chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
                             ).map(chat => (
@@ -1195,6 +1329,11 @@ export default function ChatPage() {
                             <div className={styles.profileName}>{userName}</div>
                             <div className={styles.profileStatus}>{userRole}</div>
                         </div>
+                        {userRole === 'Administrador' && (
+                            <button className={styles.iconBtn} onClick={() => window.location.href = '/admin'} title="Panel Admin" style={{ color: '#8b5cf6' }}>
+                                <Shield size={18} />
+                            </button>
+                        )}
                         <button className={styles.iconBtn} onClick={() => setShowSettings(true)} title="Configuración"><Settings size={18} /></button>
                     </div>
                 </div>
@@ -1214,10 +1353,10 @@ export default function ChatPage() {
                                 <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : 'Sigma LLM 1'}</span>
                                 <ChevronDown size={16} className={styles.chevronIcon} />
                             </div>
-                            
+
                             {showModelDropdown && (
                                 <div className={styles.modelDropdown}>
-                                    <div 
+                                    <div
                                         className={`${styles.modelOption} ${!useReasoning ? styles.activeModel : ''}`}
                                         onClick={() => {
                                             setUseReasoning(false);
@@ -1231,7 +1370,7 @@ export default function ChatPage() {
                                         </div>
                                         <p className={styles.modelDescription}>Nuestro modelo estándar, rápido y eficiente.</p>
                                     </div>
-                                    <div 
+                                    <div
                                         className={`${styles.modelOption} ${useReasoning ? styles.activeModel : ''}`}
                                         onClick={() => {
                                             setUseReasoning(true);
@@ -1251,12 +1390,10 @@ export default function ChatPage() {
                     </div>
 
                     <div className={styles.headerActions}>
-                        <button 
+                        <button
                             className={styles.shareButton}
-                            onClick={() => {
-                                navigator.clipboard.writeText(window.location.href);
-                                alert('Enlace copiado al portapapeles');
-                            }}
+                            onClick={handleShareChat}
+                            title="Compartir chat públicamente"
                         >
                             <Upload size={16} />
                             <span>Compartir</span>
@@ -1265,7 +1402,7 @@ export default function ChatPage() {
                             <button className={styles.iconBtn} onClick={() => setShowMoreMenu(!showMoreMenu)}>
                                 <MoreHorizontal size={20} />
                             </button>
-                            
+
                             {showMoreMenu && (
                                 <div className={styles.moreMenuDropdown}>
                                     <div className={styles.moreMenuOption} onClick={() => archiveChat(currentChatId)}>
@@ -1378,12 +1515,12 @@ export default function ChatPage() {
 
                             <form onSubmit={handleSend} className={styles.inputWrapper}>
                                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
-                                
+
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                                    <button 
-                                        type="button" 
-                                        className={styles.attachButton} 
-                                        onClick={() => fileInputRef.current?.click()} 
+                                    <button
+                                        type="button"
+                                        className={styles.attachButton}
+                                        onClick={() => fileInputRef.current?.click()}
                                         disabled={isLoading}
                                         title="Subir archivos"
                                     >
@@ -1401,7 +1538,7 @@ export default function ChatPage() {
                                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
                                     disabled={isLoading}
                                 />
-                                
+
                                 {isLoading || isStreaming ? (
                                     <button type="button" className={styles.stopBtnInline} onClick={stopStreaming}>
                                         <Square size={16} fill="white" />
@@ -1413,6 +1550,17 @@ export default function ChatPage() {
                                 )}
                             </form>
                         </>
+                    )}
+                    {isReadOnly && (
+                        <div className={styles.readOnlyBanner}>
+                            <AlertCircle size={20} />
+                            <span>Estás viendo una versión de solo lectura de este chat.</span>
+                            {!user && (
+                                <button onClick={() => window.location.href = '/login'} className={styles.loginLink}>
+                                    Iniciar sesión para crear tu propio chat
+                                </button>
+                            )}
+                        </div>
                     )}
                     <p className={styles.footer}>Sigma AI puede cometer errores. Verifica la información importante</p>
                 </div>
@@ -1426,7 +1574,7 @@ export default function ChatPage() {
                             <h2 className={styles.settingsTitle}>Ajustes</h2>
                             <div className={styles.settingsNav}>
                                 {['General', 'Estadísticas', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta'].map(tab => (
-                                    <button 
+                                    <button
                                         key={tab}
                                         className={`${styles.settingsTab} ${activeSettingsTab === tab ? styles.activeSettingsTab : ''}`}
                                         onClick={() => setActiveSettingsTab(tab)}
@@ -1468,8 +1616,8 @@ export default function ChatPage() {
                                             <label>Apariencia</label>
                                             <div className={styles.radioGroup}>
                                                 {['Claro', 'Oscuro', 'Sistema'].map(mode => (
-                                                    <button 
-                                                        key={mode} 
+                                                    <button
+                                                        key={mode}
                                                         className={`${styles.radioBtn} ${appearance === mode ? styles.activeRadio : ''}`}
                                                         onClick={() => setAppearance(mode)}
                                                     >
@@ -1520,7 +1668,7 @@ export default function ChatPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         <div className={styles.usageChartPlaceholder}>
                                             <div className={styles.placeholderIcon}><BarChart3 size={32} /></div>
                                             <p>El historial detallado de uso estará disponible próximamente.</p>
@@ -1542,8 +1690,8 @@ export default function ChatPage() {
                                             <label>Tonalidad de Respuesta</label>
                                             <div className={styles.radioGroup}>
                                                 {['Formal', 'Casual', 'Profesional', 'Divertido'].map(tone => (
-                                                    <button 
-                                                        key={tone} 
+                                                    <button
+                                                        key={tone}
                                                         className={`${styles.radioBtn} ${botTone === tone ? styles.activeRadio : ''}`}
                                                         onClick={() => setBotTone(tone)}
                                                     >
@@ -1627,9 +1775,9 @@ export default function ChatPage() {
                                                     <p>Esta acción no se puede deshacer.</p>
                                                 </div>
                                                 <button className={styles.dangerBtn} onClick={async () => {
-                                                    if(confirm('¿Seguro que quieres borrar todo el historial?')) {
+                                                    if (confirm('¿Seguro que quieres borrar todo el historial?')) {
                                                         const { error } = await supabase.from('chats').delete().eq('user_id', user.id);
-                                                        if(!error) fetchChats(user.id);
+                                                        if (!error) fetchChats(user.id);
                                                     }
                                                 }}>Borrar todo</button>
                                             </div>
@@ -1665,7 +1813,9 @@ export default function ChatPage() {
                             </div>
 
                             <div className={styles.settingsFooter}>
-                                <button className={styles.saveBtn} onClick={saveSettings}>Guardar Cambios</button>
+                                <button className={styles.saveSettingsBtn} onClick={saveSettings}>
+                                    <Check size={16} /> Guardar cambios
+                                </button>
                             </div>
                         </div>
                     </div>

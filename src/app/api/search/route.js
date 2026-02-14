@@ -1,18 +1,75 @@
 import { NextResponse } from 'next/server';
 import { getRequiredEnv } from '@/lib/env';
 
+// Simple in-memory cache for search results (TTL: 5 minutes)
+const searchCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000;
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 10; // Max 10 requests per minute per IP
+
+function getCacheKey(query) {
+    return query.toLowerCase().trim();
+}
+
+function cleanCache() {
+    const now = Date.now();
+    for (const [key, { timestamp }] of searchCache.entries()) {
+        if (now - timestamp > CACHE_TTL) {
+            searchCache.delete(key);
+        }
+    }
+}
+
+function checkRateLimit(ip) {
+    const now = Date.now();
+    if (!rateLimitMap.has(ip)) {
+        rateLimitMap.set(ip, [now]);
+        return true;
+    }
+    
+    const timestamps = rateLimitMap.get(ip).filter(t => now - t < RATE_LIMIT_WINDOW);
+    if (timestamps.length >= RATE_LIMIT_MAX) {
+        return false;
+    }
+    timestamps.push(now);
+    rateLimitMap.set(ip, timestamps);
+    return true;
+}
+
 function jsonError(message, status = 500) {
     return NextResponse.json({ error: message }, { status });
 }
 
 export async function POST(req) {
     try {
+        const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+        
+        // Rate limiting
+        if (!checkRateLimit(ip)) {
+            console.warn('⚠️ [SEARCH] Rate limit exceeded for IP:', ip);
+            return jsonError('Too many search requests. Please wait a moment.', 429);
+        }
+
         const { query } = await req.json();
         console.log('🌐 [SEARCH] Tavily Request for:', query);
 
-        if (!query) {
-            console.warn('⚠️ [SEARCH] No query provided');
-            return jsonError('Query required', 400);
+        if (!query || typeof query !== 'string' || query.trim().length === 0) {
+            console.warn('⚠️ [SEARCH] Invalid or empty query');
+            return jsonError('Valid query required', 400);
+        }
+
+        const cacheKey = getCacheKey(query);
+        const cachedResult = searchCache.get(cacheKey);
+        
+        if (cachedResult) {
+            console.log('💾 [SEARCH] Returning cached result for:', query);
+            return NextResponse.json({
+                success: true,
+                result: cachedResult.data,
+                source: 'Tavily (Cached)',
+                cached: true
+            });
         }
 
         let apiKey;
@@ -25,6 +82,9 @@ export async function POST(req) {
 
         console.log('📡 [SEARCH] Calling Tavily API...');
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
         const response = await fetch('https://api.tavily.com/search', {
             method: 'POST',
             headers: {
@@ -32,13 +92,15 @@ export async function POST(req) {
             },
             body: JSON.stringify({
                 api_key: apiKey,
-                query: query,
+                query: query.trim(),
                 search_depth: "basic",
                 include_answer: true,
                 max_results: 5
-            })
+            }),
+            signal: controller.signal
         });
 
+        clearTimeout(timeoutId);
         const data = await response.json();
         console.log('📥 [SEARCH] Tavily Response Status:', response.status);
 
@@ -47,14 +109,12 @@ export async function POST(req) {
             return jsonError('Error calling search service', response.status);
         }
 
-        // Tavily usually provides a direct 'answer' if requested, or results
         let finalResult = '';
 
         if (data.answer) {
             finalResult = data.answer;
             console.log('✅ [SEARCH] Tavily provided a direct answer.');
         } else if (data.results && data.results.length > 0) {
-            // Concatenate titles and snippets for context
             finalResult = data.results.map(r => `Source: ${r.title}\nContent: ${r.content}`).join('\n\n');
             console.log(`✅ [SEARCH] Found ${data.results.length} search results.`);
         }
@@ -67,13 +127,25 @@ export async function POST(req) {
             });
         }
 
+        // Cache the result
+        searchCache.set(cacheKey, {
+            data: finalResult,
+            timestamp: Date.now()
+        });
+        cleanCache(); // Clean old entries periodically
+
         return NextResponse.json({
             success: true,
             result: finalResult,
-            source: 'Tavily'
+            source: 'Tavily',
+            cached: false
         });
 
     } catch (error) {
+        if (error?.name === 'AbortError') {
+            console.error('⏱️ [SEARCH] Request timeout');
+            return jsonError('Search request timed out', 504);
+        }
         console.error('💥 [SEARCH] Critical Error:', error);
         return jsonError('Error interno al procesar la búsqueda', 500);
     }

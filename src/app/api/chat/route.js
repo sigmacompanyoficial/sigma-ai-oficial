@@ -155,13 +155,18 @@ Hora actual: ${currentTime}
 
         console.log('✅ OpenRouter Response OK. Starting stream...');
 
-        // Stream back to client with proper headers
+        // Forward OpenRouter stream directly to client
+        // OpenRouter returns proper SSE format, so we can pass it through
         return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
             headers: {
                 'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache, no-transform',
+                'Cache-Control': 'no-cache',
                 'Connection': 'keep-alive',
-                'X-Accel-Buffering': 'no', // Disable nginx buffering
+                'Access-Control-Allow-Origin': '*',
+                'Transfer-Encoding': 'chunked',
+                'X-Accel-Buffering': 'no',
                 'X-Request-Id': requestId,
             },
         });
