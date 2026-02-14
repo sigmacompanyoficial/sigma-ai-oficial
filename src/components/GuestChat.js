@@ -407,7 +407,7 @@ export default function GuestChat() {
             {/* Footer */}
             <footer className={styles.footer}>
                 <p>
-                    Al enviar un mensaje a SIGMA AI, un asistente de IA, aceptas nuestras <a href="#">condiciones</a> y confirmas que has leído nuestra <a href="#">política de privacidad</a>. <a href="#">Ver preferencias de cookies</a>.
+                    Al enviar un mensaje a SIGMA AI, un asistente de IA, aceptas nuestras <Link href="/terms">condiciones</Link> y confirmas que has leído nuestra <Link href="/privacy">política de privacidad</Link>. <Link href="/cookies">Ver preferencias de cookies</Link>.
                 </p>
             </footer>
 

@@ -1350,7 +1350,7 @@ export default function ChatPage() {
                         <div className={styles.settingsSidebar}>
                             <h2 className={styles.settingsTitle}>Ajustes</h2>
                             <div className={styles.settingsNav}>
-                                {['General', 'Estadísticas', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta'].map(tab => (
+                                {['General', 'Estadísticas', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta', 'Legal'].map(tab => (
                                     <button
                                         key={tab}
                                         className={`${styles.settingsTab} ${activeSettingsTab === tab ? styles.activeSettingsTab : ''}`}
@@ -1364,6 +1364,7 @@ export default function ChatPage() {
                                         {tab === 'Datos' && <Trash2 size={16} />}
                                         {tab === 'Seguridad' && <Check size={16} />}
                                         {tab === 'Cuenta' && <User size={16} />}
+                                        {tab === 'Legal' && <ShieldCheck size={16} />}
                                         {tab}
                                     </button>
                                 ))}
@@ -1584,6 +1585,31 @@ export default function ChatPage() {
                                         <div className={styles.settingGroup}>
                                             <label>Rol</label>
                                             <input className={styles.input} value={userRole} readOnly />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeSettingsTab === 'Legal' && (
+                                    <div className={styles.settingsSection}>
+                                        <div className={styles.settingGroup}>
+                                            <label>Políticas y Condiciones</label>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+                                                <Link href="/terms" className={styles.legalLinkItem}>
+                                                    <FileText size={16} /> Términos y Condiciones
+                                                </Link>
+                                                <Link href="/privacy" className={styles.legalLinkItem}>
+                                                    <Shield size={16} /> Política de Privacidad
+                                                </Link>
+                                                <Link href="/cookies" className={styles.legalLinkItem}>
+                                                    <Cookie size={16} /> Configuración de Cookies
+                                                </Link>
+                                            </div>
+                                        </div>
+                                        <div className={styles.settingGroup} style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+                                            <p style={{ fontSize: '0.85rem', color: '#666', margin: 0 }}>
+                                                Sigma AI es una plataforma desarrollada por <b>Sigma Company</b>.
+                                                Autor: <b>Ayoub Louah</b>. Versión 0.9 Beta.
+                                            </p>
                                         </div>
                                     </div>
                                 )}
