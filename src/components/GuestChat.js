@@ -317,7 +317,7 @@ export default function GuestChat() {
             <header className={styles.header}>
                 <div className={styles.headerLeft}>
                     <div className={styles.sidebarLogoContainer}>
-                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.sidebarLogo} />
+                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI Logo - El futuro de la IA por Sigma Company" className={styles.sidebarLogo} />
                         <span className={styles.sidebarBrand}>Sigma AI</span>
                     </div>
                 </div>

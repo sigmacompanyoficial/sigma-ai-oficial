@@ -4,68 +4,73 @@ import path from 'path';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { load as cheerioLoad } from 'cheerio';
+import Tesseract from 'tesseract.js';
 
 export const runtime = 'nodejs';
 
 /**
- * Extrae el texto de un archivo (solo en servidor)
+ * Extrae el texto de un archivo de forma modular
  */
 async function extractFileText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
+  const buffer = fs.readFileSync(filePath);
 
   try {
-    // PDF
-    if (ext === '.pdf') {
-      const buffer = fs.readFileSync(filePath);
-
-      // Importación directa para evitar errores de test en pdf-parse 1.1.1
-      const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-
-      if (typeof pdfParse !== 'function') {
-        throw new Error('pdfParse no es una función');
+    switch (ext) {
+      case '.pdf': {
+        const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
+        const data = await pdfParse(buffer);
+        return data.text;
       }
 
-      const data = await pdfParse(buffer);
-      return data.text;
-    }
+      case '.docx': {
+        const result = await mammoth.extractRawText({ path: filePath });
+        return result.value;
+      }
 
-    // DOCX
-    if (ext === '.docx') {
-      const result = await mammoth.extractRawText({ path: filePath });
-      return result.value;
-    }
+      case '.xlsx':
+      case '.xls': {
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        let text = '';
+        workbook.SheetNames.forEach(sheetName => {
+          text += `\n=== Hoja: ${sheetName} ===\n`;
+          text += XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]) + '\n';
+        });
+        return text;
+      }
 
-    // Excel
-    if (['.xls', '.xlsx'].includes(ext)) {
-      const workbook = XLSX.readFile(filePath);
-      let text = '';
-      workbook.SheetNames.forEach(sheetName => {
-        const sheet = workbook.Sheets[sheetName];
-        text += `\n=== Sheet: ${sheetName} ===\n`;
-        text += XLSX.utils.sheet_to_csv(sheet) + '\n';
-      });
-      return text;
-    }
+      case '.html':
+      case '.htm': {
+        const $ = cheerioLoad(buffer.toString('utf8'));
+        return $('body').text() || $.text();
+      }
 
-    // HTML
-    if (['.html', '.htm'].includes(ext)) {
-      const html = fs.readFileSync(filePath, 'utf8');
-      const $ = cheerioLoad(html);
-      return $.text();
-    }
+      case '.txt':
+      case '.csv':
+      case '.js':
+      case '.ts':
+      case '.py':
+      case '.md':
+      case '.json':
+      case '.env':
+        return buffer.toString('utf8');
 
-    // Texto plano y código
-    if ([
-      '.txt', '.js', '.ts', '.jsx', '.tsx',
-      '.css', '.py', '.java', '.c', '.cpp',
-      '.json', '.md', '.csv', '.log', '.env'
-    ].includes(ext)) {
-      return fs.readFileSync(filePath, 'utf8');
-    }
+      // Imágenes (OCR como fallback o por petición explícita)
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.webp':
+      case '.bmp': {
+        const { data: { text } } = await Tesseract.recognize(buffer, 'spa+eng');
+        return text;
+      }
 
-    throw new Error(`Formato no soportado: ${ext}`);
+      default:
+        throw new Error(`Extensión ${ext} no soportada`);
+    }
   } catch (error) {
-    throw new Error(`Error al extraer: ${error.message}`);
+    console.error(`Error procesando ${ext}:`, error);
+    throw new Error(`Error al analizar el archivo: ${error.message}`);
   }
 }
 
@@ -78,13 +83,22 @@ export async function POST(req) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    // Only allow images server-side
+    // Permitir imágenes y documentos
     const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml'];
-    const isImageType = file.type && allowedImageTypes.includes(file.type.toLowerCase());
+    const allowedDocTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain', 'text/html', 'application/json', 'text/csv'
+    ];
+
+    const isImage = file.type && allowedImageTypes.includes(file.type.toLowerCase());
+    const isDoc = file.type && allowedDocTypes.includes(file.type.toLowerCase());
     const ext = path.extname(file.name || '').toLowerCase();
-    const allowedExt = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.svg'];
-    if (!isImageType && !allowedExt.includes(ext)) {
-      return NextResponse.json({ error: 'Solo se permiten imágenes' }, { status: 400 });
+    const allowedExt = ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.docx', '.xlsx', '.txt', '.csv', '.json', '.html', '.js', '.py', '.md'];
+
+    if (!isImage && !isDoc && !allowedExt.includes(ext)) {
+      return NextResponse.json({ error: 'Formato de archivo no soportado' }, { status: 400 });
     }
 
     // Crear directorio tmp si no existe

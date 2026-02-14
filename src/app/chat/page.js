@@ -5,7 +5,7 @@ import {
     ChevronDown, Settings, Mic, Send, User, Bot, Sparkles, MessageSquare, LogOut, Camera,
     Copy, Check, Trash2, AlertCircle, Upload,
     ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square,
-    Archive, Flag, BarChart3, Zap
+    Archive, Flag, BarChart3, Zap, FileText, File, Cookie, ShieldCheck, Shield
 } from 'lucide-react';
 import SigmaMarkdown from '@/components/SigmaMarkdown';
 import { supabase } from '@/lib/supabaseClient';
@@ -52,6 +52,7 @@ export default function ChatPage() {
 
     const [selectedImages, setSelectedImages] = useState([]);
     const [imagePreviews, setImagePreviews] = useState([]);
+    const [selectedDocs, setSelectedDocs] = useState([]); // [{ name, content, type }]
     const [isProcessingImage, setIsProcessingImage] = useState(false);
     const [isParsingFile, setIsParsingFile] = useState(false);
 
@@ -135,8 +136,10 @@ export default function ChatPage() {
     }, [messages]);
 
     const canSend = useMemo(() => {
-        return (input.trim().length > 0 || selectedImages.length > 0) && !isLoading && !isProcessingImage;
-    }, [input, selectedImages, isLoading, isProcessingImage]);
+        const hasInput = input.trim().length > 0;
+        const hasFiles = selectedImages.length > 0 || selectedDocs.length > 0;
+        return (hasInput || hasFiles) && !isLoading && !isProcessingImage && !isParsingFile;
+    }, [input, selectedImages, selectedDocs, isLoading, isProcessingImage, isParsingFile]);
 
     const getTimeBasedGreeting = () => {
         const hour = new Date().getHours();
@@ -467,13 +470,15 @@ export default function ChatPage() {
         if (!canSend) return;
         if (!canSendMessage()) return;
 
-        const currentInput = input;
+        const currentInput = input || ""; // Permitir input vacío si hay archivos
         const currentImages = [...imagePreviews];
+        const currentDocs = [...selectedDocs];
 
         const userMsg = {
             role: 'user',
-            content: currentInput,
+            content: currentInput || (currentDocs.length > 0 ? "Archivo adjunto" : "Imagen adjunta"),
             images: currentImages,
+            documents: currentDocs.map(d => ({ name: d.name, type: d.type })),
             timestamp: new Date().toISOString()
         };
 
@@ -490,6 +495,7 @@ export default function ChatPage() {
         setInput('');
         setSelectedImages([]);
         setImagePreviews([]);
+        setSelectedDocs([]);
         setIsLoading(true);
         setIsStreaming(true);
         setError(null);
@@ -540,6 +546,12 @@ export default function ChatPage() {
             } catch (vErr) {
                 console.error('❌ Error during background image analysis:', vErr);
             }
+        }
+
+        let docContext = "";
+        if (currentDocs.length > 0) {
+            docContext = "\n\n[DOCUMENTOS ADJUNTOS]:\n" + currentDocs.map(d => `--- Archivo: ${d.name} ---\nContenido: ${d.content}`).join('\n\n');
+            console.log('📄 Documents content added to context.');
         }
 
         let chatId = currentChatId;
@@ -624,7 +636,7 @@ export default function ChatPage() {
             const lastIdx = messagesForAPI.length - 1;
             messagesForAPI[lastIdx] = {
                 ...messagesForAPI[lastIdx],
-                content: messagesForAPI[lastIdx].content + gemmaContext + searchContext
+                content: messagesForAPI[lastIdx].content + gemmaContext + searchContext + docContext
             };
 
             console.log('📤 Sending Final Payload to Trinity:', {
@@ -722,35 +734,79 @@ export default function ChatPage() {
         }
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
-        if (selectedImages.length + files.length > 5) {
-            alert('Máximo 5 imágenes.');
+
+        if (selectedImages.length + selectedDocs.length + files.length > 10) {
+            alert('Máximo 10 archivos en total.');
             return;
         }
 
-        setIsProcessingImage(true);
+        setIsParsingFile(true);
         const newImages = [...selectedImages];
         const newPreviews = [...imagePreviews];
+        const newDocs = [...selectedDocs];
 
         for (const file of files) {
-            if (!file.type.startsWith('image/')) continue;
-            const base64 = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.readAsDataURL(file);
-            });
-            newImages.push(file);
-            newPreviews.push(base64);
+            if (file.type.startsWith('image/')) {
+                // Previsualización visual
+                const base64 = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.readAsDataURL(file);
+                });
+                newImages.push(file);
+                newPreviews.push(base64);
+
+                // Extracción de texto vía OCR (sin mostrarlo al usuario)
+                try {
+                    const ocrText = await uploadAndExtractFile(file);
+                    if (ocrText && ocrText.trim()) {
+                        newDocs.push({
+                            name: `OCR: ${file.name}`,
+                            content: ocrText,
+                            type: 'text/plain',
+                            isHidden: true // Nueva bandera para no mostrar en la UI de archivos
+                        });
+                    }
+                } catch (err) {
+                    console.error(`Error OCR en ${file.name}:`, err);
+                }
+            } else {
+                try {
+                    const textContent = await uploadAndExtractFile(file);
+                    newDocs.push({
+                        name: file.name,
+                        content: textContent,
+                        type: file.type
+                    });
+                } catch (err) {
+                    alert(`Error procesando ${file.name}: ${err.message}`);
+                }
+            }
         }
 
         setSelectedImages(newImages);
         setImagePreviews(newPreviews);
-        setIsProcessingImage(false);
+        setSelectedDocs(newDocs);
+        setIsParsingFile(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    const removeDoc = (index) => {
+        const newDocs = selectedDocs.filter((_, i) => i !== index);
+        setSelectedDocs(newDocs);
+    };
+
     const removeImage = (index) => {
+        const removedImage = selectedImages[index];
         const newImages = selectedImages.filter((_, i) => i !== index);
         const newPreviews = imagePreviews.filter((_, i) => i !== index);
+
+        // También eliminar el texto OCR asociado si existe
+        if (removedImage) {
+            const ocrName = `OCR: ${removedImage.name}`;
+            setSelectedDocs(prev => prev.filter(d => d.name !== ocrName));
+        }
+
         setSelectedImages(newImages);
         setImagePreviews(newPreviews);
     };
@@ -899,7 +955,8 @@ export default function ChatPage() {
             <aside className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ''}`}>
                 <div className={styles.sidebarHeader}>
                     <div className={styles.sidebarLogoContainer}>
-                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.sidebarLogo} />
+                        <h1 style={{ display: 'none' }}>Sigma AI - Chat de Inteligencia Artificial Avanzada</h1>
+                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI Logo - Inteligencia Artificial de Sigma Company" className={styles.sidebarLogo} />
                         <span className={styles.sidebarBrand}>Sigma AI</span>
                     </div>
 
@@ -1208,7 +1265,7 @@ export default function ChatPage() {
                 <div className={styles.inputSection}>
                     {!isReadOnly && (
                         <>
-                            {imagePreviews.length > 0 && (
+                            {(imagePreviews.length > 0 || selectedDocs.length > 0) && (
                                 <div style={{ width: '100%', marginBottom: '12px', padding: '0 10px' }}>
                                     <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
                                         {imagePreviews.map((preview, idx) => (
@@ -1246,12 +1303,60 @@ export default function ChatPage() {
                                                 </button>
                                             </div>
                                         ))}
+
+                                        {selectedDocs.filter(d => !d.isHidden).map((doc, idx) => (
+                                            <div key={idx} style={{
+                                                position: 'relative',
+                                                flexShrink: 0,
+                                                width: '140px',
+                                                height: '60px',
+                                                background: 'rgba(255,255,255,0.05)',
+                                                borderRadius: '12px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                padding: '0 12px',
+                                                border: '1px solid rgba(255,255,255,0.1)'
+                                            }}>
+                                                <FileText size={20} color="#6366F1" />
+                                                <span style={{
+                                                    fontSize: '0.75rem',
+                                                    color: 'white',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                    maxWidth: '80px'
+                                                }}>
+                                                    {doc.name}
+                                                </span>
+                                                <button
+                                                    onClick={() => removeDoc(idx)}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '-6px',
+                                                        right: '-6px',
+                                                        background: 'rgba(239, 68, 68, 0.9)',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '18px',
+                                                        height: '18px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer',
+                                                        color: 'white'
+                                                    }}
+                                                >
+                                                    <X size={10} strokeWidth={3} />
+                                                </button>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}
 
                             <form onSubmit={handleSend} className={styles.inputWrapper}>
-                                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+                                <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.txt,.csv,.json,.html,.js,.py,.md" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
 
                                 <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
                                     <button

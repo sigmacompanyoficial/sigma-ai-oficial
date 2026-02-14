@@ -4,32 +4,32 @@ import 'katex/dist/katex.min.css';
 
 
 export const metadata = {
-  title: 'Sigma AI | El Futuro de la Inteligencia Artificial',
-  description: 'Descubre Sigma AI, la plataforma de chat avanzada con modelos de última generación. Optimizado para productividad, búsqueda web y razonamiento profundo.',
-  keywords: ['Sigma AI', 'Chatbot AI', 'Inteligencia Artificial', 'DeepSeek', 'LLM', 'Productividad AI', 'IA Avanzada'],
-  authors: [{ name: 'Sigma AI Team', url: 'https://sigma-ai.com' }],
-  creator: 'Sigma AI',
-  publisher: 'Sigma AI',
+  title: 'Sigma AI - El Asistente de Inteligencia Artificial de Sigma Company',
+  description: 'Sigma AI: La plataforma definitiva de chat con Inteligencia Artificial. Accede a modelos avanzados, razonamiento lógico, búsqueda web en tiempo real y análisis de archivos. Desarrollado por Sigma Company.',
+  keywords: ['Sigma AI', 'Sigma Company', 'Chatbot AI', 'Inteligencia Artificial gratis', 'DeepSeek', 'LLM', 'Productividad AI', 'IA Avanzada', 'Ayoub Louah', 'Chat GPT alternativas'],
+  authors: [{ name: 'Ayoub Louah', url: 'https://sigma-ai-oficial.vercel.app/' }, { name: 'Sigma Company' }],
+  creator: 'Sigma Company',
+  publisher: 'Sigma Company',
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://sigma-ai.com'),
+  metadataBase: new URL('https://sigma-ai-oficial.vercel.app/'),
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: 'Sigma AI | El Futuro de la Inteligencia Artificial',
-    description: 'La plataforma de IA más avanzada para profesionales y entusiastas.',
-    url: 'https://sigma-ai.com',
+    description: 'Experimenta la IA de próxima generación con Sigma AI. Productividad, razonamiento y búsqueda web en un solo lugar.',
+    url: 'https://sigma-ai-oficial.vercel.app/',
     siteName: 'Sigma AI',
     images: [
       {
         url: '/logo_fondo_negro-removebg-preview.png',
-        width: 800,
-        height: 600,
-        alt: 'Sigma AI Logo',
+        width: 1200,
+        height: 630,
+        alt: 'Sigma AI - Inteligencia Artificial Avanzada',
       },
     ],
     locale: 'es_ES',
@@ -37,9 +37,10 @@ export const metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sigma AI | El Futuro de la Inteligencia Artificial',
-    description: 'Chat inteligente con modelos de vanguardia.',
+    title: 'Sigma AI | Inteligencia Artificial de Sigma Company',
+    description: 'El asistente de IA más potente y versátil. Razonamiento, código y búsqueda web.',
     images: ['/logo_fondo_negro-removebg-preview.png'],
+    creator: '@SigmaCompany',
   },
   robots: {
     index: true,
@@ -51,6 +52,9 @@ export const metadata = {
       'max-image-preview': 'large',
       'max-snippet': -1,
     },
+  },
+  verification: {
+    google: 'tu-codigo-de-verificacion-aqui',
   },
 };
 
@@ -66,6 +70,29 @@ export default function RootLayout({ children }) {
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "Sigma AI",
+              "operatingSystem": "All",
+              "applicationCategory": "ProductivityApplication",
+              "description": "Sigma AI es la plataforma líder de chat con Inteligencia Artificial, ofreciendo modelos avanzados y razonamiento profundo.",
+              "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+              },
+              "author": {
+                "@type": "Organization",
+                "name": "Sigma Company",
+                "url": "https://sigma-ai-oficial.vercel.app/"
+              }
+            })
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>
