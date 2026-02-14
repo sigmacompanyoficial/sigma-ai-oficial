@@ -12,6 +12,7 @@ import gsap from 'gsap';
 export default function LoginPage() {
     const [isSignUp, setIsSignUp] = useState(false);
     const [isForgotPassword, setIsForgotPassword] = useState(false);
+    const [isResettingPassword, setIsResettingPassword] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,9 +38,20 @@ export default function LoginPage() {
     }, [resendCooldown]);
 
     useEffect(() => {
+        // Detect recovery mode from hash or search params
+        const hash = window.location.hash;
+        if (hash && hash.includes('type=recovery')) {
+            setIsResettingPassword(true);
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('type') === 'recovery') {
+                setIsResettingPassword(true);
+            }
+        }
+
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (user) await checkUserStatus(user);
+            if (user && !isResettingPassword) await checkUserStatus(user);
         };
         checkUser();
 
@@ -103,7 +115,7 @@ export default function LoginPage() {
                 setName('');
             } else {
                 let loginEmail = email;
-                
+
                 // If it doesn't look like an email, assume it's a username
                 if (!email.includes('@')) {
                     const { data: profile, error: profileError } = await supabase
@@ -111,7 +123,7 @@ export default function LoginPage() {
                         .select('email')
                         .eq('username', email.trim())
                         .single();
-                    
+
                     if (profileError || !profile) {
                         throw new Error('Nombre de usuario no encontrado.');
                     }
@@ -221,6 +233,40 @@ export default function LoginPage() {
         }
     };
 
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        if (!password) {
+            setError('Por favor, introduce una nueva contraseña.');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError('Las contraseñas no coinciden.');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const { error } = await supabase.auth.updateUser({
+                password: password
+            });
+
+            if (error) throw error;
+
+            setSuccess(true);
+            setError('✅ Contraseña actualizada correctamente. Redirigiendo...');
+            setTimeout(() => {
+                router.push('/chat');
+            }, 2000);
+        } catch (err) {
+            const { ui } = formatAndLogSupabaseError(err);
+            setError(ui || 'Error al actualizar la contraseña');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const animateButton = (e) => {
         gsap.to(e.currentTarget, {
             scale: 0.96,
@@ -259,41 +305,88 @@ export default function LoginPage() {
                 {/* Auth Card */}
                 <div ref={cardRef} className={styles.card}>
                     <div className={styles.cardHeader}>
-                        <h2>{emailSent ? '📧 Verificación Enviada' : isForgotPassword ? '🔑 Recuperar cuenta' : isSignUp ? '✨ Únete a Sigma' : '👋 Hola de nuevo'}</h2>
-                        <p>{emailSent ? 'Revisa tu correo para confirmar tu cuenta' : isForgotPassword ? 'Introduce tu email para restablecer tu contraseña' : isSignUp ? 'Crea tu cuenta en segundos' : 'Accede a tus modelos favoritos'}</p>
+                        <h2>{isResettingPassword ? '🔒 Nueva contraseña' : emailSent ? '📧 Verificación Enviada' : isForgotPassword ? '🔑 Recuperar cuenta' : isSignUp ? '✨ Únete a Sigma' : '👋 Hola de nuevo'}</h2>
+                        <p>{isResettingPassword ? 'Establece tu nueva contraseña de acceso' : emailSent ? 'Revisa tu correo para confirmar tu cuenta' : isForgotPassword ? 'Introduce tu email para restablecer tu contraseña' : isSignUp ? 'Crea tu cuenta en segundos' : 'Accede a tus modelos favoritos'}</p>
                     </div>
 
-                    {emailSent ? (
+                    {isResettingPassword ? (
+                        <form onSubmit={handleResetPassword} className={styles.form}>
+                            <div className={styles.inputGroup}>
+                                <label className={styles.label}>
+                                    <Lock size={18} />
+                                    <span>Nueva Contraseña</span>
+                                </label>
+                                <div className={styles.passwordWrapper}>
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="••••••••"
+                                        className={styles.input}
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        className={styles.eyeBtn}
+                                        onClick={() => setShowPassword(!showPassword)}
+                                    >
+                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className={styles.inputGroup}>
+                                <label className={styles.label}>
+                                    <Lock size={18} />
+                                    <span>Confirmar Nueva Contraseña</span>
+                                </label>
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    placeholder="••••••••"
+                                    className={styles.input}
+                                    required
+                                />
+                            </div>
+
+                            {error && <div className={error.startsWith('✅') ? styles.success : styles.error}>{error}</div>}
+
+                            <button type="submit" className={styles.submitBtn} disabled={loading} onClick={animateButton}>
+                                {loading ? <div className={styles.loader}></div> : <span>Actualizar contraseña</span>}
+                            </button>
+                        </form>
+                    ) : emailSent ? (
                         <div className={styles.verificationSection}>
                             <div className={styles.verificationIcon}>
                                 <Mail size={48} />
                             </div>
                             <p className={styles.verificationText}>
-                                {needsVerification 
+                                {needsVerification
                                     ? "Tu cuenta aún no ha sido verificada. Revisa tu correo."
                                     : `Hemos enviado un correo de confirmación a ${email}.`
                                 }
                                 <br />
                                 <span>Verifica tu cuenta haciendo clic en el enlace que recibiste.</span>
                             </p>
-                            
+
                             <div className={styles.verificationActions}>
-                                <button 
-                                    type="button" 
-                                    className={styles.submitBtn} 
+                                <button
+                                    type="button"
+                                    className={styles.submitBtn}
                                     onClick={handleVerifyEmail}
                                     disabled={loading}
                                 >
                                     {loading ? <div className={styles.loader}></div> : <span>✅ Ya he verificado</span>}
                                 </button>
 
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     className={`${styles.resendBtn} ${resendCooldown > 0 ? styles.disabled : ''}`}
                                     onClick={handleResendVerification}
                                     disabled={loading || resendCooldown > 0}
                                 >
-                                    {resendCooldown > 0 
+                                    {resendCooldown > 0
                                         ? `Reenviar en ${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
                                         : <span><RefreshCw size={16} /> Reenviar correo</span>
                                     }
@@ -355,8 +448,8 @@ export default function LoginPage() {
                                                 <span>Contraseña</span>
                                             </label>
                                             {!isSignUp && (
-                                                <button 
-                                                    type="button" 
+                                                <button
+                                                    type="button"
                                                     className={styles.forgotLink}
                                                     onClick={() => setIsForgotPassword(true)}
                                                 >
@@ -407,7 +500,7 @@ export default function LoginPage() {
                                 <button type="submit" className={styles.submitBtn} disabled={loading} onClick={animateButton}>
                                     {loading ? <div className={styles.loader}></div> : <span>{isForgotPassword ? 'Enviar enlace' : isSignUp ? 'Registrarse' : 'Entrar Now'}</span>}
                                 </button>
-                                
+
                                 {isForgotPassword && (
                                     <button
                                         type="button"

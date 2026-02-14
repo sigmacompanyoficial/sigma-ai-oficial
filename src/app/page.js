@@ -10,6 +10,12 @@ export default function Home() {
     const router = useRouter();
 
     useEffect(() => {
+        // Handle password recovery redirect
+        if (window.location.hash && window.location.hash.includes('type=recovery')) {
+            router.push(`/login${window.location.hash}`);
+            return;
+        }
+
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
@@ -23,11 +29,11 @@ export default function Home() {
 
     if (isLoading) {
         return (
-            <div style={{ 
-                height: '100vh', 
-                backgroundColor: '#212121', 
-                display: 'flex', 
-                alignItems: 'center', 
+            <div style={{
+                height: '100vh',
+                backgroundColor: '#212121',
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 color: '#ffffff',
                 fontFamily: 'sans-serif'

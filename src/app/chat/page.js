@@ -639,7 +639,7 @@ export default function ChatPage() {
                 content: messagesForAPI[lastIdx].content + gemmaContext + searchContext + docContext
             };
 
-            console.log('📤 Sending Final Payload to Trinity:', {
+            console.log('📤 Sending Final Payload to Sigma AI:', {
                 model: modelToUse,
                 messagesCount: messagesForAPI.length,
                 lastMessageWithContext: messagesForAPI[lastIdx].content
@@ -686,7 +686,7 @@ export default function ChatPage() {
                             const json = JSON.parse(line.replace('data: ', ''));
                             const delta = json.choices?.[0]?.delta?.content || '';
                             if (delta) {
-                                console.log('📥 Trinity chunk:', delta);
+                                console.log('📥 Sigma AI chunk:', delta);
                                 botResponse += delta;
 
                                 // Auto-collapse if thought just ended

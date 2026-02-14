@@ -33,6 +33,12 @@ export async function GET(req) {
         await supabase.auth.exchangeCodeForSession(code);
     }
 
+    // If it's a recovery flow, redirect to login page to set new password
+    const type = requestUrl.searchParams.get('type');
+    if (type === 'recovery') {
+        return NextResponse.redirect(`${requestUrl.origin}/login?type=recovery`);
+    }
+
     // URL to redirect to after sign in process completes
     return NextResponse.redirect(`${requestUrl.origin}/chat`);
 }

@@ -1,7 +1,7 @@
 export const models = [
     {
         modelId: "arcee-ai/trinity-large-preview:free",
-        modelName: "Trinity Large Preview",
+        modelName: "Sigma LLM 1",
         provider: "openrouter",
         hostedId: "arcee-ai/trinity-large-preview:free",
         platformLink: "https://openrouter.ai",

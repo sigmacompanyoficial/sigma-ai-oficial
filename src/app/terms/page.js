@@ -1,61 +1,41 @@
 'use client';
 import Link from 'next/link';
-import { ChevronLeft, ShieldCheck } from 'lucide-react';
-import styles from '../legal.module.css'; // I will create legal.module.css instead of global legal.css to follow project patterns
+import { FileText, ChevronLeft } from 'lucide-react';
+import styles from '../landing.module.css';
 
 export default function TermsPage() {
     return (
-        <div className={styles.legalContainer}>
-            <div className={styles.legalContent}>
-                <Link href="/" className={styles.backBtn}>
-                    <ChevronLeft size={18} /> Volver
+        <div className={styles.page}>
+            <nav className={styles.nav}>
+                <Link href="/" className={styles.logoContainer}>
+                    <ChevronLeft size={20} />
+                    <span className={styles.brand}>Volver</span>
                 </Link>
+            </nav>
 
-                <header className={styles.legalHeader}>
-                    <h1>Términos y Condiciones</h1>
-                    <p>Última actualización: 14 de febrero de 2026</p>
-                </header>
+            <header className={styles.hero} style={{ padding: '140px 5% 40px' }}>
+                <FileText size={60} color="#6366F1" style={{ marginBottom: '1.5rem' }} />
+                <h1 className={styles.title} style={{ fontSize: '3rem' }}>Términos y Condiciones</h1>
+                <p className={styles.subtitle}>Normas de uso de la plataforma Sigma AI.</p>
+            </header>
 
-                <section className={styles.legalSection}>
-                    <h2><ShieldCheck size={20} /> 1. Aceptación de los Términos</h2>
-                    <p>
-                        Al acceder y utilizar Sigma AI, aceptas cumplir con estos términos y condiciones. Sigma AI es una plataforma de inteligencia artificial desarrollada por <b>Sigma Company</b>, bajo la autoría de <b>Ayoub Louah</b>.
-                    </p>
-                </section>
+            <section className={styles.section} style={{ maxWidth: '800px', margin: '0 auto', color: '#E2E2E2', lineHeight: '1.8' }}>
+                <h2>1. Uso Aceptable</h2>
+                <p>El usuario se compromete a no utilizar Sigma AI para actividades ilegales, generación de malware o contenido dañino.</p>
 
-                <section className={styles.legalSection}>
-                    <h2>2. Uso del Servicio</h2>
-                    <p>
-                        Sigma AI proporciona acceso a diversos modelos de lenguaje. El usuario se compromete a:
-                    </p>
-                    <ul>
-                        <li>No utilizar el servicio para actividades ilegales o dañinas.</li>
-                        <li>No intentar vulnerar la seguridad de la plataforma.</li>
-                        <li>No utilizar el servicio para generar contenido de odio, violento o sexualmente explícito.</li>
-                    </ul>
-                </section>
+                <h2>2. Propiedad Intelectual</h2>
+                <p>Sigma AI es propiedad de Sigma Company. Los contenidos generados pertenecen al usuario, pero la infraestructura y los modelos están protegidos por derechos de autor.</p>
 
-                <section className={styles.legalSection}>
-                    <h2>3. Propiedad Intelectual</h2>
-                    <p>
-                        Todo el software, diseño y logotipos de Sigma AI son propiedad de Sigma Company. Los modelos de IA utilizados son proporcionados a través de proveedores externos (OpenRouter, OpenAI, Google, etc.), y sus derechos pertenecen a sus respectivos creadores.
-                    </p>
-                </section>
+                <h2>3. Limitación de Responsabilidad</h2>
+                <p>Sigma AI es un asistente de inteligencia artificial y sus respuestas pueden contener errores. Sigma Company no se hace responsable de las decisiones tomadas basándose en sus salidas.</p>
 
-                <section className={styles.legalSection}>
-                    <h2>4. Limitación de Responsabilidad</h2>
-                    <p>
-                        Sigma AI se proporciona "tal cual". No garantizamos que las respuestas de la IA sean siempre precisas o veraces. El usuario es responsable de verificar la información generada.
-                    </p>
-                </section>
+                <h2>4. Modificaciones</h2>
+                <p>Nos reservamos el derecho de modificar estos términos en cualquier momento para adaptarlos a nuevas funcionalidades.</p>
+            </section>
 
-                <section className={styles.legalSection}>
-                    <h2>5. Modificaciones</h2>
-                    <p>
-                        Nos reservamos el derecho de modificar estos términos en cualquier momento. El uso continuado del servicio implica la aceptación de los nuevos términos.
-                    </p>
-                </section>
-            </div>
+            <footer className={styles.bottomBar}>
+                © {new Date().getFullYear()} Sigma Company.
+            </footer>
         </div>
     );
 }
