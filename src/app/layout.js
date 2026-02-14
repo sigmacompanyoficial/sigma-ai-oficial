@@ -1,4 +1,5 @@
 import './globals.css';
+import './globals-theme.css';
 import 'katex/dist/katex.min.css';
 import Script from 'next/script';
 
@@ -10,6 +11,11 @@ export const metadata = {
   authors: [{ name: 'Ayoub Louah', url: 'https://sigma-ai-oficial.vercel.app/' }, { name: 'Sigma Company' }],
   creator: 'Sigma Company',
   publisher: 'Sigma Company',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/logo-fondo-negro.png',
+  },
   formatDetection: {
     email: false,
     address: false,
@@ -26,7 +32,7 @@ export const metadata = {
     siteName: 'Sigma AI',
     images: [
       {
-        url: '/logo_fondo_negro-removebg-preview.png',
+        url: '/logo-fondo-negro.png',
         width: 1200,
         height: 630,
         alt: 'Sigma AI - Inteligencia Artificial Avanzada',
@@ -39,7 +45,7 @@ export const metadata = {
     card: 'summary_large_image',
     title: 'Sigma AI | Inteligencia Artificial de Sigma Company',
     description: 'El asistente de IA más potente y versátil. Razonamiento, código y búsqueda web.',
-    images: ['/logo_fondo_negro-removebg-preview.png'],
+    images: ['/logo-fondo-negro.png'],
     creator: '@SigmaCompany',
   },
   robots: {

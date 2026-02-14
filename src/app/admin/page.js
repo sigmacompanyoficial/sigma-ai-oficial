@@ -16,9 +16,13 @@ export default function AdminPage() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [editingUser, setEditingUser] = useState(null);
+    const [theme, setTheme] = useState('dark');
     const router = useRouter();
 
     useEffect(() => {
+        const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
+        setTheme(savedTheme);
+        document.documentElement.setAttribute('data-theme', savedTheme);
         checkAdmin();
     }, []);
 
@@ -108,7 +112,7 @@ export default function AdminPage() {
         <div className={styles.container}>
             <aside className={styles.sidebar}>
                 <div className={styles.logoContainer}>
-                    <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma Admin" className={styles.logo} />
+                    <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma Admin" className={styles.logo} />
                     <span>Sigma Admin</span>
                 </div>
 

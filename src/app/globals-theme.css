@@ -1,0 +1,105 @@
+/* Global Theme Styles for Sigma AI */
+
+/* Theme Variables */
+:root {
+    --bg-primary: #0F0F0F;
+    --bg-primary-rgb: 15, 15, 15;
+    --bg-secondary: #0A0A0A;
+    --bg-tertiary: #171717;
+    --bg-input: #1A1A1A;
+    --bg-overlay: rgba(0, 0, 0, 0.85);
+    --bg-overlay-light: rgba(0, 0, 0, 0.5);
+    --text-primary: #E2E2E2;
+    --text-secondary: #ACACAC;
+    --text-tertiary: #666;
+    --border-color: rgba(255, 255, 255, 0.05);
+    --accent-primary: #6366F1;
+    --accent-secondary: #4F46E5;
+    --msg-user: rgba(99, 102, 241, 0.15);
+    --msg-bot: transparent;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+    --shadow-modal: 0 30px 90px rgba(0, 0, 0, 0.8);
+    --shadow-large: 0 20px 60px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 10px 40px rgba(0, 0, 0, 0.3);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --title-gradient: linear-gradient(135deg, #FFFFFF 0%, #888888 100%);
+    --logo-url: url('/logo-fondo-negro.png');
+}
+
+[data-theme="light"] {
+    --bg-primary: #FFFFFF;
+    --bg-primary-rgb: 255, 255, 255;
+    --bg-secondary: #F8F9FA;
+    --bg-tertiary: #EBEEF1;
+    --bg-input: #FFFFFF;
+    --bg-overlay: rgba(255, 255, 255, 0.85);
+    --bg-overlay-light: rgba(255, 255, 255, 0.5);
+    --text-primary: #111827;
+    --text-secondary: #4B5563;
+    --text-tertiary: #9CA3AF;
+    --border-color: #E5E7EB;
+    --accent-primary: #6366F1;
+    --accent-secondary: #4F46E5;
+    --msg-user: #F3F4F6;
+    --msg-bot: transparent;
+    --scrollbar-thumb: rgba(0, 0, 0, 0.1);
+    --shadow-modal: 0 30px 90px rgba(0, 0, 0, 0.1);
+    --shadow-large: 0 20px 60px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 10px 40px rgba(0, 0, 0, 0.08);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --title-gradient: linear-gradient(135deg, #111827 0%, #4B5563 100%);
+    --logo-url: url('/logo-fondo-claro.png');
+}
+
+/* Logo Theme Handling */
+.sidebarLogo,
+.themed-logo {
+    content: var(--logo-url);
+}
+
+/* Light Theme Specific Overrides */
+[data-theme="light"] .sigmaLogoBubble {
+    background: #1A1A1A !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+}
+
+[data-theme="light"] .sigmaSymbol {
+    color: white !important;
+}
+
+[data-theme="light"] .emptyGreeting {
+    color: #1A1A1A !important;
+}
+
+[data-theme="light"] .messageContent {
+    color: #1A1A1A !important;
+}
+
+[data-theme="light"] .userAvatar {
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
+}
+
+[data-theme="light"] .botAvatar {
+    box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3) !important;
+}
+
+[data-theme="light"] .sendBtn {
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3) !important;
+}
+
+[data-theme="light"] .inputWrapper {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .chatContainer::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-theme="light"] .modalOverlay {
+    background: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Smooth transitions for theme changes */
+* {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}

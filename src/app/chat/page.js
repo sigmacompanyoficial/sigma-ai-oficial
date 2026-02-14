@@ -12,9 +12,89 @@ import { supabase } from '@/lib/supabaseClient';
 import { formatAndLogSupabaseError } from '@/lib/supabaseHelpers';
 import styles from './page.module.css';
 import { models } from '@/lib/models';
+import Link from 'next/link';
 import { uploadAndExtractFile } from '@/lib/fileParser';
 
+
 const guestModel = { modelId: 'openai/gpt-oss-120b:free', modelName: 'Sigma LMM 1 Mini', provider: 'openrouter', hostedId: 'openai/gpt-oss-120b:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
+
+const translations = {
+    'Español': {
+        'new_chat': 'Nueva conversación',
+        'search_chats': 'Buscar chats...',
+        'recent_chats': 'Recientes',
+        'search_results': 'Resultados de búsqueda',
+        'settings': 'Configuración',
+        'admin_panel': 'Panel Admin',
+        'share': 'Compartir',
+        'copy': 'Copiar',
+        'delete': 'Eliminar',
+        'logout': 'Cerrar sesión',
+        'appearance': 'Apariencia',
+        'language': 'Idioma',
+        'username': 'Nombre de Usuario',
+        'active_model': 'Modelo activo',
+        'message_placeholder': 'Mensaje a',
+        'loading': 'Cargando Sigma AI...',
+        'good_morning': 'Buenos días',
+        'good_afternoon': 'Buenas tardes',
+        'good_evening': 'Buenas noches',
+        'thinking_completed': 'Pensamiento completado',
+        'thinking_in_progress': 'Reflexionando...',
+        'no_chats': 'Sin chats recientes',
+        'no_chats_archived': 'No hay chats archivados',
+    },
+    'English': {
+        'new_chat': 'New chat',
+        'search_chats': 'Search chats...',
+        'recent_chats': 'Recent',
+        'search_results': 'Search results',
+        'settings': 'Settings',
+        'admin_panel': 'Admin Panel',
+        'share': 'Share',
+        'copy': 'Copy',
+        'delete': 'Delete',
+        'logout': 'Log out',
+        'appearance': 'Appearance',
+        'language': 'Language',
+        'username': 'Username',
+        'active_model': 'Active model',
+        'message_placeholder': 'Message',
+        'loading': 'Loading Sigma AI...',
+        'good_morning': 'Good morning',
+        'good_afternoon': 'Good afternoon',
+        'good_evening': 'Good evening',
+        'thinking_completed': 'Thinking completed',
+        'thinking_in_progress': 'Thinking...',
+        'no_chats': 'No recent chats',
+        'no_chats_archived': 'No archived chats',
+    },
+    'Français': {
+        'new_chat': 'Nouvelle discussion',
+        'search_chats': 'Rechercher...',
+        'recent_chats': 'Récent',
+        'search_results': 'Résultats de recherche',
+        'settings': 'Paramètres',
+        'admin_panel': 'Admin',
+        'share': 'Partager',
+        'copy': 'Copier',
+        'delete': 'Supprimer',
+        'logout': 'Déconnexion',
+        'appearance': 'Apparence',
+        'language': 'Langue',
+        'username': "Nom d'utilisateur",
+        'active_model': 'Modèle actif',
+        'message_placeholder': 'Message à',
+        'loading': 'Chargement de Sigma AI...',
+        'good_morning': 'Bon matin',
+        'good_afternoon': 'Bon après-midi',
+        'good_evening': 'Bonsoir',
+        'thinking_completed': 'Pensée complétée',
+        'thinking_in_progress': 'Réflexion...',
+        'no_chats': 'Aucun chat récent',
+        'no_chats_archived': 'Aucun chat archivé',
+    }
+};
 
 export default function ChatPage() {
     const [messages, setMessages] = useState([]);
@@ -28,11 +108,41 @@ export default function ChatPage() {
     const [error, setError] = useState(null);
 
     // User Profile States
-    const [userName, setUserName] = useState('Invitado');
-    const [userRole, setUserRole] = useState('Visitante');
+    const [userName, setUserName] = useState('Sigma User');
+    const [userRole, setUserRole] = useState('Usuario Sigma');
     const [botName, setBotName] = useState('Sigma LLM 1');
     const [profilePic, setProfilePic] = useState('');
-    const [systemInstructions, setSystemInstructions] = useState('Eres sigmaLLM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
+    const [systemInstructions, setSystemInstructions] = useState(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
+
+IDENTIDAD Y PERSONALIDAD:
+- Eres un modelo de lenguaje de última generación, diseñado para ser útil, preciso y confiable
+- Mantienes un tono profesional pero cercano, adaptándote al contexto de cada conversación
+- Eres honesto sobre tus limitaciones y nunca inventas información que no conoces
+- Tienes un enfoque ético y responsable en todas tus respuestas
+
+CAPACIDADES PRINCIPALES:
+- Análisis y comprensión profunda de textos complejos
+- Generación de código en múltiples lenguajes de programación
+- Explicaciones claras de conceptos técnicos y científicos
+- Asistencia creativa en escritura, diseño y resolución de problemas
+- Razonamiento lógico y matemático avanzado
+- Procesamiento de imágenes y documentos cuando se adjuntan
+
+ESTILO DE COMUNICACIÓN:
+- Respuestas estructuradas y bien organizadas con formato markdown
+- Uso estratégico de emojis para mejorar la claridad (cuando está habilitado)
+- Ejemplos prácticos y casos de uso cuando son relevantes
+- Código formateado correctamente con sintaxis resaltada
+- Explicaciones paso a paso para procesos complejos
+
+DIRECTRICES IMPORTANTES:
+- Siempre cita fuentes cuando uses información de búsquedas web
+- Pregunta si necesitas aclaraciones antes de hacer suposiciones
+- Adapta el nivel de detalle según la complejidad de la pregunta
+- Prioriza la seguridad y las mejores prácticas en recomendaciones técnicas
+- Sé conciso pero completo, evitando redundancias innecesarias
+
+Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor real en cada interacción.`);
     const [useEmojis, setUseEmojis] = useState(true);
     const [useReasoning, setUseReasoning] = useState(false);
     const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -67,6 +177,8 @@ export default function ChatPage() {
     const [mounted, setMounted] = useState(false);
     const [messageCount, setMessageCount] = useState(0);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [theme, setTheme] = useState('dark');
 
     const chatContainerRef = useRef(null);
     const isAtBottomRef = useRef(true); // Inicializar como true para hacer scroll al inicio
@@ -128,7 +240,21 @@ export default function ChatPage() {
     }, []);
 
     useEffect(() => {
+        // Initialize theme from localStorage
+        const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
+        setTheme(savedTheme);
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        // Initialize appearance setting
+        const themeMap = { 'dark': 'Oscuro', 'light': 'Claro', 'system': 'Sistema' };
+        setAppearance(themeMap[savedTheme] || 'Oscuro');
+
         setMounted(true);
+
+        // Loading animation
+        setTimeout(() => {
+            setIsInitialLoading(false);
+        }, 1500);
     }, []);
 
     useEffect(() => {
@@ -141,11 +267,16 @@ export default function ChatPage() {
         return (hasInput || hasFiles) && !isLoading && !isProcessingImage && !isParsingFile;
     }, [input, selectedImages, selectedDocs, isLoading, isProcessingImage, isParsingFile]);
 
+    const t = (key) => {
+        const lang = translations[language] || translations['Español'];
+        return lang[key] || key;
+    };
+
     const getTimeBasedGreeting = () => {
         const hour = new Date().getHours();
-        if (hour >= 6 && hour < 12) return 'Buenos días';
-        if (hour >= 12 && hour < 20) return 'Buenas tardes';
-        return 'Buenas noches';
+        if (hour >= 6 && hour < 12) return t('good_morning');
+        if (hour >= 12 && hour < 20) return t('good_afternoon');
+        return t('good_evening');
     };
 
     const handleScroll = () => {
@@ -214,7 +345,37 @@ export default function ChatPage() {
                 } else {
                     setSelectedModel(guestModel);
                     setBotName('Sigma LMM 1 Mini');
-                    setSystemInstructions('Eres sigmaLMM 1, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable.');
+                    setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
+
+IDENTIDAD Y PERSONALIDAD:
+- Eres un modelo de lenguaje de última generación, diseñado para ser útil, preciso y confiable
+- Mantienes un tono profesional pero cercano, adaptándote al contexto de cada conversación
+- Eres honesto sobre tus limitaciones y nunca inventas información que no conoces
+- Tienes un enfoque ético y responsable en todas tus respuestas
+
+CAPACIDADES PRINCIPALES:
+- Análisis y comprensión profunda de textos complejos
+- Generación de código en múltiples lenguajes de programación
+- Explicaciones claras de conceptos técnicos y científicos
+- Asistencia creativa en escritura, diseño y resolución de problemas
+- Razonamiento lógico y matemático avanzado
+- Procesamiento de imágenes y documentos cuando se adjuntan
+
+ESTILO DE COMUNICACIÓN:
+- Respuestas estructuradas y bien organizadas con formato markdown
+- Uso estratégico de emojis para mejorar la claridad (cuando está habilitado)
+- Ejemplos prácticos y casos de uso cuando son relevantes
+- Código formateado correctamente con sintaxis resaltada
+- Explicaciones paso a paso para procesos complejos
+
+DIRECTRICES IMPORTANTES:
+- Siempre cita fuentes cuando uses información de búsquedas web
+- Pregunta si necesitas aclaraciones antes de hacer suposiciones
+- Adapta el nivel de detalle según la complejidad de la pregunta
+- Prioriza la seguridad y las mejores prácticas en recomendaciones técnicas
+- Sé conciso pero completo, evitando redundancias innecesarias
+
+Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor real en cada interacción.`);
                     console.log('🤖 Bot configurado:', 'Sigma LMM 1 Mini');
                 }
                 return;
@@ -487,7 +648,7 @@ export default function ChatPage() {
         if (isGuest) {
             const nextCount = messageCount + 1;
             setMessageCount(nextCount);
-            if (nextCount > 0 && nextCount % 5 === 0) {
+            if (nextCount > 0 && nextCount % 50 === 0) { // Increased limit
                 setShowRegisterModal(true);
             }
         }
@@ -862,6 +1023,14 @@ export default function ChatPage() {
 
     const saveSettings = async () => {
         setShowSettings(false);
+
+        // Apply theme change
+        const themeMap = { 'Oscuro': 'dark', 'Claro': 'light', 'Sistema': 'system' };
+        const newTheme = themeMap[appearance] || 'dark';
+        setTheme(newTheme);
+        localStorage.setItem('sigma-theme', newTheme);
+        document.documentElement.setAttribute('data-theme', newTheme);
+
         if (!user) return;
 
         const newSettings = {
@@ -929,7 +1098,7 @@ export default function ChatPage() {
                         >
                             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Brain size={14} className={styles.thinkingIcon} />
-                                {isFinished ? 'Pensamiento completado' : 'Reflexionando...'}
+                                {isFinished ? t('thinking_completed') : t('thinking_in_progress')}
                             </span>
                             {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                         </div>
@@ -949,14 +1118,33 @@ export default function ChatPage() {
 
     if (!mounted) return null;
 
+    // Loading Screen
+    if (isInitialLoading) {
+        return (
+            <div className={styles.loadingScreen}>
+                <div className={styles.loadingContent}>
+                    <div className={styles.loadingLogo}>
+                        <div className={styles.sigmaLogoBubble}>
+                            <span className={styles.sigmaSymbol}>Σ</span>
+                        </div>
+                    </div>
+                    <div className={styles.loadingSpinnerContainer}>
+                        <div className={styles.loadingSpinner}></div>
+                    </div>
+                    <p className={styles.loadingText}>{t('loading')}</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className={styles.pageContainer}>
+        <div className={styles.pageContainer} data-theme={theme}>
             {/* Sidebar */}
             <aside className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ''}`}>
                 <div className={styles.sidebarHeader}>
                     <div className={styles.sidebarLogoContainer}>
                         <h1 style={{ display: 'none' }}>Sigma AI - Chat de Inteligencia Artificial Avanzada</h1>
-                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI Logo - Inteligencia Artificial de Sigma Company" className={styles.sidebarLogo} />
+                        <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI Logo - Inteligencia Artificial de Sigma Company" className={styles.sidebarLogo} />
                         <span className={styles.sidebarBrand}>Sigma AI</span>
                     </div>
 
@@ -972,7 +1160,7 @@ export default function ChatPage() {
                     </div>
 
                     <button className={styles.newChatBtn} onClick={createNewChat}>
-                        <Plus size={18} /> Nueva conversación
+                        <Plus size={18} /> {t('new_chat')}
                     </button>
                     <button className={styles.iconBtn} onClick={() => setIsSidebarOpen(false)} style={{ display: isSidebarOpen ? 'block' : 'none' }}>
                         <X size={20} />
@@ -981,7 +1169,7 @@ export default function ChatPage() {
 
                 <div className={styles.sidebarContent}>
                     <div className={styles.sidebarSection}>
-                        <div className={styles.sidebarHeading}>{sidebarSearch ? 'Resultados de búsqueda' : 'Recientes'}</div>
+                        <div className={styles.sidebarHeading}>{sidebarSearch ? t('search_results') : t('recent_chats')}</div>
                         {savedChats.filter(chat => !chat.is_archived).filter(chat =>
                             chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
                             chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
@@ -1073,12 +1261,9 @@ export default function ChatPage() {
                         </button>
                         <div className={styles.modelSelectorWrapper}>
                             <div className={styles.modelSelector} onClick={() => {
-                                if (isGuest || !user) {
-                                    alert('Debes iniciar sesión para cambiar de modelo.');
-                                    return;
-                                }
                                 setShowModelDropdown(!showModelDropdown);
                             }}>
+
                                 <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : selectedModel.modelName}</span>
                                 <ChevronDown size={16} className={styles.chevronIcon} />
                             </div>
@@ -1141,10 +1326,10 @@ export default function ChatPage() {
                         <button
                             className={styles.shareButton}
                             onClick={handleShareChat}
-                            title="Compartir chat públicamente"
+                            title={t('share')}
                         >
                             <Upload size={16} />
-                            <span>Compartir</span>
+                            <span>{t('share')}</span>
                         </button>
                         <div className={styles.moreMenuWrapper}>
                             <button className={styles.iconBtn} onClick={() => setShowMoreMenu(!showMoreMenu)}>
@@ -1174,9 +1359,11 @@ export default function ChatPage() {
                 <div className={styles.chatContainer} ref={chatContainerRef} onScroll={handleScroll}>
                     {messages.length === 0 ? (
                         <div className={styles.emptyState}>
-                            <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.emptyLogo} />
-                            <h1 className={styles.emptyTitle}>¡{getTimeBasedGreeting()}, {userName.split(' ')[0]}!</h1>
-                            <p style={{ color: '#BDBDBD', marginTop: '0.5rem', fontSize: '0.95rem' }}>Modelo activo: {botName}</p>
+                            <div className={styles.emptyLogoContainer}>
+                                <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.emptyLogo} />
+                            </div>
+                            <h2 className={styles.emptyGreeting}>¡{getTimeBasedGreeting()}, {userName}!</h2>
+                            <p className={styles.emptyModelText}>{t('active_model')}: {botName}</p>
                         </div>
                     ) : (
                         <div className={styles.messagesList}>
@@ -1185,7 +1372,7 @@ export default function ChatPage() {
                                     <div className={`${styles.messageAvatar} ${msg.role === 'user' ? styles.userAvatar : styles.botAvatar}`}>
                                         {msg.role === 'user' ? (
                                             profilePic ? <img src={profilePic} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} alt="User" /> : <User size={18} />
-                                        ) : <img src="/logo_fondo_negro-removebg-preview.png" style={{ width: '22px', height: '22px', objectFit: 'contain' }} alt="Bot" />}
+                                        ) : <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} style={{ width: '22px', height: '22px', objectFit: 'contain' }} alt="Bot" />}
                                     </div>
                                     <div className={styles.messageWrapper}>
                                         {msg.images && msg.images.length > 0 && (
@@ -1362,16 +1549,9 @@ export default function ChatPage() {
                                     <button
                                         type="button"
                                         className={`${styles.attachButton} ${showAttachMenu ? styles.attachActive : ''}`}
-                                        onClick={() => {
-                                            if (isGuest || !user) {
-                                                alert('Debes iniciar sesión para usar estas funciones.');
-                                                return;
-                                            }
-                                            setShowAttachMenu(!showAttachMenu);
-                                        }}
+                                        onClick={() => setShowAttachMenu(!showAttachMenu)}
                                         disabled={isLoading}
-                                        title={isGuest ? "Inicia sesión para subir archivos" : "Más opciones"}
-                                        style={isGuest ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                                        title={"Más opciones"}
                                     >
                                         <Plus size={20} className={showAttachMenu ? styles.rotatePlus : ''} />
                                     </button>
@@ -1413,7 +1593,7 @@ export default function ChatPage() {
                                 <textarea
                                     ref={textareaRef}
                                     className={styles.textarea}
-                                    placeholder={`Mensaje a ${botName}...`}
+                                    placeholder={`${t('message_placeholder')} ${botName}...`}
                                     rows={1}
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
@@ -1492,11 +1672,11 @@ export default function ChatPage() {
                                 {activeSettingsTab === 'General' && (
                                     <div className={styles.settingsSection}>
                                         <div className={styles.settingGroup}>
-                                            <label>Nombre de Usuario</label>
-                                            <input className={styles.input} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder="Tu nombre" />
+                                            <label>{t('username')}</label>
+                                            <input className={styles.inputField} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder={t('username')} />
                                         </div>
                                         <div className={styles.settingGroup}>
-                                            <label>Apariencia</label>
+                                            <label>{t('appearance')}</label>
                                             <div className={styles.radioGroup}>
                                                 {['Claro', 'Oscuro', 'Sistema'].map(mode => (
                                                     <button
@@ -1504,17 +1684,23 @@ export default function ChatPage() {
                                                         className={`${styles.radioBtn} ${appearance === mode ? styles.activeRadio : ''}`}
                                                         onClick={() => setAppearance(mode)}
                                                     >
-                                                        {mode}
+                                                        {mode === 'Claro' ? 'Light' : mode === 'Oscuro' ? 'Dark' : 'System'}
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
                                         <div className={styles.settingGroup}>
-                                            <label>Idioma</label>
+                                            <label>{t('language')}</label>
                                             <select className={styles.select} value={language} onChange={(e) => setLanguage(e.target.value)}>
                                                 <option>Español</option>
-                                                <option>Inglés</option>
-                                                <option>Francés</option>
+                                                <option>English</option>
+                                                <option>Français</option>
+                                                <option>Deutsch</option>
+                                                <option>Italiano</option>
+                                                <option>Português</option>
+                                                <option>中文</option>
+                                                <option>日本語</option>
+                                                <option>한국어</option>
                                             </select>
                                         </div>
                                     </div>
@@ -1528,7 +1714,7 @@ export default function ChatPage() {
                                                     <MessageSquare size={20} />
                                                 </div>
                                                 <div className={styles.statInfo}>
-                                                    <span className={styles.statLabel}>Mensajes enviados</span>
+                                                    <span className={styles.statLabel}>{t('messages_sent') || 'Mensajes enviados'}</span>
                                                     <span className={styles.statValue}>{totalMessages}</span>
                                                 </div>
                                             </div>
@@ -1537,7 +1723,7 @@ export default function ChatPage() {
                                                     <Zap size={20} />
                                                 </div>
                                                 <div className={styles.statInfo}>
-                                                    <span className={styles.statLabel}>Tokens utilizados</span>
+                                                    <span className={styles.statLabel}>{t('tokens_used') || 'Tokens utilizados'}</span>
                                                     <span className={styles.statValue}>{totalTokens.toLocaleString()}</span>
                                                 </div>
                                             </div>
@@ -1563,7 +1749,7 @@ export default function ChatPage() {
                                     <div className={styles.settingsSection}>
                                         <div className={styles.settingGroup}>
                                             <label>Nombre del Bot</label>
-                                            <input className={styles.input} value={botName} onChange={(e) => setBotName(e.target.value)} />
+                                            <input className={styles.inputField} value={botName} onChange={(e) => setBotName(e.target.value)} />
                                         </div>
                                         <div className={styles.settingGroup}>
                                             <label>Instrucciones del Sistema</label>
@@ -1609,7 +1795,7 @@ export default function ChatPage() {
                                         </div>
                                         <div className={styles.settingGroup}>
                                             <label>Correo Electrónico</label>
-                                            <input className={styles.input} value={user?.email || ''} readOnly />
+                                            <input className={styles.inputField} value={user?.email || ''} readOnly />
                                         </div>
                                     </div>
                                 )}
@@ -1689,7 +1875,7 @@ export default function ChatPage() {
                                         </div>
                                         <div className={styles.settingGroup}>
                                             <label>Rol</label>
-                                            <input className={styles.input} value={userRole} readOnly />
+                                            <input className={styles.inputField} value={userRole} readOnly />
                                         </div>
                                     </div>
                                 )}

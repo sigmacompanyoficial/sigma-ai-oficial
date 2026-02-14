@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import {
-    Search, Plus, Send, ChevronDown, HelpCircle, Globe, Sparkles, X, ArrowRight
+    Search, Plus, Send, ChevronDown, HelpCircle, Globe, Sparkles, X, ArrowRight, Mic
 } from 'lucide-react';
 import Link from 'next/link';
 import SigmaMarkdown from './SigmaMarkdown';
@@ -15,8 +15,10 @@ export default function GuestChat() {
     const [error, setError] = useState(null);
     const [showRegisterMsg, setShowRegisterMsg] = useState(false);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
     const [messageCount, setMessageCount] = useState(0);
     const [showCookies, setShowCookies] = useState(true);
+    const [theme, setTheme] = useState('dark');
     const textareaRef = useRef(null);
     const messagesEndRef = useRef(null);
 
@@ -26,6 +28,10 @@ export default function GuestChat() {
     useEffect(() => {
         const cookiesAccepted = localStorage.getItem('sigma_cookies_accepted');
         if (cookiesAccepted) setShowCookies(false);
+
+        const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
+        setTheme(savedTheme);
+        document.documentElement.setAttribute('data-theme', savedTheme);
     }, []);
 
     const acceptCookies = () => {
@@ -71,7 +77,7 @@ export default function GuestChat() {
                 userMsg
             ];
 
-            const response = await fetch('/api/chat/openrouter', {
+            const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -124,22 +130,21 @@ export default function GuestChat() {
 
     return (
         <div className={styles.container}>
-            <div className={styles.background}>
-                <div className={styles.mesh}></div>
-            </div>
-
             {/* Header */}
             <header className={styles.header}>
-                <div className={styles.headerLeft} style={{ zIndex: 10 }}>
+                <div className={styles.headerLeft}>
                     <Link href="/" className={styles.sidebarLogoContainer}>
-                        <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.sidebarLogo} />
+                        <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.sidebarLogo} />
                         <span className={styles.sidebarBrand}>Sigma AI</span>
+                        <ChevronDown size={16} className={styles.chevron} />
                     </Link>
                 </div>
-                <div className={styles.headerRight} style={{ zIndex: 10 }}>
-                    <Link href="/about" className={styles.helpBtn} style={{ color: '#94A3B8', fontSize: '0.85rem', fontWeight: 600, marginRight: '1rem', textDecoration: 'none' }}>TECNOLOGÍA</Link>
-                    <Link href="/login" className={styles.loginBtn}>Iniciar Sesión</Link>
-                    <Link href="/login" className={styles.signupBtn}>Registrarse</Link>
+                <div className={styles.headerRight}>
+                    <Link href="/login" className={styles.loginBtn}>Iniciar sesión</Link>
+                    <Link href="/login?mode=signup" className={styles.signupBtn}>Registrarse gratuitamente</Link>
+                    <button className={styles.helpCircleBtn} onClick={() => setShowHelp(true)}>
+                        <HelpCircle size={20} />
+                    </button>
                 </div>
             </header>
 
@@ -147,39 +152,44 @@ export default function GuestChat() {
             <main className={styles.main}>
                 {messages.length === 0 ? (
                     <div className={styles.hero}>
-                        <h1>El futuro es <br /><span style={{ background: 'linear-gradient(90deg, #818CF8, #C084FC)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Inteligente</span></h1>
-                        <Link href="/about" style={{
-                            marginTop: '2rem',
-                            color: '#94A3B8',
-                            textDecoration: 'none',
-                            fontSize: '0.9rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            background: 'rgba(255,255,255,0.03)',
-                            padding: '10px 20px',
-                            borderRadius: '100px',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                            transition: 'all 0.3s'
-                        }}
-                            onMouseOver={(e) => {
-                                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                            }}
-                            onMouseOut={(e) => {
-                                e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                                e.currentTarget.style.transform = 'none';
-                            }}
-                        >
-                            Descubre la tecnología Sigma AI <ArrowRight size={16} />
-                        </Link>
+                        <h1 className={styles.heroTitle}>¿En qué puedo ayudarte?</h1>
+
+                        <div className={styles.centralInputWrapper}>
+                            <div className={styles.inputBoxContainer}>
+                                <textarea
+                                    ref={textareaRef}
+                                    className={styles.textarea}
+                                    placeholder="Pregunta lo que quieras"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSend();
+                                        }
+                                    }}
+                                    rows={1}
+                                />
+
+                                <div className={styles.actionRow}>
+                                    <div className={styles.actionButtonsLeft}>
+                                        {/* Acciones eliminadas */}
+                                    </div>
+                                    <div className={styles.actionButtonsRight}>
+                                        <button className={styles.sendBtnCentral} onClick={handleSend} disabled={!input.trim() || isLoading}>
+                                            <Send size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <div className={styles.chatArea}>
                         {messages.map((msg, idx) => (
                             <div key={idx} className={`${styles.message} ${styles[msg.role]}`}>
                                 <div className={styles.messageContent}>
-                                    <SigmaMarkdown content={msg.content} theme="dark" />
+                                    <SigmaMarkdown content={msg.content} theme={theme} />
                                 </div>
                             </div>
                         ))}
@@ -188,6 +198,57 @@ export default function GuestChat() {
                     </div>
                 )}
             </main>
+
+            {/* Bottom Footer Area (when messages exist) */}
+            {messages.length > 0 && (
+                <div className={styles.footerInputWrapper}>
+                    <div className={styles.inputWrapper}>
+                        <form onSubmit={handleSend} className={styles.inputContainer}>
+                            <textarea
+                                ref={textareaRef}
+                                className={styles.textarea}
+                                placeholder="Escribe un mensaje..."
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSend();
+                                    }
+                                }}
+                                rows={1}
+                            />
+                            <button type="submit" className={styles.sendBtn} disabled={!input.trim() || isLoading}>
+                                <Send size={18} />
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Help Modal */}
+            {showHelp && (
+                <div className={styles.modalOverlay} onClick={() => setShowHelp(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                        <button className={styles.closeModal} onClick={() => setShowHelp(false)}><X size={20} /></button>
+                        <div className={styles.modalIcon}><Sparkles size={32} /></div>
+                        <h2>Bienvenido a Sigma AI</h2>
+                        <div className={styles.helpText}>
+                            <p>Sigma AI es la plataforma de inteligencia artificial de nueva generación desarrollada por <b>Sigma Company</b>.</p>
+                            <div className={styles.modelSection}>
+                                <h3>Nuestros Modelos:</h3>
+                                <ul>
+                                    <li><b>Sigma LLM 1 Std:</b> Versátil y rápido para tareas cotidianas.</li>
+                                    <li><b>Sigma LLM 1 Coder:</b> Especialista en programación y estructuras lógicas.</li>
+                                    <li><b>Sigma LLM 1 Reasoning:</b> Pensamiento profundo para problemas complejos y matemáticos.</li>
+                                </ul>
+                            </div>
+                            <p>Disfruta de búsqueda web en tiempo real, análisis de archivos y una privacidad de grado militar.</p>
+                        </div>
+                        <button onClick={() => setShowHelp(false)} className={styles.modalCloseBtn}>Entendido</button>
+                    </div>
+                </div>
+            )}
 
             {/* Registration Modal */}
             {showRegisterModal && (
@@ -204,37 +265,10 @@ export default function GuestChat() {
                 </div>
             )}
 
-            {/* Input Area */}
-            <div className={styles.footerInputWrapper}>
-                <div className={styles.inputWrapper}>
-                    <form onSubmit={handleSend} className={styles.inputContainer}>
-                        <div className={styles.inputRow}>
-                            <textarea
-                                ref={textareaRef}
-                                className={styles.textarea}
-                                placeholder="Pregunta lo que quieras a Sigma AI..."
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSend();
-                                    }
-                                }}
-                                rows={1}
-                            />
-                            <button type="submit" className={styles.sendBtn} disabled={!input.trim() || isLoading}>
-                                <Send size={20} />
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            {/* Footer */}
+            {/* Footer Component */}
             <footer className={styles.footer}>
                 <p>
-                    <Link href="/about">IA de Sigma Company</Link>. Al usar Sigma AI, aceptas nuestras <Link href="/terms">Condiciones</Link> y <Link href="/privacy">Privacidad</Link>.
+                    Al enviar un mensaje a Sigma AI, un asistente de IA, aceptas nuestras <Link href="/terms">condiciones</Link> y confirmas que has leído nuestra <Link href="/privacy">política de privacidad</Link>. Ver <Link href="/cookies">preferencias de cookies</Link>.
                 </p>
             </footer>
 
@@ -250,3 +284,4 @@ export default function GuestChat() {
         </div>
     );
 }
+

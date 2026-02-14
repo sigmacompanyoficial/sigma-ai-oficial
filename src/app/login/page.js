@@ -47,6 +47,9 @@ export default function LoginPage() {
             if (urlParams.get('type') === 'recovery') {
                 setIsResettingPassword(true);
             }
+            if (urlParams.get('mode') === 'signup') {
+                setIsSignUp(true);
+            }
         }
 
         const checkUser = async () => {
@@ -63,7 +66,22 @@ export default function LoginPage() {
             ease: 'power4.out',
             delay: 0.2
         });
-    }, [router]);
+
+        // Listen for auth state changes (crucial for recovery mode)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'PASSWORD_RECOVERY') {
+                setIsResettingPassword(true);
+                console.log('🔐 Password recovery mode detected via event');
+            }
+            if (session?.user && !isResettingPassword) {
+                await checkUserStatus(session.user);
+            }
+        });
+
+        return () => {
+            subscription?.unsubscribe();
+        };
+    }, [router, isResettingPassword]);
 
     const checkUserStatus = async (user) => {
         if (!user) return;
@@ -248,11 +266,19 @@ export default function LoginPage() {
         setError(null);
 
         try {
-            const { error } = await supabase.auth.updateUser({
+            // Ensure we have the latest session
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+            if (sessionError || !session) {
+                console.error('Session check failed:', sessionError);
+                throw new Error('No se encontró una sesión activa. Por favor, usa el enlace de recuperación de tu correo nuevamente.');
+            }
+
+            const { error: updateError } = await supabase.auth.updateUser({
                 password: password
             });
 
-            if (error) throw error;
+            if (updateError) throw updateError;
 
             setSuccess(true);
             setError('✅ Contraseña actualizada correctamente. Redirigiendo...');

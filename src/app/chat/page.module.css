@@ -1,18 +1,88 @@
+/* Loading Screen */
+.loadingScreen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.loadingContent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+.loadingLogo {
+    animation: logoFloat 2s ease-in-out infinite;
+}
+
+.loadingSpinnerContainer {
+    position: relative;
+    width: 48px;
+    height: 48px;
+}
+
+.loadingSpinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(99, 102, 241, 0.1);
+    border-top-color: #6366F1;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.loadingText {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
 .pageContainer {
     display: flex;
     height: 100vh;
     width: 100vw;
-    background-color: #0F0F0F;
-    color: #E2E2E2;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Sidebar */
 .sidebar {
     width: 280px;
-    background-color: #0A0A0A;
-    border-right: 1px solid rgba(255, 255, 255, 0.03);
+    background-color: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -44,7 +114,7 @@
     font-size: 1.25rem;
     font-weight: 800;
     letter-spacing: -0.02rem;
-    background: linear-gradient(135deg, #fff 0%, #888 100%);
+    background: var(--title-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -69,7 +139,7 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 0.6rem 0.6rem 0.6rem 2.2rem;
-    color: white;
+    color: var(--text-primary);
     font-size: 0.85rem;
     outline: none;
     transition: all 0.2s;
@@ -95,7 +165,7 @@
     background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
     border: none;
     border-radius: 16px;
-    color: white;
+    color: var(--text-primary);
     font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
@@ -135,7 +205,7 @@
     gap: 0.75rem;
     padding: 0.85rem 1rem;
     border-radius: 14px;
-    color: #888;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -146,13 +216,13 @@
 
 .sidebarLink:hover {
     background: rgba(255, 255, 255, 0.03);
-    color: white;
+    color: var(--text-primary);
     border-color: rgba(255, 255, 255, 0.05);
 }
 
 .activeLink {
     background: rgba(99, 102, 241, 0.08);
-    color: white;
+    color: var(--text-primary);
     border-color: rgba(99, 102, 241, 0.2);
 }
 
@@ -196,7 +266,7 @@
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    color: white;
+    color: var(--text-primary);
     font-size: 0.9rem;
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
@@ -209,7 +279,7 @@
 .profileName {
     font-size: 0.9rem;
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -217,7 +287,7 @@
 
 .profileStatus {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--text-tertiary);
 }
 
 /* Main Content */
@@ -225,7 +295,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background-color: #0F0F0F;
+    background-color: var(--bg-primary);
     position: relative;
     overflow: hidden;
 }
@@ -236,8 +306,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background-color: #171717;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background-color: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
     z-index: 10;
 }
 
@@ -254,7 +324,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 12px;
-    color: #ACACAC;
+    color: var(--text-secondary);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -420,7 +490,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 12px;
-    color: #ACACAC;
+    color: var(--text-secondary);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -428,8 +498,8 @@
 }
 
 .iconBtn:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: white;
+    background: var(--bg-tertiary);
+    color: var(--accent-primary);
 }
 
 /* Chat area */
@@ -441,7 +511,7 @@
     flex-direction: column;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
-    background-color: #0F0F0F;
+    background-color: var(--bg-primary);
 }
 
 .chatContainer::-webkit-scrollbar {
@@ -449,7 +519,7 @@
 }
 
 .chatContainer::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
 }
 
@@ -473,7 +543,7 @@
 .emptyTitle {
     font-size: 2.5rem;
     font-weight: 800;
-    background: linear-gradient(135deg, #fff 0%, #888 100%);
+    background: var(--title-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -514,13 +584,14 @@
 }
 
 .message.user .messageContent {
-    background: rgba(99, 102, 241, 0.15);
-    padding: 0.5rem 0.8rem;
-    border-radius: 14px 14px 0 14px;
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: var(--msg-user);
+    padding: 0.8rem 1.2rem;
+    border-radius: 18px 18px 0 18px;
+    border: 1px solid var(--border-color);
     text-align: left;
     margin-right: 0;
     width: fit-content;
+    color: var(--text-primary);
 }
 
 .messageAvatar {
@@ -538,20 +609,20 @@
 
 .userAvatar {
     background: #6366F1;
-    color: white;
+    color: var(--text-primary);
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
 }
 
 .botAvatar {
     background: #10A37F;
-    color: white;
+    color: var(--text-primary);
     box-shadow: 0 4px 12px rgba(16, 163, 127, 0.2);
 }
 
 .messageContent {
     line-height: 1.7;
     font-size: 1rem;
-    color: #E2E2E2;
+    color: var(--text-primary);
     max-width: 80%;
 }
 
@@ -572,7 +643,7 @@
 }
 
 .messageContent pre {
-    background: #171717;
+    background: var(--bg-tertiary);
     padding: 1rem;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -597,14 +668,14 @@
     border-radius: 8px;
     background: transparent;
     border: 1px solid transparent;
-    color: #666;
+    color: var(--text-tertiary);
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .actionBtn:hover {
     background: rgba(255, 255, 255, 0.05);
-    color: white;
+    color: var(--text-primary);
     border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -628,7 +699,7 @@
     justify-content: space-between;
     cursor: pointer;
     font-size: 0.85rem;
-    color: #888;
+    color: var(--text-tertiary);
     user-select: none;
 }
 
@@ -643,7 +714,7 @@
 .thinkingContent {
     padding: 0 1rem 1rem;
     font-size: 0.9rem;
-    color: #ACACAC;
+    color: var(--text-secondary);
     font-style: italic;
 }
 
@@ -653,14 +724,14 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: linear-gradient(0deg, #0F0F0F 0%, rgba(15, 15, 15, 0) 100%);
+    background: linear-gradient(0deg, var(--bg-primary) 0%, rgba(var(--bg-primary-rgb), 0) 100%);
 }
 
 .inputWrapper {
     max-width: 800px;
     width: 100%;
-    background: #1A1A1A;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
     border-radius: 20px;
     padding: 0.75rem 1rem;
     display: flex;
@@ -680,7 +751,7 @@
     flex: 1;
     background: transparent;
     border: none;
-    color: white;
+    color: var(--text-primary);
     font-family: inherit;
     font-size: 1rem;
     padding: 0.5rem 0;
@@ -691,7 +762,7 @@
 }
 
 .textarea::placeholder {
-    color: #555;
+    color: var(--text-tertiary);
 }
 
 .attachWrapper {
@@ -702,7 +773,7 @@
 
 .attachButton {
     padding: 0.6rem;
-    color: #ACACAC;
+    color: var(--text-secondary);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -715,12 +786,12 @@
 
 .attachButton:hover {
     background: rgba(255, 255, 255, 0.05);
-    color: white;
+    color: var(--text-primary);
 }
 
 .attachActive {
     background: rgba(255, 255, 255, 0.1);
-    color: white;
+    color: var(--text-primary);
 }
 
 .rotatePlus {
@@ -736,7 +807,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     padding: 8px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-md);
     z-index: 1000;
     animation: menuSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -762,7 +833,7 @@
     background: transparent;
     border: none;
     border-radius: 10px;
-    color: #E2E2E2;
+    color: var(--text-primary);
     font-size: 0.9rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -792,7 +863,7 @@
     width: 40px;
     height: 40px;
     background: #6366F1;
-    color: white;
+    color: var(--text-primary);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -844,7 +915,7 @@
 .typingText {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #ACACAC;
+    color: var(--text-secondary);
     letter-spacing: 0.01rem;
 }
 
@@ -869,7 +940,7 @@
     gap: 0.5rem;
     padding: 0.5rem 0.75rem;
     background: #EF4444;
-    color: white;
+    color: var(--text-primary);
     border: none;
     border-radius: 12px;
     cursor: pointer;
@@ -921,7 +992,7 @@
 .modalOverlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.85);
+    background: var(--bg-overlay);
     backdrop-filter: blur(12px);
     display: flex;
     align-items: center;
@@ -934,7 +1005,7 @@
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--bg-overlay-light);
     backdrop-filter: blur(4px);
     z-index: 45;
 }
@@ -994,7 +1065,7 @@
         bottom: 0;
         width: 280px;
         transform: translateX(-100%);
-        box-shadow: 20px 0 50px rgba(0, 0, 0, 0.5);
+        box-shadow: var(--shadow-large);
     }
 
     .sidebarOpen {
@@ -1109,15 +1180,15 @@
 
 /* Settings Modal Refactored */
 .settingsModal {
-    background: #0D0D0D;
+    background: var(--bg-secondary);
     width: 90%;
     max-width: 900px;
     height: 80vh;
     border-radius: 24px;
     display: flex;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-modal);
     animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1134,9 +1205,9 @@
 }
 
 .settingsSidebar {
-    width: 240px;
-    background: #080808;
-    border-right: 1px solid rgba(255, 255, 255, 0.03);
+    width: 250px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
     padding: 2rem 1rem;
     display: flex;
     flex-direction: column;
@@ -1147,7 +1218,7 @@
     font-weight: 800;
     margin-bottom: 2rem;
     padding-left: 1rem;
-    background: linear-gradient(135deg, #fff 0%, #888 100%);
+    background: var(--title-gradient);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -1166,7 +1237,7 @@
     gap: 0.75rem;
     padding: 0.8rem 1rem;
     border-radius: 12px;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 0.9rem;
     font-weight: 500;
     background: transparent;
@@ -1177,13 +1248,14 @@
 }
 
 .settingsTab:hover {
-    color: #E2E2E2;
-    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
 }
 
 .activeSettingsTab {
-    color: white;
-    background: rgba(99, 102, 241, 0.1);
+    color: var(--accent-primary);
+    background: var(--bg-tertiary);
+    font-weight: 600;
 }
 
 .settingsSidebarFooter {
@@ -1214,7 +1286,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #0D0D0D;
+    background: var(--bg-primary);
 }
 
 .settingsContentHeader {
@@ -1222,12 +1294,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border-color);
 }
 
 .settingsContentHeader h3 {
     font-size: 1.25rem;
     font-weight: 700;
+    color: var(--text-primary);
 }
 
 .settingsScrollArea {
@@ -1239,8 +1312,82 @@
 .settingsSection {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
-    max-width: 600px;
+    gap: 1.5rem;
+}
+
+.settingGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.settingGroup label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.inputField,
+.select,
+.textareaField {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-family: inherit;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.inputField::placeholder,
+.textareaField::placeholder {
+    color: var(--text-tertiary);
+}
+
+.inputField:focus,
+.select:focus,
+.textareaField:focus {
+    border-color: var(--accent-primary);
+    background: var(--bg-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1), inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.textareaField {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.radioGroup {
+    display: flex;
+    gap: 0.5rem;
+    background: var(--bg-tertiary);
+    padding: 0.25rem;
+    border-radius: 12px;
+    width: fit-content;
+}
+
+.radioBtn {
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.activeRadio {
+    background: var(--bg-primary);
+    color: var(--accent-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .settingsSection {
@@ -1258,8 +1405,8 @@
 }
 
 .statCard {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
     border-radius: 16px;
     padding: 1.25rem;
     display: flex;
@@ -1289,14 +1436,14 @@
 
 .statLabel {
     font-size: 0.75rem;
-    color: #888;
+    color: var(--text-tertiary);
     font-weight: 500;
 }
 
 .statValue {
     font-size: 1.25rem;
     font-weight: 700;
-    color: white;
+    color: var(--text-primary);
 }
 
 .usageChartPlaceholder {
@@ -1310,7 +1457,7 @@
     justify-content: center;
     text-align: center;
     gap: 1rem;
-    color: #666;
+    color: var(--text-tertiary);
 }
 
 .placeholderIcon {
@@ -1330,13 +1477,13 @@
 .settingGroup label {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #888;
+    color: var(--text-tertiary);
 }
 
 .radioGroup {
     display: flex;
     gap: 0.5rem;
-    background: #080808;
+    background: var(--bg-secondary);
     padding: 4px;
     border-radius: 12px;
     width: fit-content;
@@ -1348,23 +1495,23 @@
     font-size: 0.85rem;
     background: transparent;
     border: none;
-    color: #666;
+    color: var(--text-tertiary);
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .activeRadio {
     background: #1A1A1A;
-    color: white;
+    color: var(--text-primary);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .select {
-    background: #080808;
+    background: var(--bg-secondary);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 0.8rem;
-    color: white;
+    color: var(--text-primary);
     outline: none;
 }
 
@@ -1392,12 +1539,12 @@
 
 .toggleLabel small {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--text-tertiary);
 }
 
 .apiKeysPlaceholder {
     padding: 2rem;
-    background: #080808;
+    background: var(--bg-secondary);
     border: 1px dashed rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     text-align: center;
@@ -1424,12 +1571,12 @@
 .dangerText span {
     display: block;
     font-weight: 600;
-    color: #E2E2E2;
+    color: var(--text-primary);
 }
 
 .dangerText p {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--text-tertiary);
     margin: 0.25rem 0 0;
 }
 
@@ -1447,14 +1594,14 @@
 
 .dangerBtn:hover {
     background: #EF4444;
-    color: white;
+    color: var(--text-primary);
 }
 
 .secondaryBtn {
     padding: 0.6rem 1.2rem;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    color: white;
+    color: var(--text-primary);
     border-radius: 10px;
     font-size: 0.85rem;
     font-weight: 600;
@@ -1517,14 +1664,14 @@
 
 .bannerContent p {
     font-size: 0.85rem;
-    color: #ACACAC;
+    color: var(--text-secondary);
     margin: 0;
 }
 
 .bannerBtn {
     padding: 0.6rem 1.2rem;
     background: #6366F1;
-    color: white;
+    color: var(--text-primary);
     border: none;
     border-radius: 10px;
     font-size: 0.85rem;
@@ -1548,7 +1695,7 @@
 
 .saveBtn {
     background: #6366F1;
-    color: white;
+    color: var(--text-primary);
     padding: 0.75rem 2rem;
     border: none;
     border-radius: 12px;
@@ -1569,7 +1716,7 @@
     border-radius: 24px;
     padding: 2rem;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-large);
 }
 
 .modalHeader {
@@ -1586,12 +1733,12 @@
 
 .closeBtn {
     cursor: pointer;
-    color: #BDBDBD;
+    color: var(--text-tertiary);
     transition: color 0.2s;
 }
 
 .closeBtn:hover {
-    color: white;
+    color: var(--text-primary);
 }
 
 .modalBody {
@@ -1603,11 +1750,11 @@
 .input,
 .textareaField {
     width: 100%;
-    background: #0F0F0F;
+    background: var(--bg-primary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 1rem;
-    color: white;
+    color: var(--text-primary);
     font-family: inherit;
     outline: none;
     transition: border-color 0.2s;
@@ -1657,7 +1804,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-md);
     z-index: 100;
     margin-bottom: 12px;
     min-width: 200px;
@@ -1670,7 +1817,7 @@
     padding: 10px 12px;
     background: transparent;
     border: none;
-    color: #E2E2E2;
+    color: var(--text-primary);
     cursor: pointer;
     border-radius: 8px;
     font-size: 0.9rem;
@@ -1680,7 +1827,7 @@
 
 .attachMenu button:hover {
     background: rgba(255, 255, 255, 0.05);
-    color: white;
+    color: var(--text-primary);
 }
 
 .activeOption {
@@ -1696,7 +1843,7 @@
     justify-content: center;
     border-radius: 10px;
     background: #ef4444;
-    color: white;
+    color: var(--text-primary);
     border: none;
     cursor: pointer;
     transition: all 0.2s;
@@ -1776,7 +1923,7 @@
 .settingsModal {
     width: 900px;
     height: 600px;
-    background: #171717;
+    background: var(--bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
     display: flex;
@@ -1797,7 +1944,7 @@
     font-size: 1.25rem;
     font-weight: 700;
     margin-bottom: 1.5rem;
-    color: white;
+    color: var(--text-primary);
 }
 
 .settingsNav {
@@ -1814,7 +1961,7 @@
     padding: 0.75rem 1rem;
     background: transparent;
     border: none;
-    color: #888;
+    color: var(--text-tertiary);
     text-align: left;
     cursor: pointer;
     border-radius: 8px;
@@ -1825,7 +1972,7 @@
 
 .settingsTab:hover {
     background: rgba(255, 255, 255, 0.03);
-    color: white;
+    color: var(--text-primary);
 }
 
 .activeSettingsTab {
@@ -1864,7 +2011,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #171717;
+    background: var(--bg-tertiary);
 }
 
 .settingsContentHeader {
@@ -1878,17 +2025,17 @@
 .settingsContentHeader h3 {
     font-size: 1.1rem;
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
 }
 
 .closeBtn {
     cursor: pointer;
-    color: #666;
+    color: var(--text-tertiary);
     transition: color 0.2s;
 }
 
 .closeBtn:hover {
-    color: white;
+    color: var(--text-primary);
 }
 
 .settingsScrollArea {
@@ -1921,7 +2068,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding: 0.75rem;
-    color: white;
+    color: var(--text-primary);
     font-size: 0.95rem;
     outline: none;
     transition: border-color 0.2s;
@@ -1990,13 +2137,13 @@
 
 .statLabel {
     font-size: 0.8rem;
-    color: #666;
+    color: var(--text-tertiary);
 }
 
 .statValue {
     font-size: 1.25rem;
     font-weight: 700;
-    color: white;
+    color: var(--text-primary);
 }
 
 .usageChartPlaceholder {
@@ -2008,7 +2155,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #666;
+    color: var(--text-tertiary);
     gap: 1rem;
 }
 
@@ -2017,7 +2164,7 @@
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: flex-end;
-    background: #171717;
+    background: var(--bg-tertiary);
 }
 
 .saveSettingsBtn {
@@ -2025,7 +2172,7 @@
     align-items: center;
     gap: 0.5rem;
     background: #6366f1;
-    color: white;
+    color: var(--text-primary);
     border: none;
     padding: 0.75rem 1.5rem;
     border-radius: 8px;
@@ -2093,7 +2240,7 @@
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
-    color: #ACACAC;
+    color: var(--text-secondary);
     text-align: center;
     margin-bottom: 2rem;
     font-size: 0.95rem;
@@ -2101,7 +2248,7 @@
 
 .loginLink {
     background: #6366f1;
-    color: white;
+    color: var(--text-primary);
     border: none;
     padding: 0.6rem 1.2rem;
     border-radius: 8px;
@@ -2125,7 +2272,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.85);
+    background: var(--bg-overlay);
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -2145,7 +2292,7 @@
 }
 
 .modalContent {
-    background: #171717;
+    background: var(--bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 28px;
     padding: 2.5rem;
@@ -2183,12 +2330,12 @@
 .modalContent h2 {
     font-size: 1.5rem;
     font-weight: 700;
-    color: white;
+    color: var(--text-primary);
     margin-bottom: 1rem;
 }
 
 .modalContent p {
-    color: #ACACAC;
+    color: var(--text-secondary);
     font-size: 1rem;
     line-height: 1.6;
     margin-bottom: 2rem;
@@ -2207,7 +2354,7 @@
 .modalLoginBtn {
     padding: 1rem;
     background: #6366F1;
-    color: white;
+    color: var(--text-primary);
     border: none;
     border-radius: 14px;
     font-weight: 700;
@@ -2225,7 +2372,7 @@
 .modalCloseBtn {
     padding: 1rem;
     background: transparent;
-    color: #666;
+    color: var(--text-tertiary);
     border: none;
     font-size: 0.9rem;
     cursor: pointer;
@@ -2244,7 +2391,7 @@
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
-    color: #E2E2E2;
+    color: var(--text-primary);
     text-decoration: none;
     font-size: 0.95rem;
     transition: all 0.2s;
@@ -2255,4 +2402,59 @@
     border-color: rgba(99, 102, 241, 0.3);
     color: #6366F1;
     transform: translateX(5px);
+}
+
+.settingToggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+}
+
+.toggleLabel {
+    display: flex;
+    flex-direction: column;
+}
+
+.toggleLabel span {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.toggleLabel small {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+}
+
+.settingToggle input[type="checkbox"] {
+    appearance: none;
+    width: 40px;
+    height: 20px;
+    background: var(--bg-tertiary);
+    border-radius: 20px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.3s;
+    border: 1px solid var(--border-color);
+}
+
+.settingToggle input[type="checkbox"]:checked {
+    background: var(--accent-primary);
+}
+
+.settingToggle input[type="checkbox"]::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    top: 1px;
+    left: 1px;
+    transition: transform 0.3s;
+}
+
+.settingToggle input[type="checkbox"]:checked::before {
+    transform: translateX(20px);
 }

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -18,8 +18,12 @@ export default function AboutPage() {
     const heroRef = useRef(null);
     const cardsRef = useRef([]);
     const statsRef = useRef(null);
+    const [theme, setTheme] = useState('dark');
 
     useEffect(() => {
+        const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
+        setTheme(savedTheme);
+        document.documentElement.setAttribute('data-theme', savedTheme);
         // Hero Entrance
         gsap.to(`.${styles.heroContent}`, {
             opacity: 1,
@@ -72,7 +76,7 @@ export default function AboutPage() {
             {/* Navigation */}
             <nav className={styles.nav}>
                 <Link href="/" className={styles.logoContainer}>
-                    <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.logo} />
+                    <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.logo} />
                     <span className={styles.brand}>Sigma AI</span>
                 </Link>
                 <div className={styles.navLinks}>
@@ -239,7 +243,7 @@ export default function AboutPage() {
                 <div className={styles.footerGrid}>
                     <div className={styles.footerInfo}>
                         <Link href="/" className={styles.logoContainer}>
-                            <img src="/logo_fondo_negro-removebg-preview.png" alt="Sigma AI" className={styles.logo} />
+                            <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.logo} />
                             <span className={styles.brand}>Sigma AI</span>
                         </Link>
                         <p>
