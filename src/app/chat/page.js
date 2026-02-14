@@ -50,8 +50,8 @@ export default function ChatPage() {
     const [totalMessages, setTotalMessages] = useState(0);
     const [totalTokens, setTotalTokens] = useState(0);
 
-    const [selectedImage, setSelectedImage] = useState(null);
-    const [imagePreview, setImagePreview] = useState(null);
+    const [selectedImages, setSelectedImages] = useState([]);
+    const [imagePreviews, setImagePreviews] = useState([]);
     const [isProcessingImage, setIsProcessingImage] = useState(false);
     const [isParsingFile, setIsParsingFile] = useState(false);
 
@@ -133,8 +133,8 @@ export default function ChatPage() {
     }, [messages]);
 
     const canSend = useMemo(() => {
-        return (input.trim().length > 0 || !!selectedImage) && !isLoading && !isProcessingImage;
-    }, [input, selectedImage, isLoading, isProcessingImage]);
+        return (input.trim().length > 0 || selectedImages.length > 0) && !isLoading && !isProcessingImage;
+    }, [input, selectedImages, isLoading, isProcessingImage]);
 
     const getTimeBasedGreeting = () => {
         const hour = new Date().getHours();
@@ -359,8 +359,8 @@ export default function ChatPage() {
         setMessages([]);
         setIsReadOnly(false);
         setInput('');
-        setSelectedImage(null);
-        setImagePreview(null);
+        setSelectedImages([]);
+        setImagePreviews([]);
         setIsSidebarOpen(false); // Close sidebar on mobile
     };
 
@@ -463,66 +463,99 @@ export default function ChatPage() {
     const handleSend = async (e) => {
         e?.preventDefault();
         if (!canSend) return;
-
-        // Rate limiting check
         if (!canSendMessage()) return;
+
+        const currentInput = input;
+        const currentImages = [...imagePreviews];
 
         const userMsg = {
             role: 'user',
-            content: input,
-            image: imagePreview,
+            content: currentInput,
+            images: currentImages,
             timestamp: new Date().toISOString()
         };
 
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
         setInput('');
-        setSelectedImage(null);
-        setImagePreview(null);
+        setSelectedImages([]);
+        setImagePreviews([]);
         setIsLoading(true);
         setIsStreaming(true);
         setError(null);
 
-        // Save User Message and Get Chat ID
-        let chatId = currentChatId;
-        if (isGuest) {
-            console.log('💬 [INVITADO] Mensaje de usuario:', input);
-            console.log('🖼️ [INVITADO] Imagen adjunta:', !!userMsg.image);
-        } else if (user) {
-            console.log('💾 Saving user message to DB...');
+        let gemmaContext = "";
+        if (currentImages.length > 0) {
+            console.log('📸 Gemma-3 is analyzing the images in the background...');
             try {
-                if (!chatId) {
-                    console.log('🆕 Creating new chat thread...');
-                    const { data: chatData, error: chatError } = await supabase
-                        .from('chats')
-                        .insert({
-                            user_id: user.id,
-                            title: (input || '').slice(0, 30) || 'Nuevo Chat',
-                            created_at: new Date().toISOString()
-                        })
-                        .select()
-                        .single();
-                    if (chatError) throw chatError;
-                    chatId = chatData.id;
-                    setCurrentChatId(chatId);
-                    console.log('✅ Chat created with ID:', chatId);
-                    fetchChats(user.id);
-                }
+                const analysisResults = [];
+                for (const imgBase64 of currentImages) {
+                    const base64Clean = imgBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+                    const visionResp = await fetch('/api/vision', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ imageBase64: base64Clean })
+                    });
 
-                await supabase.from('messages').insert({
-                    chat_id: chatId,
-                    role: 'user',
-                    content: input,
-                    image: userMsg.image,
-                    created_at: new Date().toISOString()
-                });
-                console.log('✅ User message saved');
-            } catch (err) {
-                console.warn('❌ Error saving user message:', err);
+                    if (visionResp.ok) {
+                        const vReader = visionResp.body.getReader();
+                        const vDecoder = new TextDecoder();
+                        let vDesc = "";
+                        while (true) {
+                            const { done, value } = await vReader.read();
+                            if (done) break;
+                            const chunk = vDecoder.decode(value);
+                            const linesChunk = chunk.split('\n');
+                            for (const line of linesChunk) {
+                                if (line.startsWith('data: ')) {
+                                    try {
+                                        const json = JSON.parse(line.replace('data: ', ''));
+                                        vDesc += json.choices?.[0]?.delta?.content || '';
+                                    } catch (e) { }
+                                }
+                            }
+                        }
+                        vDesc = vDesc.trim();
+                        analysisResults.push(vDesc);
+                        console.log(`📝 Gemma Analysis for image ${analysisResults.length}:`, vDesc);
+                    }
+                }
+                if (analysisResults.length > 0) {
+                    gemmaContext = `\n\n[ANÁLISIS DE IMÁGENES (Gemma-3 Vision)]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nUtiliza este análisis profesional para responder al usuario. Actúa como si tú hubieras visto la imagen.`;
+                    console.log('✅ Gemma-3 Analysis Complete. Context ready.');
+                }
+            } catch (vErr) {
+                console.error('❌ Error during background image analysis:', vErr);
             }
         }
 
-        // Add assistant placeholder
+        let chatId = currentChatId;
+        if (user) {
+            try {
+                if (!chatId) {
+                    const { data: chatData, error: chatError } = await supabase.from('chats').insert({
+                        user_id: user.id,
+                        title: (currentInput || 'Imagen adjunta').slice(0, 30) || 'Nuevo Chat',
+                        created_at: new Date().toISOString()
+                    }).select().single();
+                    if (!chatError && chatData) {
+                        chatId = chatData.id;
+                        setCurrentChatId(chatId);
+                        fetchChats(user.id);
+                    }
+                }
+                if (chatId) {
+                    await supabase.from('messages').insert({
+                        chat_id: chatId,
+                        role: 'user',
+                        content: currentInput,
+                        image: currentImages[0] || null,
+                        created_at: new Date().toISOString()
+                    });
+                }
+            } catch (err) { console.warn('DB Save err:', err); }
+        }
+
         setMessages(prev => [...prev, { role: 'assistant', content: '...', timestamp: new Date().toISOString() }]);
 
         const controller = new AbortController();
@@ -530,65 +563,35 @@ export default function ChatPage() {
 
         try {
             let modelToUse = useReasoning ? 'nvidia/nemotron-nano-12b-v2-vl:free' : selectedModel.modelId;
-            if (isGuest) {
-                console.log('🚀 [INVITADO] Modelo: Sigma LLM 1 Mini');
-                console.log('🆔 [INVITADO] ID del modelo:', modelToUse);
-                console.log('📤 [INVITADO] Enviando solicitud a OpenRouter/Chat API...');
-            } else {
-                console.log('🚀 Using model:', modelToUse);
-            }
-
-            // Real Web Search Logic
             let searchContext = "";
             if (useWebSearch) {
-                console.log('🌐 Web Search enabled, searching Tavily...');
-                setMessages(prev => {
-                    const last = [...prev];
-                    last[last.length - 1] = { ...last[last.length - 1], isSearching: true };
-                    return last;
-                });
-
                 try {
                     const searchResp = await fetchWithRetry('/api/search', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query: input })
+                        body: JSON.stringify({ query: currentInput })
                     });
-
                     if (searchResp.ok) {
                         const searchData = await searchResp.json();
                         if (searchData.success) {
-                            searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB (Tavily)]:\n${searchData.result}\n\nUtiliza esta información para responder de forma precisa y actualizada. Menciona las fuentes si es posible.`;
-                            console.log('✅ Search results retrieved from Tavily:', searchData.result.slice(0, 100) + '...');
-                        } else {
-                            console.warn('⚠️ Search returned no results');
+                            searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}`;
                         }
-                    } else {
-                        console.error('❌ Search API error:', searchResp.status);
                     }
-                } catch (searchErr) {
-                    console.error('💥 Search fetch failed:', searchErr);
-                }
-
-                setMessages(prev => {
-                    const last = [...prev];
-                    last[last.length - 1] = { ...last[last.length - 1], isSearching: false };
-                    return last;
-                });
+                } catch (e) { console.error('Search failed:', e); }
             }
 
-            console.log('📤 Sending final request to OpenRouter/Chat API...');
-
-            // Inject search context into the last user message to ensure the model sees it and uses it
             const messagesForAPI = [...newMessages];
-            if (searchContext) {
-                const lastIdx = messagesForAPI.length - 1;
-                messagesForAPI[lastIdx] = {
-                    ...messagesForAPI[lastIdx],
-                    content: messagesForAPI[lastIdx].content + searchContext
-                };
-                console.log('💉 Search context injected into last USER message');
-            }
+            const lastIdx = messagesForAPI.length - 1;
+            messagesForAPI[lastIdx] = {
+                ...messagesForAPI[lastIdx],
+                content: messagesForAPI[lastIdx].content + gemmaContext + searchContext
+            };
+
+            console.log('📤 Sending Final Payload to Trinity:', {
+                model: modelToUse,
+                messagesCount: messagesForAPI.length,
+                lastMessageWithContext: messagesForAPI[lastIdx].content
+            });
 
             const response = await fetchWithRetry('/api/chat', {
                 method: 'POST',
@@ -606,494 +609,95 @@ export default function ChatPage() {
                 signal: controller.signal
             });
 
-            console.log('📡 Response received. Status:', response.status, 'Content-Type:', response.headers.get('Content-Type'));
-
-            if (!response.ok) {
-                const errText = await response.text();
-                console.error('❌ API returned error:', response.status, errText);
-                throw new Error(`API Error: ${response.status} - ${errText}`);
-            }
-
-            if (!response.body) {
-                console.error('❌ Response body is null or undefined');
-                throw new Error('Response body is empty');
-            }
-
+            if (!response.ok) throw new Error('Chat API error');
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let botResponse = '';
-            let hasCollapsedThinking = false;
-            let chunkCount = 0;
 
-            console.log('🔄 Starting to read stream...');
+            setMessages(prev => {
+                const next = [...prev];
+                next[next.length - 1] = { role: 'assistant', content: '', timestamp: new Date().toISOString() };
+                return next;
+            });
 
             while (true) {
                 const { done, value } = await reader.read();
-                chunkCount++;
-
-                if (done) {
-                    console.log(`✅ Stream finished after ${chunkCount} chunks`);
-                    console.log(`📊 Total response length: ${botResponse.length} characters`);
-                    break;
-                }
-
+                if (done) break;
                 const chunk = decoder.decode(value);
-                console.log(`📥 Chunk #${chunkCount} received (${chunk.length} chars): ${chunk.substring(0, 150)}...`);
-
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                    if (line.trim().startsWith('data: ')) {
-                        const dataStr = line.replace('data: ', '').trim();
-                        if (dataStr === '[DONE]') {
-                            console.log('🏁 Stream data [DONE]');
-                            continue;
-                        }
+                const linesChunk = chunk.split('\n');
+                for (const line of linesChunk) {
+                    if (line.startsWith('data: ')) {
                         try {
-                            const json = JSON.parse(dataStr);
-                            const content = json.choices?.[0]?.delta?.content || '';
-
-                            // Even if content is empty (start of stream), we update to clear the '...' placeholder
-                            botResponse += content;
-                            if (content) {
-                                console.log(`📝 Content received: "${content}"`);
+                            const json = JSON.parse(line.replace('data: ', ''));
+                            const delta = json.choices?.[0]?.delta?.content || '';
+                            if (delta) {
+                                console.log('📥 Trinity chunk:', delta);
+                                botResponse += delta;
                             }
-
-                            // Auto-collapse thinking block AS SOON AS </think> is detected
-                            if (!hasCollapsedThinking && botResponse.includes('</think>')) {
-                                hasCollapsedThinking = true;
-                                console.log('🧠 Thinking block completed, collapsing...');
-                                setMessages(prev => {
-                                    const lastIdx = prev.length - 1;
-                                    setCollapsedThinking(c => ({ ...c, [lastIdx]: true }));
-                                    return prev;
-                                });
-                            }
-
                             setMessages(prev => {
                                 const last = [...prev];
-                                const lastMsg = last[last.length - 1];
-
-                                // Update content and ensure isSearching is false
-                                last[last.length - 1] = {
-                                    ...lastMsg,
-                                    content: botResponse,
-                                    isSearching: false
-                                };
+                                last[last.length - 1] = { ...last[last.length - 1], content: botResponse };
                                 return last;
                             });
-                        } catch (e) {
-                            console.warn('⚠️ Failed to parse JSON from streaming data:', dataStr.slice(0, 100), e.message);
-                        }
+                        } catch (e) { }
                     }
                 }
             }
+            console.log('✅ Response complete. Full text length:', botResponse.length);
 
-            // Save Assistant Message
-            if (isGuest) {
-                console.log('🤖 [INVITADO] Respuesta de Sigma LLM 1 Mini:', botResponse.slice(0, 100) + '...');
-            } else if (user && chatId && botResponse) {
-                // Check if the response is a SEARCH command
-                if (botResponse.startsWith('SEARCH:')) {
-                    const searchQuery = botResponse.replace('SEARCH:', '').trim();
-                    console.log('🔍 Auto-Search detected for:', searchQuery);
-
-                    setMessages(prev => {
-                        const last = [...prev];
-                        last[last.length - 1] = {
-                            ...last[last.length - 1],
-                            isSearching: true,
-                            content: `Buscando información sobre: ${searchQuery}...`
-                        };
-                        return last;
-                    });
-
-                    try {
-                        const searchResp = await fetchWithRetry('/api/search', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query: searchQuery })
-                        });
-
-                        if (searchResp.ok) {
-                            const searchData = await searchResp.json();
-                            if (searchData.success) {
-                                const searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}\n\nResponde a la consulta original del usuario usando esta información de forma detallada.`;
-
-                                console.log('✅ Search context retrieved, re-calling Chat API...');
-
-                                // Reset for the second call
-                                let secondBotResponse = '';
-
-                                const secondMessagesForAPI = [...newMessages];
-                                const lastIdx = secondMessagesForAPI.length - 1;
-                                secondMessagesForAPI[lastIdx] = {
-                                    ...secondMessagesForAPI[lastIdx],
-                                    content: secondMessagesForAPI[lastIdx].content + searchContext
-                                };
-
-                                const secondResponse = await fetchWithRetry('/api/chat', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        messages: secondMessagesForAPI,
-                                        modelId: modelToUse,
-                                        systemPrompt: systemInstructions,
-                                        botName: botName,
-                                        stream: true,
-                                        tone: botTone,
-                                        detailLevel: detailLevel,
-                                        language: language
-                                    }),
-                                    signal: controller.signal
-                                });
-
-                                if (secondResponse.ok) {
-                                    const secondReader = secondResponse.body.getReader();
-
-                                    setMessages(prev => {
-                                        const last = [...prev];
-                                        last[last.length - 1] = {
-                                            ...last[last.length - 1],
-                                            isSearching: false,
-                                            content: '',
-                                            source: 'Tavily Search'
-                                        };
-                                        return last;
-                                    });
-
-                                    while (true) {
-                                        const { done, value } = await secondReader.read();
-                                        if (done) break;
-
-                                        const chunk = decoder.decode(value);
-                                        const lines = chunk.split('\n');
-
-                                        for (const line of lines) {
-                                            if (line.startsWith('data: ')) {
-                                                const dataStr = line.replace('data: ', '').trim();
-                                                if (dataStr === '[DONE]') continue;
-                                                try {
-                                                    const json = JSON.parse(dataStr);
-                                                    const content = json.choices?.[0]?.delta?.content || '';
-                                                    secondBotResponse += content;
-
-                                                    setMessages(prev => {
-                                                        const last = [...prev];
-                                                        last[last.length - 1] = {
-                                                            ...last[last.length - 1],
-                                                            content: secondBotResponse
-                                                        };
-                                                        return last;
-                                                    });
-                                                } catch (e) { }
-                                            }
-                                        }
-                                    }
-
-                                    // Final save of the second response
-                                    botResponse = secondBotResponse;
-                                }
-                            }
-                        }
-                    } catch (searchErr) {
-                        console.error('💥 Auto-search failed:', searchErr);
-                    }
-                }
-
+            if (user && chatId) {
                 await supabase.from('messages').insert({
                     chat_id: chatId,
                     role: 'assistant',
                     content: botResponse,
                     created_at: new Date().toISOString()
                 });
-
-                // Update Statistics
-                const estimatedTokens = Math.ceil(botResponse.length / 4) + 10;
-                updateUserStats(estimatedTokens);
-
-                fetchChats(user.id);
+                updateUserStats(Math.ceil(botResponse.length / 4));
             }
 
         } catch (err) {
-            console.error('🔥 Fatal error in handleSend:', err);
-            if (err.name !== 'AbortError') {
-                const errorMsg = err instanceof Error ? err.message : String(err);
-                console.error('❌ Error message:', errorMsg);
-                setError(errorMsg);
-                setMessages(prev => prev.slice(0, -1));
-            } else {
-                console.log('✋ Stream was aborted by user');
-            }
+            console.error('Final flow error:', err);
+            setError('Error al obtener respuesta.');
         } finally {
             setIsLoading(false);
             setIsStreaming(false);
-            streamAbortRef.current = null;
         }
     };
 
     const handleFileSelect = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        console.log('🖼️ File selected:', file.name, file.type, file.size);
-        setError(null);
-
-        // Only accept images on client side
-        if (!file.type?.startsWith('image/')) {
-            console.error('❌ File is not an image:', file.type);
-            setError('Solo se permiten imágenes.');
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        if (selectedImages.length + files.length > 5) {
+            alert('Máximo 5 imágenes.');
             return;
         }
-        console.log('✅ File is valid image');
 
-        setIsLoading(true);
         setIsProcessingImage(true);
-        console.log('📡 Starting image processing...');
-        try {
-            const reader = new FileReader();
-            reader.onload = async () => {
-                const dataUrl = reader.result;
-                setSelectedImage(file);
-                setImagePreview(dataUrl);
+        const newImages = [...selectedImages];
+        const newPreviews = [...imagePreviews];
 
-                // Add user message with image
-                const userMsg = {
-                    role: 'user',
-                    content: `🖼️ Imagen para análisis`,
-                    image: dataUrl,
-                    timestamp: new Date().toISOString()
-                };
-                setMessages(prev => [...prev, userMsg]);
-
-                // Save User Message to DB
-                let chatId = currentChatId;
-                if (user) {
-                    try {
-                        if (!chatId) {
-                            const { data: chatData } = await supabase.from('chats').insert({
-                                user_id: user.id,
-                                title: 'Análisis de Imagen',
-                                created_at: new Date().toISOString()
-                            }).select().single();
-                            if (chatData) {
-                                chatId = chatData.id;
-                                setCurrentChatId(chatId);
-                                fetchChats(user.id);
-                            }
-                        }
-                        if (chatId) {
-                            await supabase.from('messages').insert({
-                                chat_id: chatId,
-                                role: 'user',
-                                content: userMsg.content,
-                                image: userMsg.image,
-                                created_at: new Date().toISOString()
-                            });
-                        }
-                    } catch (dbErr) {
-                        console.error('❌ Error saving user image message:', dbErr);
-                    }
-                }
-
-                // Add thinking placeholder
-                setMessages(prev => [...prev, {
-                    role: 'assistant',
-                    content: '...',
-                    timestamp: new Date().toISOString()
-                }]);
-
-                // Extract base64 without prefix
-                const base64 = String(dataUrl).replace(/^data:image\/[a-zA-Z]+;base64,/, '');
-                console.log('✅ Image converted to Base64, length:', base64.length);
-
-                // Call vision API with Nemotron/Mistral
-                try {
-                    console.log('📤 Calling /api/vision with useReasoning:', useReasoning);
-                    const resp = await fetch('/api/vision', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ imageBase64: base64, prompt: '', useNemotron: useReasoning })
-                    });
-
-                    if (!resp.ok) {
-                        const err = await resp.json().catch(() => ({}));
-                        console.error('❌ /api/vision error:', err);
-                        setError(err.error || 'Error al analizar la imagen');
-                        setMessages(prev => prev.slice(0, -1)); // Remove thinking placeholder
-                        setIsLoading(false);
-                        setIsProcessingImage(false);
-                        return;
-                    }
-                    console.log('✅ /api/vision response OK, reading stream...');
-
-                    // Read SSE stream from vision API (Nemotron/Mistral analysis)
-                    const streamReader = resp.body.getReader();
-                    const decoder = new TextDecoder();
-                    let description = '';
-                    let nemotronResponse = '';
-                    let chunkCount = 0;
-
-                    while (true) {
-                        const { done, value } = await streamReader.read();
-                        if (done) break;
-
-                        const chunk = decoder.decode(value);
-                        const lines = chunk.split('\n');
-
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                const dataStr = line.replace('data: ', '').trim();
-                                if (dataStr === '[DONE]') continue;
-                                try {
-                                    const json = JSON.parse(dataStr);
-                                    const content = json.choices?.[0]?.delta?.content || '';
-                                    if (content) {
-                                        nemotronResponse += content;
-                                        description += content;
-                                        chunkCount++;
-                                        console.log(`📦 Chunk ${chunkCount}: "${content.slice(0, 50)}${content.length > 50 ? '...' : ''}"`);
-                                    }
-                                } catch (e) { console.log('⚠️ Parse error (partial JSON):', dataStr.slice(0, 50)); }
-                            }
-                        }
-                    }
-
-                    // Update assistant message with analysis (SILENT - only in console for debugging)
-                    console.log('✅ Vision analysis complete (' + chunkCount + ' chunks):', description.slice(0, 100) + '...');
-
-                    // Now send this analysis to SigmaLLM 1 for response
-                    console.log('📋 Building chat messages for SigmaLLM 1...');
-                    const messagesForChat = [
-                        userMsg,
-                        {
-                            role: 'assistant',
-                            content: description
-                        },
-                        {
-                            role: 'user',
-                            content: `Basado en el análisis de la imagen: ${description}. Responde a lo que se ve o a la consulta del usuario.`
-                        }
-                    ];
-                    console.log('📤 Calling /api/chat with model:', selectedModel.modelId);
-
-                    const chatResponse = await fetch('/api/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            messages: messagesForChat,
-                            modelId: selectedModel.modelId,
-                            systemPrompt: systemInstructions,
-                            botName: botName,
-                            stream: true
-                        })
-                    });
-
-                    if (!chatResponse.ok) {
-                        console.error('❌ Chat API Error:', chatResponse.status);
-                        throw new Error('Chat API Error');
-                    }
-                    console.log('✅ Chat API response OK, reading stream...');
-
-                    const chatReader = chatResponse.body.getReader();
-                    let sigmaResponse = '';
-                    let reasoningContent = '';
-                    let hasCollapsedThinking = false;
-
-                    while (true) {
-                        const { done, value } = await chatReader.read();
-                        if (done) break;
-
-                        const chunk = decoder.decode(value);
-                        const lines = chunk.split('\n');
-
-                        for (const line of lines) {
-                            if (line.startsWith('data: ')) {
-                                const dataStr = line.replace('data: ', '').trim();
-                                if (dataStr === '[DONE]') continue;
-                                try {
-                                    const json = JSON.parse(dataStr);
-                                    const delta = json.choices?.[0]?.delta || {};
-                                    const content = delta.content || '';
-                                    const reasoning = delta.reasoning || '';
-
-                                    if (reasoning) {
-                                        reasoningContent += reasoning;
-                                    }
-
-                                    if (content) {
-                                        sigmaResponse += content;
-                                    }
-
-                                    // Combine reasoning and content
-                                    let fullDisplayContent = sigmaResponse;
-                                    if (reasoningContent) {
-                                        fullDisplayContent = `<think>\n${reasoningContent}\n</think>\n${sigmaResponse}`;
-
-                                        if (!hasCollapsedThinking && sigmaResponse.length > 0) {
-                                            hasCollapsedThinking = true;
-                                            setMessages(prev => {
-                                                const lastIdx = prev.length - 1;
-                                                setCollapsedThinking(c => ({ ...c, [lastIdx]: true }));
-                                                return prev;
-                                            });
-                                        }
-                                    }
-
-                                    setMessages(prev => {
-                                        const last = [...prev];
-                                        last[last.length - 1] = {
-                                            ...last[last.length - 1],
-                                            content: fullDisplayContent || '...'
-                                        };
-                                        return last;
-                                    });
-                                } catch (e) { console.log('⚠️ Chat parse error'); }
-                            }
-                        }
-                    }
-
-                    console.log('✅ Chat response complete');
-
-                    // Save Assistant Message to DB
-                    if (user && chatId && (sigmaResponse || reasoningContent)) {
-                        const finalContent = reasoningContent
-                            ? `<think>\n${reasoningContent}\n</think>\n${sigmaResponse}`
-                            : sigmaResponse;
-
-                        await supabase.from('messages').insert({
-                            chat_id: chatId,
-                            role: 'assistant',
-                            content: finalContent,
-                            created_at: new Date().toISOString()
-                        });
-
-                        // Update Statistics
-                        const estimatedTokens = Math.ceil(finalContent.length / 4) + 50; // Extra tokens for image analysis
-                        updateUserStats(estimatedTokens);
-
-                        console.log('✅ Assistant message saved to chat:', chatId);
-                    }
-
-                } catch (err) {
-                    console.error('❌ Vision/Chat call failed:', err);
-                    setError('Error en procesamiento de imagen');
-                    setMessages(prev => prev.slice(0, -1)); // Remove last placeholder
-                }
-            };
-            reader.readAsDataURL(file);
-        } finally {
-            setIsLoading(false);
-            setIsProcessingImage(false);
-            setSelectedImage(null);
-            setImagePreview(null);
-            console.log('🏁 Image processing complete');
+        for (const file of files) {
+            if (!file.type.startsWith('image/')) continue;
+            const base64 = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(file);
+            });
+            newImages.push(file);
+            newPreviews.push(base64);
         }
+
+        setSelectedImages(newImages);
+        setImagePreviews(newPreviews);
+        setIsProcessingImage(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const removeImage = () => {
-        setSelectedImage(null);
-        setImagePreview(null);
+    const removeImage = (index) => {
+        const newImages = selectedImages.filter((_, i) => i !== index);
+        const newPreviews = imagePreviews.filter((_, i) => i !== index);
+        setSelectedImages(newImages);
+        setImagePreviews(newPreviews);
     };
 
     const copyToClipboard = (text, idx) => {
@@ -1440,7 +1044,14 @@ export default function ChatPage() {
                                         ) : <img src="/logo_fondo_negro-removebg-preview.png" style={{ width: '22px', height: '22px', objectFit: 'contain' }} alt="Bot" />}
                                     </div>
                                     <div className={styles.messageWrapper}>
-                                        {msg.image && (
+                                        {msg.images && msg.images.length > 0 && (
+                                            <div style={{ marginBottom: '12px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                                                {msg.images.map((imgSrc, imgIdx) => (
+                                                    <img key={imgIdx} src={imgSrc} alt={`Uploaded ${imgIdx}`} style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
+                                                ))}
+                                            </div>
+                                        )}
+                                        {msg.image && (!msg.images || msg.images.length === 0) && (
                                             <div style={{ marginBottom: '12px', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                                                 <img src={msg.image} alt="Uploaded" style={{ maxWidth: '400px', width: '100%', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }} />
                                             </div>
@@ -1495,26 +1106,50 @@ export default function ChatPage() {
                 <div className={styles.inputSection}>
                     {!isReadOnly && (
                         <>
-                            {imagePreview && (
-                                <div style={{ maxWidth: '768px', width: '100%', marginBottom: '12px', position: 'relative' }}>
-                                    <div style={{ position: 'relative', display: 'inline-block', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', padding: '8px' }}>
-                                        {imagePreview === 'file_icon' ? (
-                                            <div style={{ padding: '20px', background: '#212121', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                                                <MessageSquare size={32} color="#6366f1" />
-                                                <div style={{ fontSize: '0.8rem', color: '#888' }}>{selectedImage?.name}</div>
+                            {imagePreviews.length > 0 && (
+                                <div style={{ width: '100%', marginBottom: '12px', padding: '0 10px' }}>
+                                    <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
+                                        {imagePreviews.map((preview, idx) => (
+                                            <div key={idx} style={{ position: 'relative', flexShrink: 0 }}>
+                                                <img
+                                                    src={preview}
+                                                    alt={`Preview ${idx}`}
+                                                    style={{
+                                                        width: '60px',
+                                                        height: '60px',
+                                                        objectFit: 'cover',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid rgba(255,255,255,0.1)'
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => removeImage(idx)}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '-6px',
+                                                        right: '-6px',
+                                                        background: 'rgba(239, 68, 68, 0.9)',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '18px',
+                                                        height: '18px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        cursor: 'pointer',
+                                                        color: 'white'
+                                                    }}
+                                                >
+                                                    <X size={10} strokeWidth={3} />
+                                                </button>
                                             </div>
-                                        ) : (
-                                            <img src={imagePreview} alt="Preview" style={{ maxWidth: '200px', maxHeight: '200px', borderRadius: '8px' }} />
-                                        )}
-                                        <button onClick={removeImage} style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(239, 68, 68, 0.9)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                                            <X size={16} color="white" />
-                                        </button>
+                                        ))}
                                     </div>
                                 </div>
                             )}
 
                             <form onSubmit={handleSend} className={styles.inputWrapper}>
-                                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+                                <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
 
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
                                     <button
