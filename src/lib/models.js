@@ -18,10 +18,10 @@ export const models = [
         maxContext: 32768
     },
     {
-        modelId: "qwen/qwen3-next-80b-a3b-instruct:free",
+        modelId: "stepfun/step-3.5-flash:free",
         modelName: "Sigma LLM 1 PRO",
         provider: "openrouter",
-        hostedId: "qwen/qwen3-next-80b-a3b-instruct:free",
+        hostedId: "stepfun/step-3.5-flash:free",
         platformLink: "https://openrouter.ai",
         imageInput: false,
         maxContext: 32768

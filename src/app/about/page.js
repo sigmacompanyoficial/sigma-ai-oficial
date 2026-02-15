@@ -108,6 +108,92 @@ export default function AboutPage() {
                 </div>
             </header>
 
+            <section className={styles.section} style={{ paddingTop: 0 }}>
+                <div className={styles.showcaseShell}>
+                    <div className={styles.showcaseHeader}>
+                        <div className={styles.logoPill}>
+                            <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.showcaseLogo} />
+                            <span>Sigma AI Product Showcase</span>
+                        </div>
+                        <p className={styles.showcaseSub}>
+                            Interfaz enfocada en velocidad, claridad y análisis contextual de documentos e imágenes.
+                        </p>
+                    </div>
+
+                    <div className={styles.captureGrid}>
+                        <div className={styles.captureCard}>
+                            <div className={styles.captureTopBar}>
+                                <span className={styles.captureDot}></span>
+                                <span className={styles.captureDot}></span>
+                                <span className={styles.captureDot}></span>
+                                <div className={styles.captureAddress}>sigma-ai/chat</div>
+                            </div>
+                            <div className={styles.chatMockup}>
+                                <aside className={styles.chatMockSidebar}>
+                                    <div className={styles.chatMockLogo}></div>
+                                    <div className={styles.chatMockItem}></div>
+                                    <div className={styles.chatMockItem}></div>
+                                    <div className={styles.chatMockItemShort}></div>
+                                </aside>
+                                <div className={styles.chatMockMain}>
+                                    <div className={styles.chatMockHeader}></div>
+                                    <div className={styles.chatMockBubbleUser}></div>
+                                    <div className={styles.chatMockBubbleBot}></div>
+                                    <div className={styles.chatMockBubbleBotLong}></div>
+                                    <div className={styles.chatMockInputRow}>
+                                        <div className={styles.chatMockPlus}></div>
+                                        <div className={styles.chatMockInput}></div>
+                                        <div className={styles.chatMockSend}></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <span className={styles.captureLabel}>Chat Workspace (HTML Mockup)</span>
+                        </div>
+
+                        <div className={styles.captureCard}>
+                            <div className={styles.captureTopBar}>
+                                <span className={styles.captureDot}></span>
+                                <span className={styles.captureDot}></span>
+                                <span className={styles.captureDot}></span>
+                                <div className={styles.captureAddress}>sigma-ai/admin</div>
+                            </div>
+                            <div className={styles.adminMockup}>
+                                <div className={styles.adminMockHeader}></div>
+                                <div className={styles.adminKpis}>
+                                    <div></div><div></div><div></div><div></div>
+                                </div>
+                                <div className={styles.adminTable}>
+                                    <div className={styles.adminTableHead}></div>
+                                    <div className={styles.adminRow}></div>
+                                    <div className={styles.adminRow}></div>
+                                    <div className={styles.adminRow}></div>
+                                </div>
+                            </div>
+                            <span className={styles.captureLabel}>Admin Insights (HTML Mockup)</span>
+                        </div>
+
+                        <div className={styles.captureCard}>
+                            <div className={styles.captureTopBar}>
+                                <span className={styles.captureDot}></span>
+                                <span className={styles.captureDot}></span>
+                                <span className={styles.captureDot}></span>
+                                <div className={styles.captureAddress}>sigma-ai/about</div>
+                            </div>
+                            <div className={styles.aboutMockup}>
+                                <div className={styles.aboutHero}></div>
+                                <div className={styles.aboutGrid}>
+                                    <div></div><div></div><div></div>
+                                </div>
+                                <div className={styles.aboutStats}>
+                                    <div></div><div></div><div></div><div></div>
+                                </div>
+                            </div>
+                            <span className={styles.captureLabel}>Landing / About (HTML Mockup)</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Stats Section */}
             <section className={styles.section} style={{ paddingTop: 0 }}>
                 <div className={styles.statsContainer} ref={statsRef}>
@@ -211,7 +297,7 @@ export default function AboutPage() {
                     <div className={styles.stepContent}>
                         <h3 className={styles.featureTitle}>Razonamiento Transparente</h3>
                         <p className={styles.featureDescription}>
-                            Entiende el "por qué" de cada respuesta. Gracias a Sigma LLM 1 Reasoning, puedes visualizar el proceso cognitivo del modelo antes de recibir la conclusión final.
+                            Entiende el &quot;por qué&quot; de cada respuesta. Gracias a Sigma LLM 1 Reasoning, puedes visualizar el proceso cognitivo del modelo antes de recibir la conclusión final.
                         </p>
                         <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', marginTop: '2rem' }}>
                             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>

@@ -79,24 +79,40 @@ export default function RootLayout({ children }) {
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "SoftwareApplication",
-              "name": "Sigma AI",
-              "operatingSystem": "All",
-              "applicationCategory": "ProductivityApplication",
-              "description": "Sigma AI es la plataforma líder de chat con Inteligencia Artificial, ofreciendo modelos avanzados y razonamiento profundo.",
-              "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
+            __html: JSON.stringify([
+              {
+                "@context": "https://schema.org",
+                "@type": "SoftwareApplication",
+                "name": "Sigma AI",
+                "operatingSystem": "All",
+                "applicationCategory": "ProductivityApplication",
+                "description": "Sigma AI es la plataforma líder de chat con Inteligencia Artificial, ofreciendo modelos avanzados y razonamiento profundo.",
+                "offers": {
+                  "@type": "Offer",
+                  "price": "0",
+                  "priceCurrency": "USD"
+                },
+                "author": {
+                  "@type": "Organization",
+                  "name": "Sigma Company",
+                  "url": "https://sigma-ai-oficial.vercel.app/"
+                }
               },
-              "author": {
+              {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "name": "Sigma AI",
+                "url": "https://sigma-ai-oficial.vercel.app/",
+                "inLanguage": "es"
+              },
+              {
+                "@context": "https://schema.org",
                 "@type": "Organization",
                 "name": "Sigma Company",
-                "url": "https://sigma-ai-oficial.vercel.app/"
+                "url": "https://sigma-ai-oficial.vercel.app/",
+                "logo": "https://sigma-ai-oficial.vercel.app/logo-fondo-negro.png"
               }
-            })
+            ])
           }}
         />
         {/* Google Analytics */}

@@ -23,6 +23,7 @@ export default function LoginPage() {
     const [emailSent, setEmailSent] = useState(false);
     const [needsVerification, setNeedsVerification] = useState(false);
     const [resendCooldown, setResendCooldown] = useState(0);
+    const [resendAttempts, setResendAttempts] = useState(0);
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter();
     const cardRef = useRef(null);
@@ -106,7 +107,8 @@ export default function LoginPage() {
 
             console.log('📄 Perfil encontrado:', data);
 
-            if (!data || !data.onboarding_completed) {
+            const hasUsername = !!data?.username?.trim();
+            if (!data || !data.onboarding_completed || !hasUsername) {
                 console.log('🏃 Redirigiendo a onboarding...');
                 router.push('/onboarding');
             } else {
@@ -117,6 +119,23 @@ export default function LoginPage() {
             console.error('❌ Error inesperado en checkUserStatus:', err);
             router.push('/onboarding');
         }
+    };
+
+    const resolveLoginEmail = async (identifier) => {
+        const trimmed = (identifier || '').trim();
+        if (!trimmed) throw new Error('Correo o usuario requerido.');
+        if (trimmed.includes('@')) return trimmed;
+
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('username', trimmed)
+            .single();
+
+        if (profileError || !profile?.email) {
+            throw new Error('Nombre de usuario no encontrado.');
+        }
+        return profile.email;
     };
 
     const handleAuth = async (e) => {
@@ -165,25 +184,10 @@ export default function LoginPage() {
                 setSuccess(true);
                 setEmailSent(true);
                 // No borramos el email para poder usarlo en el componente de verificación
-                setPassword('');
                 setConfirmPassword('');
                 setName('');
             } else {
-                let loginEmail = email;
-
-                // If it doesn't look like an email, assume it's a username
-                if (!email.includes('@')) {
-                    const { data: profile, error: profileError } = await supabase
-                        .from('profiles')
-                        .select('email')
-                        .eq('username', email.trim())
-                        .single();
-
-                    if (profileError || !profile) {
-                        throw new Error('Nombre de usuario no encontrado.');
-                    }
-                    loginEmail = profile.email;
-                }
+                const loginEmail = await resolveLoginEmail(email);
 
                 const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
                 if (error) {
@@ -210,16 +214,34 @@ export default function LoginPage() {
         setLoading(true);
         setError(null);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            let { data: { user } } = await supabase.auth.getUser();
+
+            // En muchos casos no hay sesión activa tras registrarse.
+            // Si no hay user, intentamos iniciar sesión automáticamente.
             if (!user) {
-                setError('Usuario no autenticado');
-                setLoading(false);
-                return;
+                if (!email || !password) {
+                    setError('❌ Verifícate por correo y luego inicia sesión con tu contraseña.');
+                    return;
+                }
+
+                const loginEmail = await resolveLoginEmail(email);
+                const { data, error: signInError } = await supabase.auth.signInWithPassword({
+                    email: loginEmail,
+                    password
+                });
+
+                if (signInError) {
+                    if (signInError.message?.includes('Email not confirmed')) {
+                        setError('❌ No te has verificado. Revisa tu correo y verifica tu cuenta.');
+                        return;
+                    }
+                    throw signInError;
+                }
+                user = data?.user || null;
             }
 
-            if (!user.email_confirmed_at) {
+            if (!user?.email_confirmed_at) {
                 setError('❌ No te has verificado. Revisa tu correo y verifica tu cuenta.');
-                setLoading(false);
                 return;
             }
 
@@ -236,6 +258,10 @@ export default function LoginPage() {
 
     const handleResendVerification = async () => {
         if (resendCooldown > 0) return;
+        if (resendAttempts >= 3) {
+            setError('❌ Muchos mensajes enviados. Prueba mañana.');
+            return;
+        }
 
         // Capture email from state OR from the input if state was lost
         const targetEmail = email.trim();
@@ -256,7 +282,14 @@ export default function LoginPage() {
                 }
             });
             if (error) throw error;
-            setResendCooldown(180); // 3 minutes
+            const nextAttempt = resendAttempts + 1;
+            const cooldownByAttempt = {
+                1: 60,   // 1 minuto para el segundo envío
+                2: 180,  // 3 minutos para el tercer envío
+                3: 300   // 5 minutos después del tercer envío
+            };
+            setResendAttempts(nextAttempt);
+            setResendCooldown(cooldownByAttempt[nextAttempt] || 0);
             setError('✅ Nuevo correo enviado. Revisa tu bandeja de entrada.');
         } catch (err) {
             const { ui } = formatAndLogSupabaseError(err);
@@ -457,9 +490,11 @@ export default function LoginPage() {
                                     type="button"
                                     className={`${styles.resendBtn} ${resendCooldown > 0 ? styles.disabled : ''}`}
                                     onClick={handleResendVerification}
-                                    disabled={loading || resendCooldown > 0}
+                                    disabled={loading || resendCooldown > 0 || resendAttempts >= 3}
                                 >
-                                    {resendCooldown > 0
+                                    {resendAttempts >= 3
+                                        ? 'Muchos mensajes enviados. Prueba mañana.'
+                                        : resendCooldown > 0
                                         ? `Reenviar en ${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
                                         : <span><RefreshCw size={16} /> Reenviar correo</span>
                                     }
@@ -472,6 +507,8 @@ export default function LoginPage() {
                                 onClick={() => {
                                     setEmailSent(false);
                                     setNeedsVerification(false);
+                                    setResendAttempts(0);
+                                    setResendCooldown(0);
                                     setError(null);
                                 }}
                             >

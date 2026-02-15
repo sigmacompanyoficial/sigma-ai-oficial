@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { getIntEnv, getPublicSiteUrl, getRequiredEnv } from '@/lib/env';
 
-const PRO_MODEL_IDS = new Set(['qwen/qwen3-next-80b-a3b-instruct:free']);
+const PRO_MODEL_IDS = new Set(['stepfun/step-3.5-flash:free']);
 const PRO_ALLOWED_ROLES = new Set(['admin', 'premium', 'superadmin']);
 
 function jsonError(message, status = 500, extras = {}) {
@@ -20,9 +20,11 @@ function normalizeMessages(messages) {
 
 export async function POST(req) {
     try {
-        const { messages, modelId, systemPrompt, botName, stream, tone, detailLevel, language } = await req.json();
+        const reqBody = await req.json();
+        const { messages, modelId, systemPrompt, botName, stream, tone, detailLevel, language } = reqBody;
         const requestId = globalThis.crypto?.randomUUID?.() || String(Date.now());
         console.log('🤖 Chat API Request:', { requestId, modelId, botName, tone, detailLevel, messagesCount: messages?.length });
+        console.log('🤖 Chat API Raw Body:', reqBody);
 
         // ... existing validation ...
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -91,6 +93,9 @@ export async function POST(req) {
         const coderDirective = modelId.includes('coder')
             ? 'Eres un experto en programación de élite. Escribe código limpio, optimizado y documentado. Explica las decisiones técnicas cuando sea necesario.'
             : '';
+        const reasoningDirective = modelId.includes('nemotron')
+            ? 'Cuando realices razonamiento, escribe tu pensamiento en tiempo real entre etiquetas <think>...</think> y, al terminar, da la respuesta final fuera de esas etiquetas.'
+            : '';
 
         const CORE_IDENTITY = `Eres ${activeBotName} 🤖, creado por Sigma Company (autor: Ayoub Louah).
 Fecha actual: ${currentDate}
@@ -101,6 +106,7 @@ Hora actual: ${currentTime}
 - ${detailDirective}
 - ${languageDirective}
 - ${coderDirective}
+- ${reasoningDirective}
 - Amigable, cercano y positivo 😊✨
 - Explicas paso a paso, de forma clara
 - Usas ejemplos cuando ayudan
@@ -136,6 +142,11 @@ Hora actual: ${currentTime}
             },
             ...normalizeMessages(messages)
         ];
+        console.log('🧾 [CHAT API] formattedMessages preview:', {
+            requestId,
+            count: formattedMessages.length,
+            lastMessage: formattedMessages[formattedMessages.length - 1]
+        });
 
         // Call OpenRouter with optimized settings and limited retries for 429
         let response;
@@ -168,6 +179,14 @@ Hora actual: ${currentTime}
                 }),
                 signal: controller.signal,
             });
+            console.log('📡 [CHAT API] OpenRouter request payload:', {
+                requestId,
+                model: modelId,
+                stream: wantStream,
+                temperature: 0.7,
+                max_tokens: maxTokens,
+                messagesCount: formattedMessages.length
+            });
 
             clearTimeout(t);
 
@@ -193,11 +212,16 @@ Hora actual: ${currentTime}
 
         if (!wantStream) {
             const data = await response.json();
+            console.log('📥 [CHAT API] Non-stream OpenRouter response:', data);
             const content = data?.choices?.[0]?.message?.content ?? '';
             return NextResponse.json({ requestId, content, raw: data });
         }
 
-        console.log('✅ OpenRouter Response OK. Starting stream...');
+        console.log('✅ OpenRouter Response OK. Starting stream...', {
+            requestId,
+            status: response.status,
+            statusText: response.statusText
+        });
 
         // Forward OpenRouter stream directly to client
         // OpenRouter returns proper SSE format, so we can pass it through

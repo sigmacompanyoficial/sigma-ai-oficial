@@ -1,41 +1,114 @@
 'use client';
 import Link from 'next/link';
-import { Shield, ChevronLeft } from 'lucide-react';
-import styles from '../landing.module.css';
+import { Shield, ChevronLeft, Lock } from 'lucide-react';
+import styles from '../legal.module.css';
 
 export default function PrivacyPage() {
+    const lastUpdated = '15 de febrero de 2026';
+    const year = new Date().getFullYear();
+
     return (
-        <div className={styles.page}>
-            <nav className={styles.nav}>
-                <Link href="/" className={styles.logoContainer}>
+        <div className={styles.legalContainer}>
+            <div className={styles.legalContent}>
+                <Link href="/" className={styles.backBtn}>
                     <ChevronLeft size={20} />
-                    <span className={styles.brand}>Volver</span>
+                    <span>Volver</span>
                 </Link>
-            </nav>
 
-            <header className={styles.hero} style={{ padding: '140px 5% 40px' }}>
-                <Shield size={60} color="#6366F1" style={{ marginBottom: '1.5rem' }} />
-                <h1 className={styles.title} style={{ fontSize: '3rem' }}>Privacidad</h1>
-                <p className={styles.subtitle}>Tu seguridad es nuestra prioridad en Sigma Company.</p>
-            </header>
+                <header className={styles.legalHeader}>
+                    <Shield size={46} color="#6366F1" />
+                    <h1>Política de Privacidad</h1>
+                    <p>Última actualización: {lastUpdated}</p>
+                </header>
 
-            <section className={styles.section} style={{ maxWidth: '800px', margin: '0 auto', color: '#E2E2E2', lineHeight: '1.8' }}>
-                <h2>1. Recopilación de Datos</h2>
-                <p>Sigma AI recopila información básica necesaria para el funcionamiento del servicio, como tu nombre de usuario y correo electrónico (esto último solo si te registras).</p>
+                <section className={styles.legalSection}>
+                    <h2><Lock size={20} /> 1. Responsable del tratamiento</h2>
+                    <p>
+                        Sigma Company es responsable del tratamiento de los datos personales obtenidos a través de Sigma AI.
+                        Para asuntos de privacidad puedes escribir a sigmacompanyoficial@gmail.com.
+                    </p>
+                </section>
 
-                <h2>2. Uso de la Información</h2>
-                <p>Utilizamos tus interacciones para mejorar la calidad de las respuestas y personalizar tu experiencia. No compartimos tus chats con terceros para fines publicitarios.</p>
+                <section className={styles.legalSection}>
+                    <h2>2. Datos que recopilamos</h2>
+                    <ul>
+                        <li>Datos de cuenta: email, nombre de usuario e identificadores técnicos.</li>
+                        <li>Datos de uso: interacción con funciones, eventos de sesión y métricas operativas.</li>
+                        <li>Datos de contenido: mensajes y archivos enviados para procesar tus solicitudes.</li>
+                    </ul>
+                </section>
 
-                <h2>3. Almacenamiento Seguro</h2>
-                <p>Todos los datos se almacenan en servidores seguros operados por Supabase con cifrado de grado industrial.</p>
+                <section className={styles.legalSection}>
+                    <h2>3. Finalidades y base legal</h2>
+                    <p>Tratamos datos para prestar el servicio, asegurar la plataforma y mejorar su rendimiento.</p>
+                    <ul>
+                        <li>Ejecución del contrato de servicio con el usuario.</li>
+                        <li>Interés legítimo en seguridad, prevención de abuso y continuidad operativa.</li>
+                        <li>Consentimiento cuando sea exigible (por ejemplo, cookies no esenciales).</li>
+                    </ul>
+                </section>
 
-                <h2>4. Derechos del Usuario</h2>
-                <p>Puedes solicitar la eliminación de tu cuenta y todos tus datos asociados en cualquier momento contactando con el soporte de Sigma Company.</p>
-            </section>
+                <section className={styles.legalSection}>
+                    <h2>4. Conservación de datos</h2>
+                    <p>
+                        Conservamos la información durante el tiempo necesario para cumplir las finalidades indicadas,
+                        obligaciones legales y resolución de disputas. Al cerrar la cuenta, aplicamos periodos de retención
+                        mínimos y eliminación progresiva según requisitos técnicos y legales.
+                    </p>
+                </section>
 
-            <footer className={styles.bottomBar}>
-                © {new Date().getFullYear()} Sigma Company.
-            </footer>
+                <section className={styles.legalSection}>
+                    <h2>5. Compartición con terceros</h2>
+                    <p>
+                        Podemos apoyarnos en proveedores tecnológicos para autenticación, infraestructura, almacenamiento
+                        y análisis operativo bajo acuerdos de confidencialidad y tratamiento de datos.
+                    </p>
+                    <p>
+                        No vendemos datos personales a terceros para publicidad comportamental.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>6. Seguridad</h2>
+                    <p>
+                        Aplicamos medidas técnicas y organizativas razonables para proteger la información frente a acceso
+                        no autorizado, alteración, pérdida o destrucción, incluyendo controles de acceso y cifrado en tránsito
+                        cuando corresponde.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>7. Derechos del usuario</h2>
+                    <p>
+                        Puedes solicitar acceso, rectificación, supresión, oposición, limitación del tratamiento y portabilidad,
+                        cuando aplique conforme a la normativa de tu jurisdicción. Atendemos solicitudes en plazos razonables.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>8. Menores de edad</h2>
+                    <p>
+                        Sigma AI no está dirigido a menores sin supervisión legal suficiente. Si detectamos tratamiento de datos
+                        de menores sin base válida, adoptaremos medidas para su eliminación.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>9. Cambios en esta política</h2>
+                    <p>
+                        Podemos actualizar esta política para reflejar cambios legales, técnicos u operativos. Publicaremos
+                        la fecha de actualización y, cuando proceda, avisos adicionales dentro del producto.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>10. Copyright</h2>
+                    <p>
+                        © {year} Sigma Company. Todos los derechos reservados. Los materiales, textos, interfaces y activos
+                        de Sigma AI están protegidos por copyright y propiedad intelectual.
+                    </p>
+                </section>
+            </div>
         </div>
     );
 }

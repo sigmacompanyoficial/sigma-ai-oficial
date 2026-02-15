@@ -1,41 +1,122 @@
 'use client';
 import Link from 'next/link';
-import { FileText, ChevronLeft } from 'lucide-react';
-import styles from '../landing.module.css';
+import { FileText, ChevronLeft, Scale } from 'lucide-react';
+import styles from '../legal.module.css';
 
 export default function TermsPage() {
+    const lastUpdated = '15 de febrero de 2026';
+    const year = new Date().getFullYear();
+
     return (
-        <div className={styles.page}>
-            <nav className={styles.nav}>
-                <Link href="/" className={styles.logoContainer}>
+        <div className={styles.legalContainer}>
+            <div className={styles.legalContent}>
+                <Link href="/" className={styles.backBtn}>
                     <ChevronLeft size={20} />
-                    <span className={styles.brand}>Volver</span>
+                    <span>Volver</span>
                 </Link>
-            </nav>
 
-            <header className={styles.hero} style={{ padding: '140px 5% 40px' }}>
-                <FileText size={60} color="#6366F1" style={{ marginBottom: '1.5rem' }} />
-                <h1 className={styles.title} style={{ fontSize: '3rem' }}>Términos y Condiciones</h1>
-                <p className={styles.subtitle}>Normas de uso de la plataforma Sigma AI.</p>
-            </header>
+                <header className={styles.legalHeader}>
+                    <FileText size={46} color="#6366F1" />
+                    <h1>Términos y Condiciones</h1>
+                    <p>Última actualización: {lastUpdated}</p>
+                </header>
 
-            <section className={styles.section} style={{ maxWidth: '800px', margin: '0 auto', color: '#E2E2E2', lineHeight: '1.8' }}>
-                <h2>1. Uso Aceptable</h2>
-                <p>El usuario se compromete a no utilizar Sigma AI para actividades ilegales, generación de malware o contenido dañino.</p>
+                <section className={styles.legalSection}>
+                    <h2><Scale size={20} /> 1. Alcance del servicio</h2>
+                    <p>
+                        Estos términos regulan el acceso y uso de Sigma AI, plataforma operada por Sigma Company.
+                        Al utilizar el servicio aceptas íntegramente estas condiciones.
+                    </p>
+                    <p>
+                        Si no estás de acuerdo con cualquier disposición, debes abstenerte de utilizar la plataforma.
+                    </p>
+                </section>
 
-                <h2>2. Propiedad Intelectual</h2>
-                <p>Sigma AI es propiedad de Sigma Company. Los contenidos generados pertenecen al usuario, pero la infraestructura y los modelos están protegidos por derechos de autor.</p>
+                <section className={styles.legalSection}>
+                    <h2>2. Elegibilidad y cuentas</h2>
+                    <p>
+                        El usuario es responsable de la veracidad de la información proporcionada en su cuenta,
+                        la custodia de sus credenciales y toda actividad realizada desde su perfil.
+                    </p>
+                    <ul>
+                        <li>No se permite suplantar identidad o crear cuentas con datos falsos.</li>
+                        <li>No se permite compartir credenciales de acceso con terceros no autorizados.</li>
+                        <li>Podemos suspender cuentas ante uso fraudulento o incumplimiento de estos términos.</li>
+                    </ul>
+                </section>
 
-                <h2>3. Limitación de Responsabilidad</h2>
-                <p>Sigma AI es un asistente de inteligencia artificial y sus respuestas pueden contener errores. Sigma Company no se hace responsable de las decisiones tomadas basándose en sus salidas.</p>
+                <section className={styles.legalSection}>
+                    <h2>3. Uso permitido y restricciones</h2>
+                    <p>
+                        El servicio debe utilizarse conforme a la legislación aplicable y a estándares de buena fe.
+                        Queda prohibido usar Sigma AI para actividades ilícitas, abusivas o que vulneren derechos de terceros.
+                    </p>
+                    <ul>
+                        <li>Generación o distribución de malware, phishing o contenido dañino.</li>
+                        <li>Intentos de acceso no autorizado, extracción masiva o ingeniería inversa del servicio.</li>
+                        <li>Uso de la plataforma para infringir propiedad intelectual o normativa de privacidad.</li>
+                    </ul>
+                </section>
 
-                <h2>4. Modificaciones</h2>
-                <p>Nos reservamos el derecho de modificar estos términos en cualquier momento para adaptarlos a nuevas funcionalidades.</p>
-            </section>
+                <section className={styles.legalSection}>
+                    <h2>4. Contenido y resultados de IA</h2>
+                    <p>
+                        Sigma AI puede generar resultados inexactos, incompletos o desactualizados. Las respuestas
+                        tienen carácter informativo y no constituyen asesoría profesional.
+                    </p>
+                    <p>
+                        El usuario mantiene la responsabilidad final de revisar, validar y decidir sobre el uso de
+                        cualquier contenido generado por la plataforma.
+                    </p>
+                </section>
 
-            <footer className={styles.bottomBar}>
-                © {new Date().getFullYear()} Sigma Company.
-            </footer>
+                <section className={styles.legalSection}>
+                    <h2>5. Propiedad intelectual</h2>
+                    <p>
+                        Sigma AI, su diseño, marca, código, documentación, interfaces y elementos distintivos son
+                        propiedad de Sigma Company o de sus licenciantes y están protegidos por la normativa aplicable.
+                    </p>
+                    <p>
+                        El uso del servicio no implica cesión de derechos de propiedad intelectual sobre la plataforma.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>6. Disponibilidad, cambios y terminación</h2>
+                    <p>
+                        Podemos modificar, suspender o discontinuar funcionalidades por motivos técnicos, de seguridad
+                        o regulatorios. También podemos actualizar estos términos para reflejar cambios operativos.
+                    </p>
+                    <p>
+                        Cuando el cambio sea material, se publicará una versión actualizada con nueva fecha de vigencia.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>7. Limitación de responsabilidad</h2>
+                    <p>
+                        En la máxima medida permitida por ley, Sigma Company no será responsable por daños indirectos,
+                        lucro cesante, pérdida de datos o interrupciones derivadas del uso o imposibilidad de uso de Sigma AI.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>8. Contacto legal</h2>
+                    <p>
+                        Para consultas sobre términos, cumplimiento o reclamaciones, puedes contactar a:
+                        sigmacompanyoficial@gmail.com
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>9. Copyright</h2>
+                    <p>
+                        © {year} Sigma Company. Todos los derechos reservados. Sigma AI y sus elementos de marca están
+                        protegidos por leyes de copyright y propiedad intelectual. Queda prohibida su reproducción total
+                        o parcial sin autorización previa y por escrito.
+                    </p>
+                </section>
+            </div>
         </div>
     );
 }

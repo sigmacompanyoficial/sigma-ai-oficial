@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getRequiredEnv } from '@/lib/env';
+import { getOptionalEnv, getRequiredEnv } from '@/lib/env';
 
 // Simple in-memory cache for search results (TTL: 5 minutes)
 const searchCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 10; // Max 10 requests per minute per IP
+const RATE_LIMIT_MAX = 120; // Max requests per minute per IP
 
 function getCacheKey(query) {
     return query.toLowerCase().trim();
@@ -22,6 +22,12 @@ function cleanCache() {
 }
 
 function checkRateLimit(ip) {
+    // In local/dev environments this can be "unknown" for every request.
+    // Do not hard-block web search in that case.
+    if (!ip || ip === 'unknown') {
+        return true;
+    }
+
     const now = Date.now();
     if (!rateLimitMap.has(ip)) {
         rateLimitMap.set(ip, [now]);
@@ -44,6 +50,10 @@ function jsonError(message, status = 500) {
 export async function POST(req) {
     try {
         const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+        console.log('🌐 [SEARCH] Incoming request metadata:', {
+            ip,
+            userAgent: req.headers.get('user-agent') || 'unknown'
+        });
 
         // Rate limiting
         if (!checkRateLimit(ip)) {
@@ -51,7 +61,9 @@ export async function POST(req) {
             return jsonError('Too many search requests. Please wait a moment.', 429);
         }
 
-        const { query, isGuest } = await req.json();
+        const body = await req.json();
+        const { query, isGuest } = body;
+        console.log('🌐 [SEARCH] Incoming body:', body);
         console.log(`🌐 [SEARCH] Tavily Request (Guest: ${isGuest}) for:`, query);
 
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -64,6 +76,7 @@ export async function POST(req) {
 
         if (cachedResult) {
             console.log('💾 [SEARCH] Returning cached result for:', query);
+            console.log('💾 [SEARCH] Cached payload:', cachedResult.data);
             return NextResponse.json({
                 success: true,
                 result: cachedResult.data,
@@ -72,13 +85,18 @@ export async function POST(req) {
             });
         }
 
-        let apiKey;
+        let apiKey = '';
         try {
-            const keyName = isGuest ? 'GUEST_TAVILY_API_KEY' : 'TAVILY_API_KEY';
-            apiKey = getRequiredEnv(keyName);
-            console.log(`🔑 [SEARCH] Using ${keyName} (${apiKey.substring(0, 8)}...)`);
+            const guestKey = getOptionalEnv('GUEST_TAVILY_API_KEY', '');
+            const standardKey = getOptionalEnv('TAVILY_API_KEY', '');
+            apiKey = isGuest ? (guestKey || standardKey) : (standardKey || guestKey);
+            if (!apiKey) {
+                // Keep the explicit error semantics.
+                getRequiredEnv(isGuest ? 'GUEST_TAVILY_API_KEY' : 'TAVILY_API_KEY');
+            }
+            console.log(`🔑 [SEARCH] Using Tavily key (${apiKey.substring(0, 8)}...)`);
         } catch {
-            console.error(`❌ [SEARCH] API Key for ${isGuest ? 'guest' : 'standard'} is missing or empty`);
+            console.error('❌ [SEARCH] Tavily API key is missing (TAVILY_API_KEY / GUEST_TAVILY_API_KEY)');
             return jsonError('Search API key not configured', 500);
         }
 
@@ -87,13 +105,14 @@ export async function POST(req) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-        const response = await fetch('https://api.tavily.com/search', {
+        let response = await fetch('https://api.tavily.com/search', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'x-api-key': apiKey
             },
             body: JSON.stringify({
-                api_key: apiKey,
                 query: query.trim(),
                 search_depth: "basic",
                 include_answer: true,
@@ -101,10 +120,42 @@ export async function POST(req) {
             }),
             signal: controller.signal
         });
+        console.log('📡 [SEARCH] Tavily request payload (header-auth):', {
+            query: query.trim(),
+            search_depth: 'basic',
+            include_answer: true,
+            max_results: 5
+        });
+
+        // Compatibility fallback for deployments expecting api_key in JSON body.
+        if (!response.ok && (response.status === 401 || response.status === 403)) {
+            console.warn('⚠️ [SEARCH] Header auth failed, retrying with body api_key fallback...');
+            response = await fetch('https://api.tavily.com/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    api_key: apiKey,
+                    query: query.trim(),
+                    search_depth: "basic",
+                    include_answer: true,
+                    max_results: 5
+                }),
+                signal: controller.signal
+            });
+            console.log('📡 [SEARCH] Tavily request payload (body api_key fallback):', {
+                query: query.trim(),
+                search_depth: 'basic',
+                include_answer: true,
+                max_results: 5
+            });
+        }
 
         clearTimeout(timeoutId);
         const data = await response.json();
         console.log('📥 [SEARCH] Tavily Response Status:', response.status);
+        console.log('📥 [SEARCH] Tavily raw response data:', data);
 
         if (!response.ok) {
             console.error('❌ [SEARCH] Tavily API Error:', data);

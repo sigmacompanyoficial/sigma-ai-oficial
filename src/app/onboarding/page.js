@@ -11,9 +11,27 @@ export default function OnboardingPage() {
     const [usageIntent, setUsageIntent] = useState('');
     const [username, setUsername] = useState('');
     const [usernameError, setUsernameError] = useState('');
+    const [isUsernameRequiredOnly, setIsUsernameRequiredOnly] = useState(false);
     const [loading, setLoading] = useState(false);
     const [user, setUser] = useState(null);
     const router = useRouter();
+    const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
+
+    const normalizeUsername = (value) =>
+        (value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '')
+            .replace(/[^a-z0-9_]/g, '');
+
+    const validateUsername = (value) => {
+        const v = normalizeUsername(value);
+        if (!v) return 'Por favor elige un nombre de usuario.';
+        if (!USERNAME_REGEX.test(v)) {
+            return 'Usa 3-20 caracteres: letras minúsculas, números o _.';
+        }
+        return '';
+    };
 
     useEffect(() => {
         const checkUser = async () => {
@@ -25,12 +43,18 @@ export default function OnboardingPage() {
                 // Check if already completed
                 const { data } = await supabase
                     .from('profiles')
-                    .select('onboarding_completed')
+                    .select('onboarding_completed, username')
                     .eq('id', user.id)
                     .single();
 
-                if (data?.onboarding_completed) {
+                const hasUsername = !!data?.username?.trim();
+                if (data?.onboarding_completed && hasUsername) {
                     router.push('/chat');
+                    return;
+                }
+                if (data?.onboarding_completed && !hasUsername) {
+                    setIsUsernameRequiredOnly(true);
+                    setStep(1);
                 }
             }
         };
@@ -39,9 +63,11 @@ export default function OnboardingPage() {
 
     const handleComplete = async () => {
         if (!user) return;
-        if (!username) {
+        const normalizedUsername = normalizeUsername(username);
+        const usernameValidationError = validateUsername(normalizedUsername);
+        if (usernameValidationError) {
             setStep(1);
-            setUsernameError('Por favor elige un nombre de usuario.');
+            setUsernameError(usernameValidationError);
             return;
         }
 
@@ -49,8 +75,8 @@ export default function OnboardingPage() {
         const { data: existingUser } = await supabase
             .from('profiles')
             .select('id')
-            .eq('username', username.trim().toLowerCase())
-            .single();
+            .eq('username', normalizedUsername)
+            .maybeSingle();
 
         if (existingUser && existingUser.id !== user.id) {
             setStep(1);
@@ -61,17 +87,26 @@ export default function OnboardingPage() {
         console.log('🏁 Completing onboarding for user:', user.email);
         setLoading(true);
         try {
-            console.log('📝 Saving profile data:', { howKnown, usageIntent, username });
-            const { error } = await supabase
-                .from('profiles')
-                .upsert({
+            console.log('📝 Saving profile data:', { howKnown, usageIntent, username: normalizedUsername });
+            const payload = isUsernameRequiredOnly
+                ? {
                     id: user.id,
-                    username: username.trim().toLowerCase(),
+                    username: normalizedUsername,
+                    onboarding_completed: true,
+                    updated_at: new Date().toISOString()
+                }
+                : {
+                    id: user.id,
+                    username: normalizedUsername,
                     how_known: howKnown,
                     usage_intent: usageIntent,
                     onboarding_completed: true,
                     updated_at: new Date().toISOString()
-                });
+                };
+
+            const { error } = await supabase
+                .from('profiles')
+                .upsert(payload);
 
             if (error) throw error;
             console.log('✅ Onboarding completed successfully.');
@@ -103,22 +138,28 @@ export default function OnboardingPage() {
                         <p>Ayúdanos a personalizar tu experiencia en Sigma AI</p>
                     </div>
 
-                    <div className={styles.steps}>
-                        <div className={`${styles.stepIndicator} ${step >= 1 ? styles.active : ''}`}></div>
-                        <div className={`${styles.stepIndicator} ${step >= 2 ? styles.active : ''}`}></div>
-                        <div className={`${styles.stepIndicator} ${step >= 3 ? styles.active : ''}`}></div>
-                    </div>
+                    {!isUsernameRequiredOnly && (
+                        <div className={styles.steps}>
+                            <div className={`${styles.stepIndicator} ${step >= 1 ? styles.active : ''}`}></div>
+                            <div className={`${styles.stepIndicator} ${step >= 2 ? styles.active : ''}`}></div>
+                            <div className={`${styles.stepIndicator} ${step >= 3 ? styles.active : ''}`}></div>
+                        </div>
+                    )}
 
-                    {step === 1 ? (
+                    {step === 1 || isUsernameRequiredOnly ? (
                         <div className={styles.stepContent}>
                             <h2>Elige tu nombre de usuario</h2>
-                            <p className={styles.stepDescription}>Con este nombre podrás iniciar sesión en lugar de tu correo.</p>
+                            <p className={styles.stepDescription}>
+                                {isUsernameRequiredOnly
+                                    ? 'Para continuar, necesitas definir un nombre de usuario único.'
+                                    : 'Con este nombre podrás iniciar sesión en lugar de tu correo.'}
+                            </p>
                             <div className={styles.inputGroup}>
                                 <input
                                     type="text"
                                     value={username}
                                     onChange={(e) => {
-                                        setUsername(e.target.value);
+                                        setUsername(normalizeUsername(e.target.value));
                                         setUsernameError('');
                                     }}
                                     placeholder="@usuario"
@@ -128,10 +169,21 @@ export default function OnboardingPage() {
                             </div>
                             <button
                                 className={styles.nextBtn}
-                                disabled={!username}
-                                onClick={() => setStep(2)}
+                                disabled={!username || loading}
+                                onClick={() => {
+                                    const err = validateUsername(username);
+                                    if (err) {
+                                        setUsernameError(err);
+                                        return;
+                                    }
+                                    if (isUsernameRequiredOnly) {
+                                        handleComplete();
+                                        return;
+                                    }
+                                    setStep(2);
+                                }}
                             >
-                                Siguiente <Send size={18} />
+                                {isUsernameRequiredOnly ? (loading ? 'Guardando...' : 'Guardar usuario') : 'Siguiente'} <Send size={18} />
                             </button>
                         </div>
                     ) : step === 2 ? (

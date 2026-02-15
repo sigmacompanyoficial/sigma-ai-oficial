@@ -5,20 +5,21 @@ import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import {
     Users, Shield, Activity, Search, Trash2, Edit, Save, X,
-    CheckCircle, AlertTriangle, LogOut, ChevronLeft
+    CheckCircle, AlertTriangle, LogOut, ChevronLeft, BarChart3, Crown, UserCheck, RefreshCw, Download
 } from 'lucide-react';
 import styles from './admin.module.css';
 
 export default function AdminPage() {
     const [users, setUsers] = useState([]);
     const [activity, setActivity] = useState([]);
-    const [activeTab, setActiveTab] = useState('users'); // 'users', 'activity', 'security'
+    const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'users', 'activity', 'security'
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [editingUser, setEditingUser] = useState(null);
     const [theme, setTheme] = useState('dark');
+    const [lastSyncAt, setLastSyncAt] = useState(null);
     const router = useRouter();
 
     const checkAdmin = async () => {
@@ -50,6 +51,7 @@ export default function AdminPage() {
             fetchUsers(),
             fetchActivity()
         ]);
+        setLastSyncAt(new Date());
         setLoading(false);
     };
 
@@ -154,6 +156,47 @@ export default function AdminPage() {
         act.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const totalMessages = users.reduce((acc, curr) => acc + (curr.total_messages || 0), 0);
+    const totalTokens = users.reduce((acc, curr) => acc + (curr.total_tokens || 0), 0);
+    const premiumUsers = users.filter(u => u.role === 'premium').length;
+    const adminUsers = users.filter(u => u.role === 'admin' || u.role === 'superadmin').length;
+    const onboardingCompleted = users.filter(u => u.onboarding_completed).length;
+    const onboardingRate = users.length ? Math.round((onboardingCompleted / users.length) * 100) : 0;
+    const activeToday = activity.filter(a => {
+        const d = new Date(a.created_at);
+        const now = new Date();
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    }).length;
+
+    const topUsers = [...users]
+        .sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0))
+        .slice(0, 5);
+
+    const exportUsersCsv = () => {
+        const rows = [
+            ['id', 'username', 'full_name', 'email', 'role', 'onboarding_completed', 'total_messages', 'total_tokens', 'created_at'],
+            ...users.map(u => [
+                u.id,
+                u.username || '',
+                u.full_name || '',
+                u.email || '',
+                u.role || 'user',
+                String(!!u.onboarding_completed),
+                String(u.total_messages || 0),
+                String(u.total_tokens || 0),
+                u.created_at || ''
+            ])
+        ];
+
+        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `sigma-admin-users-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    };
+
     if (loading) return <div className={styles.loading}>Cargando panel de administración...</div>;
     if (!isAdmin) return null;
 
@@ -166,6 +209,13 @@ export default function AdminPage() {
                 </div>
 
                 <nav className={styles.nav}>
+                    <button
+                        className={`${styles.navItem} ${activeTab === 'overview' ? styles.active : ''}`}
+                        onClick={() => setActiveTab('overview')}
+                    >
+                        <BarChart3 size={20} />
+                        Resumen
+                    </button>
                     <button
                         className={`${styles.navItem} ${activeTab === 'users' ? styles.active : ''}`}
                         onClick={() => setActiveTab('users')}
@@ -199,15 +249,23 @@ export default function AdminPage() {
 
             <main className={styles.main}>
                 <header className={styles.header}>
-                    <h1>{activeTab === 'users' ? 'Gestión de Usuarios' : activeTab === 'activity' ? 'Actividad de la Plataforma' : 'Seguridad y Sistema'}</h1>
+                    <h1>{activeTab === 'overview' ? 'Resumen Ejecutivo' : activeTab === 'users' ? 'Gestión de Usuarios' : activeTab === 'activity' ? 'Actividad de la Plataforma' : 'Seguridad y Sistema'}</h1>
                     <div className={styles.userProfile}>
+                        <button className={styles.quickBtn} onClick={loadAllData} title="Refrescar datos">
+                            <RefreshCw size={14} />
+                            Actualizar
+                        </button>
+                        <button className={styles.quickBtn} onClick={exportUsersCsv} title="Exportar CSV">
+                            <Download size={14} />
+                            Exportar
+                        </button>
                         <span>{currentUser?.full_name}</span>
                         <span className={styles.badge}>{currentUser?.role}</span>
                     </div>
                 </header>
 
                 <div className={styles.content}>
-                    {activeTab !== 'security' && (
+                    {activeTab !== 'security' && activeTab !== 'overview' && (
                         <div className={styles.toolbar}>
                             <div className={styles.searchBar}>
                                 <Search size={18} />
@@ -239,13 +297,84 @@ export default function AdminPage() {
                         </div>
                     )}
 
-                    {activeTab === 'users' ? (
+                    {activeTab === 'overview' ? (
+                        <div className={styles.overviewGrid}>
+                            <div className={styles.metricCard}>
+                                <Users size={18} />
+                                <div>
+                                    <span className={styles.metricValue}>{users.length}</span>
+                                    <span className={styles.metricLabel}>Usuarios totales</span>
+                                </div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <Crown size={18} />
+                                <div>
+                                    <span className={styles.metricValue}>{premiumUsers}</span>
+                                    <span className={styles.metricLabel}>Premium activos</span>
+                                </div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <Shield size={18} />
+                                <div>
+                                    <span className={styles.metricValue}>{adminUsers}</span>
+                                    <span className={styles.metricLabel}>Admins</span>
+                                </div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <Activity size={18} />
+                                <div>
+                                    <span className={styles.metricValue}>{activeToday}</span>
+                                    <span className={styles.metricLabel}>Actividad hoy</span>
+                                </div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <BarChart3 size={18} />
+                                <div>
+                                    <span className={styles.metricValue}>{totalMessages}</span>
+                                    <span className={styles.metricLabel}>Mensajes generados</span>
+                                </div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <UserCheck size={18} />
+                                <div>
+                                    <span className={styles.metricValue}>{onboardingRate}%</span>
+                                    <span className={styles.metricLabel}>Onboarding completado</span>
+                                </div>
+                            </div>
+
+                            <div className={styles.panelCard}>
+                                <h3>Top usuarios por uso</h3>
+                                <div className={styles.simpleList}>
+                                    {topUsers.map((u) => (
+                                        <div key={u.id} className={styles.simpleRow}>
+                                            <span>{u.full_name || u.email || 'Usuario'}</span>
+                                            <span>{u.total_messages || 0} msgs</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className={styles.panelCard}>
+                                <h3>Últimos chats creados</h3>
+                                <div className={styles.simpleList}>
+                                    {activity.slice(0, 5).map((act) => (
+                                        <div key={act.id} className={styles.simpleRow}>
+                                            <span>{act.title || 'Chat sin título'}</span>
+                                            <span>{new Date(act.created_at).toLocaleDateString()}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className={styles.syncText}>Última actualización: {lastSyncAt ? lastSyncAt.toLocaleTimeString() : 'N/A'}</p>
+                            </div>
+                        </div>
+                    ) : activeTab === 'users' ? (
                         <div className={styles.tableWrapper}>
                             <table className={styles.table}>
                                 <thead>
                                     <tr>
                                         <th>Usuario</th>
                                         <th>Email</th>
+                                        <th>Username</th>
                                         <th>Rol</th>
                                         <th>Uso (Mensajes/Tokens)</th>
                                         <th>Fecha Registro</th>
@@ -264,6 +393,7 @@ export default function AdminPage() {
                                                 </div>
                                             </td>
                                             <td>{user.email}</td>
+                                            <td style={{ color: '#a5b4fc' }}>@{user.username || 'sin-username'}</td>
                                             <td>
                                                 {editingUser === user.id ? (
                                                     <select

@@ -246,6 +246,349 @@
     position: relative;
 }
 
+.showcaseShell {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+    border-radius: 32px;
+    padding: 2rem;
+}
+
+.showcaseHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.logoPill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    color: #c7d2fe;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.showcaseLogo {
+    width: 24px;
+    height: 24px;
+}
+
+.showcaseSub {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.captureGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.captureCard {
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: rgba(3, 3, 3, 0.6);
+    overflow: hidden;
+}
+
+.captureTopBar {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.captureAddress {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    padding: 3px 8px;
+}
+
+.captureDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.captureBody {
+    display: grid;
+    grid-template-columns: 78px 1fr;
+    gap: 8px;
+    padding: 10px;
+    min-height: 190px;
+}
+
+.captureSidebar {
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.captureMain {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.captureBubble {
+    height: 24px;
+    border-radius: 8px;
+    width: 60%;
+    background: rgba(99, 102, 241, 0.4);
+}
+
+.captureBubbleAlt {
+    height: 60px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.captureInput {
+    margin-top: auto;
+    height: 30px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.captureBodyVertical {
+    padding: 12px;
+    min-height: 190px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.captureChart {
+    height: 72px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(6, 182, 212, 0.28));
+}
+
+.captureHero {
+    height: 72px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(244, 114, 182, 0.35), rgba(99, 102, 241, 0.28));
+}
+
+.captureRows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.captureRows div {
+    height: 18px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.chatMockup {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 10px;
+    padding: 10px;
+    min-height: 210px;
+}
+
+.chatMockSidebar {
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chatMockLogo {
+    height: 18px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.5), rgba(6, 182, 212, 0.45));
+}
+
+.chatMockItem {
+    height: 14px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.chatMockItemShort {
+    height: 12px;
+    width: 70%;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.chatMockMain {
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chatMockHeader {
+    height: 16px;
+    width: 42%;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.chatMockBubbleUser {
+    align-self: flex-end;
+    width: 55%;
+    height: 20px;
+    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.45);
+}
+
+.chatMockBubbleBot {
+    width: 68%;
+    height: 18px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.chatMockBubbleBotLong {
+    width: 82%;
+    height: 38px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.chatMockInputRow {
+    margin-top: auto;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.chatMockPlus {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.13);
+}
+
+.chatMockInput {
+    flex: 1;
+    height: 20px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.chatMockSend {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.6);
+}
+
+.adminMockup,
+.aboutMockup {
+    min-height: 210px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.adminMockHeader {
+    height: 18px;
+    width: 48%;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.adminKpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 7px;
+}
+
+.adminKpis div {
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(99, 102, 241, 0.18);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.adminTable {
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px;
+}
+
+.adminTableHead {
+    height: 14px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    margin-bottom: 6px;
+}
+
+.adminRow {
+    height: 16px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.07);
+    margin-bottom: 6px;
+}
+
+.aboutHero {
+    height: 72px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.35), rgba(244, 114, 182, 0.3));
+}
+
+.aboutGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.aboutGrid div {
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.aboutStats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+
+.aboutStats div {
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(6, 182, 212, 0.18);
+}
+
+.captureLabel {
+    display: block;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    padding: 0.7rem 0.85rem 0.9rem;
+    border-top: 1px solid var(--border);
+}
+
 .sectionHeader {
     text-align: center;
     margin-bottom: 6rem;
@@ -487,6 +830,10 @@
     .footerGrid {
         grid-template-columns: 1fr 1fr;
     }
+
+    .captureGrid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 768px) {
@@ -506,5 +853,10 @@
     .statsContainer {
         padding: 2rem;
         grid-template-columns: 1fr 1fr;
+    }
+
+    .showcaseHeader {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }

@@ -17,7 +17,7 @@ import { uploadAndExtractFile } from '@/lib/fileParser';
 
 
 const guestModel = { modelId: 'arcee-ai/trinity-large-preview:free', modelName: 'Sigma LMM 1 Mini', provider: 'openrouter', hostedId: 'arcee-ai/trinity-large-preview:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
-const PRO_MODEL_ID = 'qwen/qwen3-next-80b-a3b-instruct:free';
+const PRO_MODEL_ID = 'stepfun/step-3.5-flash:free';
 
 const translations = {
     'Español': {
@@ -180,6 +180,8 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     const [messageCount, setMessageCount] = useState(0);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showGuestOptionsModal, setShowGuestOptionsModal] = useState(false);
+    const [isDragOverInput, setIsDragOverInput] = useState(false);
+    const [showCookieConsent, setShowCookieConsent] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [theme, setTheme] = useState('dark');
     const canUsePro = rawRole === 'admin' || rawRole === 'premium' || rawRole === 'superadmin';
@@ -201,16 +203,40 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     const MAX_ATTACHMENTS = 50;
     const MAX_DOC_CHARS_PER_FILE = 8000;
     const MAX_DOC_CONTEXT_CHARS = 120000;
+    const DEBUG_ALL_LOGS = true;
+
+    const dlog = (...args) => {
+        if (DEBUG_ALL_LOGS) console.log(...args);
+    };
+
+    const dwarn = (...args) => {
+        if (DEBUG_ALL_LOGS) console.warn(...args);
+    };
+
+    const derr = (...args) => {
+        if (DEBUG_ALL_LOGS) console.error(...args);
+    };
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     const fetchWithRetry = async (url, options, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
         try {
+            dlog('🌍 [HTTP] Request =>', {
+                url,
+                method: options?.method || 'GET',
+                retriesLeft: retries,
+                body: options?.body || null
+            });
             const response = await fetch(url, options);
+            dlog('🌍 [HTTP] Response <=', {
+                url,
+                status: response.status,
+                ok: response.ok
+            });
 
             if (response.status === 429) {
                 if (retries > 0) {
-                    console.warn(`⏳ Límite de peticiones alcanzado. Reintentando en ${delay / 1000}s... (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`);
+                    dwarn(`⏳ Límite de peticiones alcanzado. Reintentando en ${delay / 1000}s... (${MAX_RETRIES - retries + 1}/${MAX_RETRIES})`);
                     await sleep(delay);
                     return fetchWithRetry(url, options, retries - 1, delay * 1.5);
                 } else {
@@ -221,10 +247,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             return response;
         } catch (err) {
             if (retries > 0 && err.message.includes('Failed to fetch')) {
-                console.warn(`🔄 Error de conexión. Reintentando en ${delay / 1000}s...`);
+                dwarn(`🔄 Error de conexión. Reintentando en ${delay / 1000}s...`);
                 await sleep(delay);
                 return fetchWithRetry(url, options, retries - 1, delay * 1.5);
             }
+            derr('❌ [HTTP] Fatal fetch error:', err);
             throw err;
         }
     };
@@ -234,6 +261,44 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         if (now - lastSentRef.current < RATE_LIMIT) return false;
         lastSentRef.current = now;
         return true;
+    };
+
+    const extractAgenticSearchQuery = (text) => {
+        if (!text || typeof text !== 'string') return null;
+
+        const patterns = [
+            /\b(?:SEARCH|BUSCAR_WEB|WEB_SEARCH|TAVILY)\b\s*:?\s*([^\n\r]{2,400})/i,
+            /\bACTIVA(?:R)?\s+TAVILY\b\s*:?\s*([^\n\r]{2,400})/i
+        ];
+
+        for (const pattern of patterns) {
+            const match = text.match(pattern);
+            if (!match?.[1]) continue;
+
+            const query = match[1]
+                .replace(/^\s*(?:consulta|query|busqueda|búsqueda)\s*:?\s*/i, '')
+                .replace(/\s*(?:como\s+respuesta.*)$/i, '')
+                .replace(/^[`"'\[\(]+/, '')
+                .replace(/[`"'\]\)]+$/, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .replace(/[.,;:!?]+$/, '');
+
+            if (query.length >= 3) return query;
+        }
+
+        return null;
+    };
+
+    const shouldForceRealtimeSearch = (text) => {
+        const q = (text || '').toLowerCase();
+        if (!q.trim()) return false;
+        const realtimeHints = [
+            'tiempo', 'clima', 'weather', 'temperatura', 'pronóstico', 'pronostico',
+            'hoy', 'ahora', 'actual', 'actualizado', 'última hora', 'ultima hora',
+            'news', 'noticias', 'cotización', 'cotizacion', 'precio hoy'
+        ];
+        return realtimeHints.some((k) => q.includes(k));
     };
 
     useEffect(() => {
@@ -255,6 +320,9 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         // Initialize appearance setting
         const themeMap = { 'dark': 'Oscuro', 'light': 'Claro', 'system': 'Sistema' };
         setAppearance(themeMap[savedTheme] || 'Oscuro');
+
+        const cookieConsent = localStorage.getItem('sigma-cookie-consent');
+        if (!cookieConsent) setShowCookieConsent(true);
 
         setMounted(true);
 
@@ -415,7 +483,8 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 .eq('id', user.id)
                 .single();
 
-            if (!profile || !profile.onboarding_completed) {
+            const hasUsername = !!profile?.username?.trim();
+            if (!profile || !profile.onboarding_completed || !hasUsername) {
                 window.location.href = '/onboarding';
                 return;
             }
@@ -653,8 +722,27 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
     const handleSend = async (e) => {
         e?.preventDefault();
-        if (!canSend) return;
-        if (!canSendMessage()) return;
+        dlog('🚀 [SEND] Triggered handleSend', {
+            canSend,
+            isLoading,
+            isStreaming,
+            inputLength: input?.length || 0,
+            selectedImages: selectedImages.length,
+            selectedDocs: selectedDocs.length,
+            useWebSearch,
+            useReasoning,
+            selectedModel: selectedModel?.modelId,
+            isGuest,
+            rawRole
+        });
+        if (!canSend) {
+            dwarn('⛔ [SEND] canSend=false, blocked');
+            return;
+        }
+        if (!canSendMessage()) {
+            dwarn('⛔ [SEND] Rate limited by canSendMessage()');
+            return;
+        }
 
         const currentInput = input || ""; // Permitir input vacío si hay archivos
         const currentImages = [...imagePreviews];
@@ -669,6 +757,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         };
 
         const newMessages = [...messages, userMsg];
+        dlog('📝 [SEND] User message object:', userMsg);
         setMessages(newMessages);
         if (isGuest) {
             const nextCount = messageCount + 1;
@@ -688,11 +777,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
         let gemmaContext = "";
         if (currentImages.length > 0) {
-            console.log('📸 Gemma-3 (27B) está analizando las imágenes en segundo plano...');
+            dlog('📸 [VISION] Gemma-3 (27B) análisis en segundo plano iniciado');
             setIsProcessingImage(true);
             try {
                 const analysisResults = [];
                 for (const imgBase64 of currentImages) {
+                    dlog('📸 [VISION] Sending image for analysis, base64 length:', imgBase64?.length || 0);
                     const base64Clean = imgBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
                     const visionResp = await fetch('/api/vision', {
                         method: 'POST',
@@ -704,6 +794,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     });
 
                     if (visionResp.ok) {
+                        dlog('📸 [VISION] Response status OK:', visionResp.status);
                         const vReader = visionResp.body.getReader();
                         const vDecoder = new TextDecoder();
                         let vDesc = "";
@@ -716,22 +807,28 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                 if (line.startsWith('data: ')) {
                                     try {
                                         const json = JSON.parse(line.replace('data: ', ''));
+                                        dlog('📸 [VISION][SSE] line json:', json);
                                         vDesc += json.choices?.[0]?.delta?.content || '';
-                                    } catch (e) { }
+                                    } catch (e) {
+                                        dwarn('⚠️ [VISION][SSE] JSON parse error:', e, line);
+                                    }
                                 }
                             }
                         }
                         vDesc = vDesc.trim();
                         analysisResults.push(vDesc);
-                        console.log(`📝 Análisis Gemma para imagen ${analysisResults.length}:`, vDesc);
+                        dlog(`📝 [VISION] Análisis Gemma para imagen ${analysisResults.length}:`, vDesc);
+                    } else {
+                        const rawErr = await visionResp.text().catch(() => '');
+                        derr('❌ [VISION] Non-OK response:', visionResp.status, rawErr);
                     }
                 }
                 if (analysisResults.length > 0) {
                     gemmaContext = `\n\n[ANÁLISIS DE IMÁGENES (google/gemma-3-27b-it:free)]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nIntegra este análisis en la respuesta al usuario de forma natural, como contexto interno.`;
-                    console.log('✅ Análisis de imágenes completado. Contexto listo.');
+                    dlog('✅ [VISION] Análisis de imágenes completado. Contexto listo.');
                 }
             } catch (vErr) {
-                console.error('❌ Error during background image analysis:', vErr);
+                derr('❌ [VISION] Error during background image analysis:', vErr);
             } finally {
                 setIsProcessingImage(false);
             }
@@ -755,14 +852,17 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             docContext = "\n\n[DOCUMENTOS ADJUNTOS - CONTEXTO INTERNO]:\n"
                 + boundedDocsContext
                 + "\n\nUsa este contenido como contexto de apoyo y responde al usuario de forma natural.";
-            console.log('📄 Documents content added to context.');
+            dlog('📄 [DOCS] Documents content added to context.', {
+                docsCount: currentDocs.length,
+                contextLength: docContext.length
+            });
         }
 
         let chatId = currentChatId;
         if (user) {
             try {
                 if (!chatId) {
-                    console.log('📝 Generating chat title with Gemma...');
+                    dlog('📝 [TITLE] Generating chat title with Gemma...');
                     let finalTitle = (currentInput || 'Imagen adjunta').slice(0, 30) || 'Nuevo Chat';
 
                     try {
@@ -782,11 +882,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             const titleData = await titleResp.json();
                             if (titleData.title) {
                                 finalTitle = titleData.title;
-                                console.log('✅ Title generated:', finalTitle);
+                                dlog('✅ [TITLE] Title generated:', finalTitle);
                             }
                         }
                     } catch (tErr) {
-                        console.warn('Title gen too slow or failed, using fallback');
+                        dwarn('⚠️ [TITLE] Title gen too slow or failed, using fallback', tErr);
                     }
 
                     const { data: chatData, error: chatError } = await supabase.from('chats').insert({
@@ -809,7 +909,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                         created_at: new Date().toISOString()
                     });
                 }
-            } catch (err) { console.warn('DB Save err:', err); }
+            } catch (err) { dwarn('⚠️ [DB] Save err:', err); }
         }
 
         setMessages(prev => [...prev, {
@@ -832,26 +932,33 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             let searchContext = "";
             let searchSource = "";
 
-            if (useWebSearch) {
-                console.log(`🔍 [${isGuest ? 'GUEST' : 'USER'}] Performing explicit web search...`);
+            if (useWebSearch || shouldForceRealtimeSearch(currentInput)) {
+                const forced = !useWebSearch && shouldForceRealtimeSearch(currentInput);
+                if (forced) {
+                    dlog('🧠 [SEARCH] Forcing realtime web search by heuristic for query:', currentInput);
+                }
+                dlog(`🔍 [SEARCH][${isGuest ? 'GUEST' : 'USER'}] Performing explicit web search...`, currentInput);
                 try {
                     const searchResp = await fetchWithRetry('/api/search', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ query: currentInput, isGuest: isGuest })
                     });
+                    dlog(`🔍 [SEARCH][${isGuest ? 'GUEST' : 'USER'}] /api/search status:`, searchResp.status);
                     if (searchResp.ok) {
                         const searchData = await searchResp.json();
+                        dlog(`🔍 [SEARCH][${isGuest ? 'GUEST' : 'USER'}] /api/search payload:`, searchData);
                         if (searchData.success) {
                             searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}`;
                             searchSource = searchData.source || 'Tavily';
-                            console.log(`✅ [${isGuest ? 'GUEST' : 'USER'}] Search results acquired.`);
+                            dlog(`✅ [SEARCH][${isGuest ? 'GUEST' : 'USER'}] Search results acquired.`);
                         }
                     } else {
-                        console.warn(`⚠️ [${isGuest ? 'GUEST' : 'USER'}] Search API returned error:`, searchResp.status);
+                        const searchErrRaw = await searchResp.text().catch(() => '');
+                        dwarn(`⚠️ [SEARCH][${isGuest ? 'GUEST' : 'USER'}] Search API returned error:`, searchResp.status, searchErrRaw);
                     }
                 } catch (e) {
-                    console.error(`❌ [${isGuest ? 'GUEST' : 'USER'}] Search failed:`, e);
+                    derr(`❌ [SEARCH][${isGuest ? 'GUEST' : 'USER'}] Search failed:`, e);
                 } finally {
                     // Turn off searching animation before starting chat
                     setMessages(prev => {
@@ -869,7 +976,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 content: messagesForAPI[lastIdx].content + gemmaContext + searchContext + docContext
             };
 
-            console.log('📤 Sending Final Payload to Sigma AI:', {
+            dlog('📤 [CHAT] Sending Final Payload to Sigma AI:', {
                 model: modelToUse,
                 messagesCount: messagesForAPI.length,
                 lastMessageWithContext: messagesForAPI[lastIdx].content
@@ -891,7 +998,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 signal: controller.signal
             });
 
-            if (!response.ok) throw new Error('Chat API error');
+            if (!response.ok) {
+                const errRaw = await response.text().catch(() => '');
+                derr('❌ [CHAT] /api/chat non-OK:', response.status, errRaw);
+                throw new Error('Chat API error');
+            }
+            dlog('✅ [CHAT] /api/chat streaming response OK');
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let botResponse = '';
@@ -907,173 +1019,175 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 return next;
             });
 
-            let hasDeterminedThinking = false;
-            const assistantMsgIndex = messages.length + 1;
-
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
                 const chunk = decoder.decode(value);
+                dlog('📡 [CHAT][SSE] Raw chunk:', chunk);
                 const linesChunk = chunk.split('\n');
                 for (const line of linesChunk) {
                     if (line.startsWith('data: ')) {
                         try {
-                            const json = JSON.parse(line.replace('data: ', ''));
+                            const payload = line.replace('data: ', '').trim();
+                            if (payload === '[DONE]') {
+                                dlog('✅ [CHAT][SSE] DONE received');
+                                continue;
+                            }
+                            const json = JSON.parse(payload);
+                            dlog('📡 [CHAT][SSE] Parsed JSON line:', json);
                             const delta = json.choices?.[0]?.delta?.content || '';
                             if (delta) {
                                 botResponse += delta;
-
-                                // --- AGENTIC SEARCH INTERCEPTOR ---
-                                if (botResponse.includes('SEARCH:')) { // Using isStreaming check or just length
-                                    // If we see SEARCH: at any point, we trigger it.
-                                    // Usually it's at the start or start of a line.
-                                    console.log('🔍 [AGENTIC SEARCH] Trigger detected in bot response');
-
-                                    // Extract the full query string
-                                    const searchMatch = botResponse.match(/SEARCH:\s*([^.\n]+)/i);
-                                    if (searchMatch) {
-                                        const searchQuery = searchMatch[1].trim().replace(/[\[\]]/g, '');
-                                        console.log('📡 [AGENTIC SEARCH] Executing query:', searchQuery);
-
-                                        // 1. Terminate current stream
-                                        controller.abort();
-
-                                        // 2. Clear visual SEARCH text and show animation
-                                        setMessages(prev => {
-                                            const next = [...prev];
-                                            if (next.length > 0) {
-                                                next[next.length - 1].content = '';
-                                                next[next.length - 1].isSearching = true;
-                                            }
-                                            return next;
-                                        });
-
-                                        // 3. Process the rest is similar to before...
-                                        try {
-                                            const aSearchResp = await fetch('/api/search', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ query: searchQuery, isGuest: isGuest })
-                                            });
-
-                                            let autoSearchContext = "";
-                                            let autoSearchSource = "";
-                                            if (aSearchResp.ok) {
-                                                const aSearchData = await aSearchResp.json();
-                                                if (aSearchData.success) {
-                                                    autoSearchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${aSearchData.result}`;
-                                                    autoSearchSource = aSearchData.source || 'Tavily';
-                                                    console.log('✅ [AGENTIC SEARCH] Results received');
-                                                }
-                                            }
-
-                                            const updatedMessages = [...newMessages];
-                                            const lastMsg = updatedMessages[updatedMessages.length - 1];
-                                            updatedMessages[updatedMessages.length - 1] = {
-                                                ...lastMsg,
-                                                content: lastMsg.content + gemmaContext + searchContext + docContext + autoSearchContext
-                                            };
-
-                                            setMessages(prev => {
-                                                const next = [...prev];
-                                                if (next.length > 0) {
-                                                    next[next.length - 1] = {
-                                                        role: 'assistant',
-                                                        content: '...',
-                                                        timestamp: new Date().toISOString(),
-                                                        isSearching: false,
-                                                        source: autoSearchSource
-                                                    };
-                                                }
-                                                return next;
-                                            });
-
-                                            const nextController = new AbortController();
-                                            streamAbortRef.current = nextController;
-
-                                            const nextResponse = await fetchWithRetry('/api/chat', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    messages: updatedMessages,
-                                                    modelId: modelToUse,
-                                                    systemPrompt: systemInstructions,
-                                                    botName: botName,
-                                                    stream: true,
-                                                    tone: botTone,
-                                                    detailLevel: detailLevel,
-                                                    language: language
-                                                }),
-                                                signal: nextController.signal
-                                            });
-
-                                            if (!nextResponse.ok) throw new Error('Retry Chat failed');
-
-                                            const nextReader = nextResponse.body.getReader();
-                                            let finalBotResponse = '';
-
-                                            setMessages(prev => {
-                                                const next = [...prev];
-                                                if (next.length > 0) next[next.length - 1].content = '';
-                                                return next;
-                                            });
-
-                                            while (true) {
-                                                const { done, value } = await nextReader.read();
-                                                if (done) break;
-                                                const nextChunk = decoder.decode(value);
-                                                const nextLines = nextChunk.split('\n');
-                                                for (const nLine of nextLines) {
-                                                    if (nLine.startsWith('data: ')) {
-                                                        try {
-                                                            const nJson = JSON.parse(nLine.replace('data: ', ''));
-                                                            const nDelta = nJson.choices?.[0]?.delta?.content || '';
-                                                            if (nDelta) {
-                                                                finalBotResponse += nDelta;
-                                                                setMessages(prev => {
-                                                                    const last = [...prev];
-                                                                    if (last.length > 0) last[last.length - 1].content = finalBotResponse;
-                                                                    return last;
-                                                                });
-                                                            }
-                                                        } catch (e) { }
-                                                    }
-                                                }
-                                            }
-
-                                            if (user && chatId) {
-                                                await supabase.from('messages').insert({
-                                                    chat_id: chatId,
-                                                    role: 'assistant',
-                                                    content: finalBotResponse,
-                                                    created_at: new Date().toISOString()
-                                                });
-                                                updateUserStats(Math.ceil(finalBotResponse.length / 4));
-                                            }
-                                            return;
-                                        } catch (searchErr) {
-                                            console.error('❌ [AGENTIC SEARCH] Error:', searchErr);
-                                            // Fallback: show what we have
-                                        }
-                                    }
-                                }
-
-                                // Auto-collapse if thought just ended
-                                if (!hasDeterminedThinking && botResponse.includes('</think>')) {
-                                    hasDeterminedThinking = true;
-                                    setCollapsedThinking(prev => ({ ...prev, [assistantMsgIndex]: true }));
-                                }
+                                dlog('✍️ [CHAT][SSE] Delta received:', delta);
                             }
                             setMessages(prev => {
                                 const last = [...prev];
                                 last[last.length - 1] = { ...last[last.length - 1], content: botResponse };
                                 return last;
                             });
-                        } catch (e) { }
+                        } catch (e) {
+                            dwarn('⚠️ [CHAT][SSE] Parse error:', e, line);
+                        }
                     }
                 }
             }
-            console.log('✅ Response complete. Full text length:', botResponse.length);
+            dlog('✅ [CHAT] Response complete. Full text length:', botResponse.length);
+
+            // Fallback: si por cualquier motivo no se interceptó durante stream y el modelo
+            // termina devolviendo un comando SEARCH/TAVILY, ejecutamos la búsqueda aquí.
+            const fallbackSearchQuery = extractAgenticSearchQuery(botResponse);
+            if (fallbackSearchQuery) {
+                dlog('🛟 [AGENTIC SEARCH FALLBACK] Triggered with query:', fallbackSearchQuery);
+                try {
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) {
+                            next[next.length - 1].content = '';
+                            next[next.length - 1].isSearching = true;
+                        }
+                        return next;
+                    });
+
+                    const aSearchResp = await fetch('/api/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: fallbackSearchQuery, isGuest: isGuest })
+                    });
+                    dlog('🛟 [AGENTIC SEARCH FALLBACK] /api/search status:', aSearchResp.status);
+
+                    let autoSearchContext = "";
+                    let autoSearchSource = "";
+                    if (aSearchResp.ok) {
+                        const aSearchData = await aSearchResp.json();
+                        if (aSearchData.success) {
+                            autoSearchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${aSearchData.result}`;
+                            autoSearchSource = aSearchData.source || 'Tavily';
+                            dlog('✅ [AGENTIC SEARCH FALLBACK] Results received');
+                        }
+                    }
+
+                    if (!autoSearchContext) {
+                        dwarn('⚠️ [AGENTIC SEARCH FALLBACK] Search returned no context');
+                        const noSearchMsg = 'No pude recuperar resultados web ahora mismo. Intenta de nuevo en unos segundos.';
+                        setMessages(prev => {
+                            const next = [...prev];
+                            if (next.length > 0) {
+                                next[next.length - 1] = {
+                                    ...next[next.length - 1],
+                                    content: noSearchMsg,
+                                    isSearching: false
+                                };
+                            }
+                            return next;
+                        });
+                        botResponse = noSearchMsg;
+                        return;
+                    }
+
+                    const updatedMessages = [...newMessages];
+                    const lastMsg = updatedMessages[updatedMessages.length - 1];
+                    updatedMessages[updatedMessages.length - 1] = {
+                        ...lastMsg,
+                        content: lastMsg.content + gemmaContext + searchContext + docContext + autoSearchContext
+                    };
+
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) {
+                            next[next.length - 1] = {
+                                role: 'assistant',
+                                content: '',
+                                timestamp: new Date().toISOString(),
+                                isSearching: false,
+                                source: autoSearchSource
+                            };
+                        }
+                        return next;
+                    });
+
+                    const nextController = new AbortController();
+                    streamAbortRef.current = nextController;
+
+                    const nextResponse = await fetchWithRetry('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            messages: updatedMessages,
+                            modelId: modelToUse,
+                            systemPrompt: `${systemInstructions}\n\nIMPORTANTE: Ya recibiste [CONTEXTO DE BÚSQUEDA WEB]. No respondas con SEARCH: ni pidas buscar otra vez. Responde al usuario usando ese contexto.`,
+                            botName: botName,
+                            stream: true,
+                            tone: botTone,
+                            detailLevel: detailLevel,
+                            language: language
+                        }),
+                        signal: nextController.signal
+                    });
+
+                    if (!nextResponse.ok) throw new Error('Fallback retry chat failed');
+                    dlog('✅ [AGENTIC SEARCH FALLBACK] retry /api/chat OK');
+
+                    const nextReader = nextResponse.body.getReader();
+                    let finalBotResponse = '';
+
+                    while (true) {
+                        const { done, value } = await nextReader.read();
+                        if (done) break;
+                        const nextChunk = decoder.decode(value);
+                        dlog('📡 [AGENTIC SEARCH FALLBACK][SSE] Raw chunk:', nextChunk);
+                        const nextLines = nextChunk.split('\n');
+                        for (const nLine of nextLines) {
+                            if (nLine.startsWith('data: ')) {
+                                try {
+                                    const npayload = nLine.replace('data: ', '').trim();
+                                    if (npayload === '[DONE]') {
+                                        dlog('✅ [AGENTIC SEARCH FALLBACK][SSE] DONE received');
+                                        continue;
+                                    }
+                                    const nJson = JSON.parse(npayload);
+                                    dlog('📡 [AGENTIC SEARCH FALLBACK][SSE] Parsed JSON line:', nJson);
+                                    const nDelta = nJson.choices?.[0]?.delta?.content || '';
+                                    if (nDelta) {
+                                        finalBotResponse += nDelta;
+                                        dlog('✍️ [AGENTIC SEARCH FALLBACK][SSE] Delta:', nDelta);
+                                        setMessages(prev => {
+                                            const last = [...prev];
+                                            if (last.length > 0) last[last.length - 1].content = finalBotResponse;
+                                            return last;
+                                        });
+                                    }
+                                } catch (e) {
+                                    dwarn('⚠️ [AGENTIC SEARCH FALLBACK][SSE] Parse error:', e, nLine);
+                                }
+                            }
+                        }
+                    }
+
+                    botResponse = finalBotResponse;
+                } catch (fallbackErr) {
+                    derr('❌ [AGENTIC SEARCH FALLBACK] Error:', fallbackErr);
+                }
+            }
 
             if (user && chatId) {
                 await supabase.from('messages').insert({
@@ -1087,7 +1201,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
         } catch (err) {
             if (err.name === 'AbortError') return;
-            console.error('Final flow error:', err);
+            derr('❌ [SEND] Final flow error:', err);
             setError('Error al obtener respuesta.');
         } finally {
             setIsLoading(false);
@@ -1095,14 +1209,15 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         }
     };
 
-    const handleFileSelect = async (e) => {
-        console.log('📎 [UPLOAD] File picker changed');
+    const processSelectedFiles = async (incomingFiles, source = 'picker') => {
+        console.log(`📎 [UPLOAD] Processing files from: ${source}`);
         if (isGuest || !user) {
             alert('Debes iniciar sesión para subir fotos y archivos.');
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
+            setShowGuestOptionsModal(true);
             return;
         }
-        const files = Array.from(e.target.files || []);
+        const files = Array.from(incomingFiles || []);
         console.log('📎 [UPLOAD] Selected files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
         if (files.length === 0) return;
 
@@ -1112,7 +1227,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
         if (availableSlots === 0) {
             alert(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
@@ -1198,8 +1313,47 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             console.log('✅ [UPLOAD] Background extraction completed. Docs added:', extractedDocs.length);
         } finally {
             setIsParsingFile(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
             console.log('📎 [UPLOAD] File processing finished');
+        }
+    };
+
+    const handleFileSelect = async (e) => {
+        console.log('📎 [UPLOAD] File picker changed');
+        await processSelectedFiles(e.target.files, 'picker');
+    };
+
+    const handlePaste = async (e) => {
+        const items = Array.from(e.clipboardData?.items || []);
+        const pastedImages = items
+            .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+            .map(item => item.getAsFile())
+            .filter(Boolean);
+
+        if (pastedImages.length > 0) {
+            console.log('📋 [UPLOAD] Pasted images detected:', pastedImages.length);
+            e.preventDefault();
+            await processSelectedFiles(pastedImages, 'paste');
+        }
+    };
+
+    const handleDragOverInput = (e) => {
+        e.preventDefault();
+        if (!isDragOverInput) setIsDragOverInput(true);
+    };
+
+    const handleDragLeaveInput = (e) => {
+        e.preventDefault();
+        setIsDragOverInput(false);
+    };
+
+    const handleDropInput = async (e) => {
+        e.preventDefault();
+        setIsDragOverInput(false);
+        const droppedFiles = Array.from(e.dataTransfer?.files || []);
+        if (droppedFiles.length > 0) {
+            console.log('🧲 [UPLOAD] Dropped files detected:', droppedFiles.length);
+            await processSelectedFiles(droppedFiles, 'drop');
         }
     };
 
@@ -1309,6 +1463,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         }
     };
 
+    const acceptCookies = () => {
+        localStorage.setItem('sigma-cookie-consent', 'accepted');
+        setShowCookieConsent(false);
+    };
+
     const renderMessage = (content, index) => {
         if (!content) return null;
         let finalContent = content;
@@ -1332,12 +1491,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             }
         }
 
-        // Determine if it should be collapsed
-        // If state is not set, we collapse by default if the thinking is finished
+        // Keep reasoning visible by default; user can collapse manually.
         const isFinished = thinkEnd !== -1;
         const isCollapsed = collapsedThinking[index] !== undefined
             ? collapsedThinking[index]
-            : isFinished;
+            : false;
 
         return (
             <>
@@ -1690,14 +1848,27 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                         <div className={styles.messageContent}>
                                             {msg.isSearching && (
                                                 <div className={styles.searchingAnimation}>
-                                                    <Search size={16} className={styles.searchIconAnim} />
-                                                    <span>Buscando en la web...</span>
+                                                    <div className={styles.searchRadar}>
+                                                        <div className={styles.searchRadarSweep}></div>
+                                                        <div className={styles.searchRadarDot}></div>
+                                                    </div>
+                                                    <div className={styles.loaderTextBlock}>
+                                                        <span className={styles.loaderTitle}>Buscando en la web</span>
+                                                        <span className={styles.loaderSubtitle}>Rastreando fuentes en tiempo real...</span>
+                                                    </div>
                                                 </div>
                                             )}
                                             {msg.content === '...' && !msg.isSearching ? (
                                                 <div className={styles.loadingContainer}>
-                                                    <div className={styles.loadingSpinner}></div>
-                                                    <span className={styles.typingText}>{botName} está pensando...</span>
+                                                    <div className={styles.thinkingPulse}>
+                                                        <span></span>
+                                                        <span></span>
+                                                        <span></span>
+                                                    </div>
+                                                    <div className={styles.loaderTextBlock}>
+                                                        <span className={styles.loaderTitle}>{botName} está pensando</span>
+                                                        <span className={styles.loaderSubtitle}>Construyendo la mejor respuesta...</span>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <>
@@ -1777,9 +1948,27 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 <div className={styles.inputSection}>
                     {!isReadOnly && (
                         <>
-                            {isProcessingImage && (
-                                <div style={{ width: '100%', marginBottom: '8px', padding: '0 12px', fontSize: '0.85rem', color: '#93c5fd' }}>
-                                    Analizando imagen...
+                            {(isProcessingImage || isParsingFile) && (
+                                <div className={styles.analyzingStatus}>
+                                    <div className={styles.analyzingScanner}>
+                                        <div className={styles.analyzingScanLine}></div>
+                                        <div className={styles.analyzingBars}>
+                                            <span></span>
+                                            <span></span>
+                                            <span></span>
+                                            <span></span>
+                                        </div>
+                                    </div>
+                                    <div className={styles.loaderTextBlock}>
+                                        <span className={styles.loaderTitle}>
+                                            {isProcessingImage ? 'Analizando imagen' : 'Procesando archivos'}
+                                        </span>
+                                        <span className={styles.loaderSubtitle}>
+                                            {isProcessingImage
+                                                ? 'Extrayendo contexto visual con Gemma...'
+                                                : 'Extrayendo texto y preparando contexto...'}
+                                        </span>
+                                    </div>
                                 </div>
                             )}
                             {(imagePreviews.length > 0 || selectedDocs.length > 0) && (
@@ -1875,7 +2064,14 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                 </div>
                             )}
 
-                            <form onSubmit={handleSend} className={styles.inputWrapper}>
+                            <form
+                                onSubmit={handleSend}
+                                className={`${styles.inputWrapper} ${isDragOverInput ? styles.inputWrapperDropActive : ''}`}
+                                onDragOver={handleDragOverInput}
+                                onDragEnter={handleDragOverInput}
+                                onDragLeave={handleDragLeaveInput}
+                                onDrop={handleDropInput}
+                            >
                                 <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.csv,.json,.html,.htm,.js,.jsx,.ts,.tsx,.py,.md,.xml,.yaml,.yml,.env" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
 
                                 <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
@@ -1937,6 +2133,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                     rows={1}
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
+                                    onPaste={handlePaste}
                                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
                                     disabled={isLoading}
                                 />
@@ -1973,6 +2170,21 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     )}
                 </div>
             </main>
+
+            {showCookieConsent && (
+                <div className={styles.cookieBanner}>
+                    <div className={styles.cookieBannerContent}>
+                        <div className={styles.cookieBannerIcon}><Cookie size={16} /></div>
+                        <p>
+                            Usamos cookies para mejorar tu experiencia en Sigma AI. Al continuar, aceptas nuestras cookies.
+                        </p>
+                    </div>
+                    <div className={styles.cookieBannerActions}>
+                        <Link href="/cookies" className={styles.cookieBannerLink}>Configurar</Link>
+                        <button className={styles.cookieBannerBtn} onClick={acceptCookies}>Aceptar</button>
+                    </div>
+                </div>
+            )}
 
             {showSettings && (
                 <div className={styles.modalOverlay} onClick={() => setShowSettings(false)}>
