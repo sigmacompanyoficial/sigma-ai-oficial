@@ -379,6 +379,22 @@
     background-color: rgba(255, 255, 255, 0.1);
 }
 
+.lockedModel {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.premiumBadge {
+    background: linear-gradient(135deg, #8B5CF6, #6366F1);
+    color: white;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05rem;
+}
+
 .modelOptionHeader {
     display: flex;
     align-items: center;

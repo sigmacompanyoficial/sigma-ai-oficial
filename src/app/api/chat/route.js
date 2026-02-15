@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 import { getIntEnv, getPublicSiteUrl, getRequiredEnv } from '@/lib/env';
+
+const PRO_MODEL_IDS = new Set(['qwen/qwen3-next-80b-a3b-instruct:free']);
+const PRO_ALLOWED_ROLES = new Set(['admin', 'premium', 'superadmin']);
 
 function jsonError(message, status = 500, extras = {}) {
     return NextResponse.json({ error: message, ...extras }, { status });
@@ -27,6 +32,39 @@ export async function POST(req) {
         if (!modelId || typeof modelId !== 'string') {
             console.warn('⚠️ Chat API: modelId is missing');
             return jsonError('Valid modelId is required', 400, { requestId });
+        }
+        if (PRO_MODEL_IDS.has(modelId)) {
+            const cookieStore = await cookies();
+            const supabase = createServerClient(
+                process.env.NEXT_PUBLIC_SUPABASE_URL,
+                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+                {
+                    cookies: {
+                        getAll() {
+                            return cookieStore.getAll();
+                        },
+                        setAll() {
+                            // Read-only use in API route.
+                        },
+                    },
+                }
+            );
+
+            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            if (authError || !user) {
+                return jsonError('Este modelo está disponible solo para usuarios admin o premium.', 403, { requestId });
+            }
+
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single();
+
+            const role = (profile?.role || '').toLowerCase();
+            if (profileError || !PRO_ALLOWED_ROLES.has(role)) {
+                return jsonError('Este modelo está disponible solo para usuarios admin o premium.', 403, { requestId });
+            }
         }
 
         // Basic abuse protection

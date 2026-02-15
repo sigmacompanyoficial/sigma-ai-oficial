@@ -4,6 +4,7 @@ import { getPublicSiteUrl, getRequiredEnv } from '@/lib/env';
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX = 15;
+const VISION_MODEL = 'google/gemma-3-27b-it:free';
 
 function checkRateLimit(ip) {
     const now = Date.now();
@@ -36,7 +37,7 @@ export async function POST(req) {
             return jsonError('Too many vision requests. Please wait.', 429);
         }
 
-        const { imageUrl, imageBase64, prompt, useNemotron } = await req.json();
+        const { imageUrl, imageBase64, prompt } = await req.json();
         console.log('📸 Vision API: Processing new image...');
 
         if (!imageUrl && !imageBase64) {
@@ -61,8 +62,7 @@ export async function POST(req) {
             ? { type: "image_url", image_url: { url: imageUrl } }
             : { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } };
 
-        const chosenModel = useNemotron ? 'nvidia/nemotron-nano-12b-v2-vl:free' : 'google/gemma-3-27b-it:free';
-        console.log('📊 Using model:', chosenModel);
+        console.log('📊 Using model:', VISION_MODEL);
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -76,7 +76,7 @@ export async function POST(req) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: chosenModel,
+                model: VISION_MODEL,
                 messages: [
                     {
                         role: 'user',
@@ -86,7 +86,7 @@ export async function POST(req) {
                         ]
                     }
                 ],
-                max_tokens: useNemotron ? 800 : 500,
+                max_tokens: 600,
                 temperature: 0.1,
                 stream: true
             }),

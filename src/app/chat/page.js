@@ -17,6 +17,7 @@ import { uploadAndExtractFile } from '@/lib/fileParser';
 
 
 const guestModel = { modelId: 'arcee-ai/trinity-large-preview:free', modelName: 'Sigma LMM 1 Mini', provider: 'openrouter', hostedId: 'arcee-ai/trinity-large-preview:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
+const PRO_MODEL_ID = 'qwen/qwen3-next-80b-a3b-instruct:free';
 
 const translations = {
     'Español': {
@@ -110,6 +111,7 @@ export default function ChatPage() {
     // User Profile States
     const [userName, setUserName] = useState('Sigma User');
     const [userRole, setUserRole] = useState('Usuario Sigma');
+    const [rawRole, setRawRole] = useState('normal'); // 'normal', 'premium', 'admin'
     const [botName, setBotName] = useState('Sigma LLM 1');
     const [profilePic, setProfilePic] = useState('');
     const [systemInstructions, setSystemInstructions] = useState(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
@@ -179,6 +181,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [theme, setTheme] = useState('dark');
+    const canUsePro = rawRole === 'admin' || rawRole === 'premium' || rawRole === 'superadmin';
 
     const chatContainerRef = useRef(null);
     const isAtBottomRef = useRef(true); // Inicializar como true para hacer scroll al inicio
@@ -194,6 +197,9 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     const RATE_LIMIT = 1000; // 1 segundo entre mensajes
     const MAX_RETRIES = 3;
     const INITIAL_RETRY_DELAY = 2000; // 2 segundos
+    const MAX_ATTACHMENTS = 50;
+    const MAX_DOC_CHARS_PER_FILE = 8000;
+    const MAX_DOC_CONTEXT_CHARS = 120000;
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -261,11 +267,19 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         messagesRef.current = messages;
     }, [messages]);
 
+    useEffect(() => {
+        if (!canUsePro && selectedModel.modelId === PRO_MODEL_ID) {
+            setSelectedModel(models[0]);
+            setBotName('SigmaLLM 1');
+        }
+    }, [canUsePro, selectedModel.modelId]);
+
     const canSend = useMemo(() => {
         const hasInput = input.trim().length > 0;
         const hasFiles = selectedImages.length > 0 || selectedDocs.length > 0;
-        return (hasInput || hasFiles) && !isLoading && !isProcessingImage && !isParsingFile;
-    }, [input, selectedImages, selectedDocs, isLoading, isProcessingImage, isParsingFile]);
+        // Permite enviar mientras el parsing/OCR sigue en background.
+        return (hasInput || hasFiles) && !isLoading && !isProcessingImage;
+    }, [input, selectedImages, selectedDocs, isLoading, isProcessingImage]);
 
     const t = (key) => {
         const lang = translations[language] || translations['Español'];
@@ -399,6 +413,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             // Cargar datos del perfil
             if (profile) {
                 setUserName(profile.full_name || user.email.split('@')[0]);
+                setRawRole(profile.role || 'normal');
                 setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario');
                 setProfilePic(profile.avatar_url || '');
 
@@ -663,7 +678,8 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
         let gemmaContext = "";
         if (currentImages.length > 0) {
-            console.log(`📸 ${useReasoning ? 'Nvidia' : 'Gemma-3'} is analyzing the images in the background...`);
+            console.log('📸 Gemma-3 (27B) está analizando las imágenes en segundo plano...');
+            setIsProcessingImage(true);
             try {
                 const analysisResults = [];
                 for (const imgBase64 of currentImages) {
@@ -673,7 +689,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             imageBase64: base64Clean,
-                            useNemotron: useReasoning
+                            prompt: currentInput
                         })
                     });
 
@@ -697,21 +713,38 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                         }
                         vDesc = vDesc.trim();
                         analysisResults.push(vDesc);
-                        console.log(`📝 ${useReasoning ? 'Nvidia' : 'Gemma'} Analysis for image ${analysisResults.length}:`, vDesc);
+                        console.log(`📝 Análisis Gemma para imagen ${analysisResults.length}:`, vDesc);
                     }
                 }
                 if (analysisResults.length > 0) {
-                    gemmaContext = `\n\n[ANÁLISIS DE IMÁGENES (Gemma-3 Vision)]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nUtiliza este análisis profesional para responder al usuario. Actúa como si tú hubieras visto la imagen.`;
-                    console.log('✅ Gemma-3 Analysis Complete. Context ready.');
+                    gemmaContext = `\n\n[ANÁLISIS DE IMÁGENES (google/gemma-3-27b-it:free)]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nIntegra este análisis en la respuesta al usuario de forma natural, como contexto interno.`;
+                    console.log('✅ Análisis de imágenes completado. Contexto listo.');
                 }
             } catch (vErr) {
                 console.error('❌ Error during background image analysis:', vErr);
+            } finally {
+                setIsProcessingImage(false);
             }
         }
 
         let docContext = "";
         if (currentDocs.length > 0) {
-            docContext = "\n\n[DOCUMENTOS ADJUNTOS]:\n" + currentDocs.map(d => `--- Archivo: ${d.name} ---\nContenido: ${d.content}`).join('\n\n');
+            const docsContextBody = currentDocs.map(d => {
+                const raw = String(d.content || '');
+                const truncated = raw.slice(0, MAX_DOC_CHARS_PER_FILE);
+                const truncNotice = raw.length > MAX_DOC_CHARS_PER_FILE
+                    ? `\n[Nota: contenido truncado a ${MAX_DOC_CHARS_PER_FILE} caracteres]`
+                    : '';
+                return `--- Archivo: ${d.name} ---\nContenido: ${truncated}${truncNotice}`;
+            }).join('\n\n');
+
+            const boundedDocsContext = docsContextBody.length > MAX_DOC_CONTEXT_CHARS
+                ? `${docsContextBody.slice(0, MAX_DOC_CONTEXT_CHARS)}\n\n[Nota: contexto total de documentos truncado]`
+                : docsContextBody;
+
+            docContext = "\n\n[DOCUMENTOS ADJUNTOS - CONTEXTO INTERNO]:\n"
+                + boundedDocsContext
+                + "\n\nUsa este contenido como contexto de apoyo y responde al usuario de forma natural.";
             console.log('📄 Documents content added to context.');
         }
 
@@ -781,6 +814,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
         try {
             let modelToUse = (isGuest || !user) ? guestModel.modelId : (useReasoning ? 'nvidia/nemotron-3-nano-30b-a3b:free' : selectedModel.modelId);
+            if (!canUsePro && modelToUse === PRO_MODEL_ID) {
+                modelToUse = models[0].modelId;
+                setSelectedModel(models[0]);
+                setBotName('SigmaLLM 1');
+            }
             let searchContext = "";
             let searchSource = "";
 
@@ -1048,68 +1086,111 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     };
 
     const handleFileSelect = async (e) => {
+        console.log('📎 [UPLOAD] File picker changed');
         if (isGuest || !user) {
             alert('Debes iniciar sesión para subir fotos y archivos.');
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
         const files = Array.from(e.target.files || []);
+        console.log('📎 [UPLOAD] Selected files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
         if (files.length === 0) return;
 
-        if (selectedImages.length + selectedDocs.length + files.length > 10) {
-            alert('Máximo 10 archivos en total.');
+        const visibleDocCount = selectedDocs.filter(d => !d.isHidden).length;
+        const currentAttachmentCount = selectedImages.length + visibleDocCount;
+        const availableSlots = Math.max(0, MAX_ATTACHMENTS - currentAttachmentCount);
+
+        if (availableSlots === 0) {
+            alert(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
-        setIsParsingFile(true);
-        const newImages = [...selectedImages];
-        const newPreviews = [...imagePreviews];
-        const newDocs = [...selectedDocs];
+        const filesToProcess = files.slice(0, availableSlots);
+        if (files.length > availableSlots) {
+            alert(`Solo se añadirán ${availableSlots} archivo(s). Límite total: ${MAX_ATTACHMENTS}.`);
+        }
+        console.log('📎 [UPLOAD] Files to process:', filesToProcess.length, 'Available slots:', availableSlots);
 
-        for (const file of files) {
-            if (file.type.startsWith('image/')) {
-                // Previsualización visual
-                const base64 = await new Promise((resolve) => {
+        setIsParsingFile(true);
+        try {
+            const imageFiles = filesToProcess.filter(file => file.type.startsWith('image/'));
+            const docFiles = filesToProcess.filter(file => !file.type.startsWith('image/'));
+            console.log('🖼️ [UPLOAD] Images:', imageFiles.length, '| Docs:', docFiles.length);
+
+            // 1) Mostrar imágenes inmediatamente (sin esperar OCR)
+            if (imageFiles.length > 0) {
+                const previewPromises = imageFiles.map((file) => new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = (err) => reject(err);
                     reader.readAsDataURL(file);
-                });
-                newImages.push(file);
-                newPreviews.push(base64);
+                }));
 
-                // Extracción de texto vía OCR (sin mostrarlo al usuario)
-                try {
-                    const ocrText = await uploadAndExtractFile(file);
-                    if (ocrText && ocrText.trim()) {
-                        newDocs.push({
-                            name: `OCR: ${file.name}`,
-                            content: ocrText,
-                            type: 'text/plain',
-                            isHidden: true // Nueva bandera para no mostrar en la UI de archivos
-                        });
+                const previewResults = await Promise.allSettled(previewPromises);
+                const readyPreviews = [];
+
+                previewResults.forEach((result, idx) => {
+                    if (result.status === 'fulfilled' && result.value) {
+                        readyPreviews.push(result.value);
+                    } else {
+                        console.error(`❌ [UPLOAD] Preview failed for ${imageFiles[idx]?.name}`, result);
                     }
-                } catch (err) {
-                    console.error(`Error OCR en ${file.name}:`, err);
-                }
-            } else {
+                });
+
+                setSelectedImages(prev => [...prev, ...imageFiles.slice(0, readyPreviews.length)]);
+                setImagePreviews(prev => [...prev, ...readyPreviews]);
+                console.log('✅ [UPLOAD] Image previews ready:', readyPreviews.length);
+            }
+
+            // 2) Extraer texto en background (OCR e documentos)
+            const extractionTasks = filesToProcess.map(async (file) => {
                 try {
+                    console.log('🧠 [UPLOAD] Extracting text from:', file.name);
                     const textContent = await uploadAndExtractFile(file);
-                    newDocs.push({
+                    if (!textContent || !textContent.trim()) {
+                        console.warn('⚠️ [UPLOAD] Empty extracted text for:', file.name);
+                        return null;
+                    }
+
+                    if (file.type.startsWith('image/')) {
+                        return {
+                            name: `OCR: ${file.name}`,
+                            content: textContent,
+                            type: 'text/plain',
+                            isHidden: true
+                        };
+                    }
+
+                    return {
                         name: file.name,
                         content: textContent,
                         type: file.type
-                    });
+                    };
                 } catch (err) {
-                    alert(`Error procesando ${file.name}: ${err.message}`);
+                    console.error(`❌ [UPLOAD] Extraction failed for ${file.name}:`, err);
+                    if (!file.type.startsWith('image/')) {
+                        alert(`Error procesando ${file.name}: ${err.message}`);
+                    }
+                    return null;
                 }
-            }
-        }
+            });
 
-        setSelectedImages(newImages);
-        setImagePreviews(newPreviews);
-        setSelectedDocs(newDocs);
-        setIsParsingFile(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
+            const extractedResults = await Promise.allSettled(extractionTasks);
+            const extractedDocs = [];
+            extractedResults.forEach((result) => {
+                if (result.status === 'fulfilled' && result.value) extractedDocs.push(result.value);
+            });
+
+            if (extractedDocs.length > 0) {
+                setSelectedDocs(prev => [...prev, ...extractedDocs]);
+            }
+            console.log('✅ [UPLOAD] Background extraction completed. Docs added:', extractedDocs.length);
+        } finally {
+            setIsParsingFile(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            console.log('📎 [UPLOAD] File processing finished');
+        }
     };
 
     const removeDoc = (index) => {
@@ -1466,6 +1547,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                     <div
                                         className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[2].modelId ? styles.activeModel : ''}`}
                                         onClick={() => {
+                                            if (!canUsePro) {
+                                                alert('Modelo solo para usuarios premium, habla con sigmacompanyoficial@gmail.com para que te dé ese rol.');
+                                                setShowModelDropdown(false);
+                                                return;
+                                            }
                                             setUseReasoning(false);
                                             setSelectedModel(models[2]);
                                             setShowModelDropdown(false);
@@ -1476,7 +1562,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                             <Sparkles size={16} />
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <Zap size={14} style={{ color: '#8b5cf6' }} />
-                                                Sigma LLM 1 PRO
+                                                Sigma LLM 1 PRO {!canUsePro && <span style={{ color: '#22c55e', fontWeight: 700 }}>$</span>}
                                             </span>
                                         </div>
                                         <p className={styles.modelDescription}>El modelo más potente y con razonamiento extendido.</p>
@@ -1630,6 +1716,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 <div className={styles.inputSection}>
                     {!isReadOnly && (
                         <>
+                            {isProcessingImage && (
+                                <div style={{ width: '100%', marginBottom: '8px', padding: '0 12px', fontSize: '0.85rem', color: '#93c5fd' }}>
+                                    Analizando imagen...
+                                </div>
+                            )}
                             {(imagePreviews.length > 0 || selectedDocs.length > 0) && (
                                 <div style={{ width: '100%', marginBottom: '12px', padding: '0 10px' }}>
                                     <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
@@ -1669,7 +1760,10 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                             </div>
                                         ))}
 
-                                        {selectedDocs.filter(d => !d.isHidden).map((doc, idx) => (
+                                        {selectedDocs
+                                            .map((doc, idx) => ({ doc, idx }))
+                                            .filter(({ doc }) => !doc.isHidden)
+                                            .map(({ doc, idx }) => (
                                             <div key={idx} style={{
                                                 position: 'relative',
                                                 flexShrink: 0,
@@ -1721,7 +1815,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             )}
 
                             <form onSubmit={handleSend} className={styles.inputWrapper}>
-                                <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.txt,.csv,.json,.html,.js,.py,.md" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+                                <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.csv,.json,.html,.htm,.js,.jsx,.ts,.tsx,.py,.md,.xml,.yaml,.yml,.env" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
 
                                 <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
                                     <button

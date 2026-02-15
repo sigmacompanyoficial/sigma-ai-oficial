@@ -7,6 +7,7 @@ import { load as cheerioLoad } from 'cheerio';
 import Tesseract from 'tesseract.js';
 
 export const runtime = 'nodejs';
+const MAX_EXTRACTED_CHARS = 40000;
 
 /**
  * Extrae el texto de un archivo de forma modular
@@ -48,10 +49,15 @@ async function extractFileText(filePath) {
       case '.txt':
       case '.csv':
       case '.js':
+      case '.jsx':
       case '.ts':
+      case '.tsx':
       case '.py':
       case '.md':
       case '.json':
+      case '.yaml':
+      case '.yml':
+      case '.xml':
       case '.env':
         return buffer.toString('utf8');
 
@@ -75,29 +81,41 @@ async function extractFileText(filePath) {
 }
 
 export async function POST(req) {
+  let tempPath = null;
   try {
+    console.log('📄 [PARSE_API] New parse request');
     const formData = await req.formData();
     const file = formData.get('file');
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
+    console.log('📄 [PARSE_API] File received:', { name: file.name, type: file.type, size: file.size });
 
     // Permitir imágenes y documentos
     const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml'];
     const allowedDocTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
       'text/plain', 'text/html', 'application/json', 'text/csv'
     ];
 
     const isImage = file.type && allowedImageTypes.includes(file.type.toLowerCase());
     const isDoc = file.type && allowedDocTypes.includes(file.type.toLowerCase());
     const ext = path.extname(file.name || '').toLowerCase();
-    const allowedExt = ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.docx', '.xlsx', '.txt', '.csv', '.json', '.html', '.js', '.py', '.md'];
+    const allowedExt = [
+      '.jpg', '.jpeg', '.png', '.webp', '.bmp',
+      '.pdf', '.docx', '.xlsx', '.xls',
+      '.txt', '.csv', '.json', '.html', '.htm',
+      '.js', '.jsx', '.ts', '.tsx', '.py', '.md',
+      '.xml', '.yaml', '.yml', '.env'
+    ];
 
     if (!isImage && !isDoc && !allowedExt.includes(ext)) {
+      console.warn('⚠️ [PARSE_API] Unsupported format:', { name: file.name, type: file.type, ext });
       return NextResponse.json({ error: 'Formato de archivo no soportado' }, { status: 400 });
     }
 
@@ -107,19 +125,28 @@ export async function POST(req) {
       fs.mkdirSync(tmpDir, { recursive: true });
     }
 
-    const tempPath = path.join(tmpDir, file.name);
+    const uniqueName = `${Date.now()}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}-${file.name}`;
+    tempPath = path.join(tmpDir, uniqueName);
 
     const arrayBuffer = await file.arrayBuffer();
     fs.writeFileSync(tempPath, Buffer.from(arrayBuffer));
 
     const text = await extractFileText(tempPath);
+    const normalizedText = (text || '').replace(/\u0000/g, '').replace(/\r\n/g, '\n').trim();
+    console.log('✅ [PARSE_API] Extraction done:', { name: file.name, extractedChars: normalizedText.length });
 
-    fs.unlinkSync(tempPath);
-
-    return NextResponse.json({ text: text.slice(0, 10000) });
+    return NextResponse.json({ text: normalizedText.slice(0, MAX_EXTRACTED_CHARS) });
 
   } catch (error) {
-    console.error('File parsing error:', error);
+    console.error('❌ [PARSE_API] File parsing error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    if (tempPath && fs.existsSync(tempPath)) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (cleanupErr) {
+        console.warn('No se pudo limpiar archivo temporal:', cleanupErr);
+      }
+    }
   }
 }
