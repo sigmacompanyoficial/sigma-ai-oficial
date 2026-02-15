@@ -203,7 +203,9 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     const MAX_ATTACHMENTS = 50;
     const MAX_DOC_CHARS_PER_FILE = 8000;
     const MAX_DOC_CONTEXT_CHARS = 120000;
-    const DEBUG_ALL_LOGS = true;
+    const MAX_VISION_IMAGE_DIM = 1280;
+    const MAX_VISION_DATA_URL_LEN = 1_200_000;
+    const DEBUG_ALL_LOGS = false;
 
     const dlog = (...args) => {
         if (DEBUG_ALL_LOGS) console.log(...args);
@@ -218,6 +220,59 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     };
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const optimizeImageForVision = (dataUrl) => new Promise((resolve) => {
+        if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+            resolve(dataUrl);
+            return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const width = img.naturalWidth || img.width;
+                const height = img.naturalHeight || img.height;
+                if (!width || !height) {
+                    resolve(dataUrl);
+                    return;
+                }
+
+                const maxSide = Math.max(width, height);
+                const scale = maxSide > MAX_VISION_IMAGE_DIM ? (MAX_VISION_IMAGE_DIM / maxSide) : 1;
+                const targetW = Math.max(1, Math.round(width * scale));
+                const targetH = Math.max(1, Math.round(height * scale));
+
+                const canvas = document.createElement('canvas');
+                canvas.width = targetW;
+                canvas.height = targetH;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    resolve(dataUrl);
+                    return;
+                }
+
+                ctx.drawImage(img, 0, 0, targetW, targetH);
+                let optimized = canvas.toDataURL('image/jpeg', 0.82);
+
+                // Second pass when payload is still too large.
+                if (optimized.length > MAX_VISION_DATA_URL_LEN) {
+                    const shrinkRatio = Math.sqrt(MAX_VISION_DATA_URL_LEN / optimized.length) * 0.95;
+                    const w2 = Math.max(1, Math.round(targetW * shrinkRatio));
+                    const h2 = Math.max(1, Math.round(targetH * shrinkRatio));
+                    canvas.width = w2;
+                    canvas.height = h2;
+                    ctx.drawImage(img, 0, 0, w2, h2);
+                    optimized = canvas.toDataURL('image/jpeg', 0.72);
+                }
+
+                resolve(optimized);
+            } catch {
+                resolve(dataUrl);
+            }
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+    });
 
     const fetchWithRetry = async (url, options, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
         try {
@@ -352,7 +407,6 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     const canSend = useMemo(() => {
         const hasInput = input.trim().length > 0;
         const hasFiles = selectedImages.length > 0 || selectedDocs.length > 0;
-        // Permite enviar mientras el parsing/OCR sigue en background.
         return (hasInput || hasFiles) && !isLoading && !isProcessingImage;
     }, [input, selectedImages, selectedDocs, isLoading, isProcessingImage]);
 
@@ -746,7 +800,11 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
         const currentInput = input || ""; // Permitir input vacío si hay archivos
         const currentImages = [...imagePreviews];
-        const currentDocs = [...selectedDocs];
+        const legacyHiddenDocs = selectedDocs.filter((d) => d?.isHidden).length;
+        const currentDocs = selectedDocs.filter((d) => !d?.isHidden);
+        if (legacyHiddenDocs > 0) {
+            dlog('🧹 [DOCS] Ignorando documentos OCR ocultos legacy en este envío:', legacyHiddenDocs);
+        }
 
         const userMsg = {
             role: 'user',
@@ -775,60 +833,70 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         setIsStreaming(true);
         setError(null);
 
-        let gemmaContext = "";
+        let visionContext = "";
         if (currentImages.length > 0) {
-            dlog('📸 [VISION] Gemma-3 (27B) análisis en segundo plano iniciado');
+            dlog('📸 [VISION] Analizando imágenes con Nemotron...');
             setIsProcessingImage(true);
             try {
                 const analysisResults = [];
-                for (const imgBase64 of currentImages) {
-                    dlog('📸 [VISION] Sending image for analysis, base64 length:', imgBase64?.length || 0);
-                    const base64Clean = imgBase64.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+                for (const imageDataUrl of currentImages) {
+                    const optimizedImageDataUrl = await optimizeImageForVision(imageDataUrl);
+                    dlog('📸 [VISION] Payload size (original -> optimized):', imageDataUrl?.length || 0, '->', optimizedImageDataUrl?.length || 0);
+
                     const visionResp = await fetch('/api/vision', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            imageBase64: base64Clean,
-                            prompt: currentInput
+                            imageDataUrl: optimizedImageDataUrl,
+                            imageUrl: optimizedImageDataUrl,
+                            prompt: currentInput || 'Describe la imagen'
                         })
                     });
 
-                    if (visionResp.ok) {
-                        dlog('📸 [VISION] Response status OK:', visionResp.status);
-                        const vReader = visionResp.body.getReader();
-                        const vDecoder = new TextDecoder();
-                        let vDesc = "";
-                        while (true) {
-                            const { done, value } = await vReader.read();
-                            if (done) break;
-                            const chunk = vDecoder.decode(value);
-                            const linesChunk = chunk.split('\n');
-                            for (const line of linesChunk) {
-                                if (line.startsWith('data: ')) {
-                                    try {
-                                        const json = JSON.parse(line.replace('data: ', ''));
-                                        dlog('📸 [VISION][SSE] line json:', json);
-                                        vDesc += json.choices?.[0]?.delta?.content || '';
-                                    } catch (e) {
-                                        dwarn('⚠️ [VISION][SSE] JSON parse error:', e, line);
-                                    }
-                                }
+                    if (!visionResp.ok) {
+                        const errRaw = await visionResp.text().catch(() => '');
+                        derr('❌ [VISION] /api/vision non-OK:', visionResp.status, errRaw);
+                        continue;
+                    }
+
+                    const vReader = visionResp.body.getReader();
+                    const vDecoder = new TextDecoder();
+                    let vDesc = '';
+                    while (true) {
+                        const { done, value } = await vReader.read();
+                        if (done) break;
+                        const chunk = vDecoder.decode(value);
+                        const lines = chunk.split('\n');
+                        for (const line of lines) {
+                            if (!line.startsWith('data: ')) continue;
+                            try {
+                                const payload = line.replace('data: ', '').trim();
+                                if (payload === '[DONE]' || payload.includes('[DONE]')) continue;
+                                const json = JSON.parse(payload);
+                                const delta = json.choices?.[0]?.delta?.content || '';
+                                if (delta) vDesc += delta;
+                            } catch (e) {
+                                dwarn('⚠️ [VISION] SSE parse error:', e, line);
                             }
                         }
-                        vDesc = vDesc.trim();
+                    }
+                    vDesc = vDesc.trim();
+                    if (vDesc) {
                         analysisResults.push(vDesc);
-                        dlog(`📝 [VISION] Análisis Gemma para imagen ${analysisResults.length}:`, vDesc);
-                    } else {
-                        const rawErr = await visionResp.text().catch(() => '');
-                        derr('❌ [VISION] Non-OK response:', visionResp.status, rawErr);
+                        dlog('🧠 [VISION] Nemotron result:', vDesc);
                     }
                 }
+
                 if (analysisResults.length > 0) {
-                    gemmaContext = `\n\n[ANÁLISIS DE IMÁGENES (google/gemma-3-27b-it:free)]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nIntegra este análisis en la respuesta al usuario de forma natural, como contexto interno.`;
-                    dlog('✅ [VISION] Análisis de imágenes completado. Contexto listo.');
+                    visionContext = `\n\n[ANÁLISIS DE IMAGEN (Nemotron)]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nUsa este análisis como contexto interno para responder.`;
+                    dlog('✅ [VISION] visionContext ready:', {
+                        imagesAnalyzed: analysisResults.length,
+                        contextLength: visionContext.length,
+                        preview: visionContext.slice(0, 500)
+                    });
                 }
             } catch (vErr) {
-                derr('❌ [VISION] Error during background image analysis:', vErr);
+                derr('❌ [VISION] Error analyzing image:', vErr);
             } finally {
                 setIsProcessingImage(false);
             }
@@ -862,13 +930,13 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         if (user) {
             try {
                 if (!chatId) {
-                    dlog('📝 [TITLE] Generating chat title with Gemma...');
+                    dlog('📝 [TITLE] Generating chat title with Nemotron...');
                     let finalTitle = (currentInput || 'Imagen adjunta').slice(0, 30) || 'Nuevo Chat';
 
                     try {
                         // Fast timeout for title generation
                         const controller = new AbortController();
-                        const id = setTimeout(() => controller.abort(), 1500);
+                        const id = setTimeout(() => controller.abort(), 4000);
 
                         const titleResp = await fetch('/api/chat/title', {
                             method: 'POST',
@@ -973,8 +1041,14 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             const lastIdx = messagesForAPI.length - 1;
             messagesForAPI[lastIdx] = {
                 ...messagesForAPI[lastIdx],
-                content: messagesForAPI[lastIdx].content + gemmaContext + searchContext + docContext
+                content: messagesForAPI[lastIdx].content + visionContext + searchContext + docContext
             };
+            dlog('🧠 [CHAT] Context injection summary:', {
+                visionContextLength: visionContext.length,
+                searchContextLength: searchContext.length,
+                docContextLength: docContext.length,
+                finalLastMessageLength: messagesForAPI[lastIdx].content.length
+            });
 
             dlog('📤 [CHAT] Sending Final Payload to Sigma AI:', {
                 model: modelToUse,
@@ -1029,7 +1103,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     if (line.startsWith('data: ')) {
                         try {
                             const payload = line.replace('data: ', '').trim();
-                            if (payload === '[DONE]') {
+                            if (payload === '[DONE]' || payload.includes('[DONE]')) {
                                 dlog('✅ [CHAT][SSE] DONE received');
                                 continue;
                             }
@@ -1160,7 +1234,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             if (nLine.startsWith('data: ')) {
                                 try {
                                     const npayload = nLine.replace('data: ', '').trim();
-                                    if (npayload === '[DONE]') {
+                                    if (npayload === '[DONE]' || npayload.includes('[DONE]')) {
                                         dlog('✅ [AGENTIC SEARCH FALLBACK][SSE] DONE received');
                                         continue;
                                     }
@@ -1204,6 +1278,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             derr('❌ [SEND] Final flow error:', err);
             setError('Error al obtener respuesta.');
         } finally {
+            setIsProcessingImage(false);
             setIsLoading(false);
             setIsStreaming(false);
         }
@@ -1221,6 +1296,9 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         console.log('📎 [UPLOAD] Selected files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
         if (files.length === 0) return;
 
+        // Cleanup legacy hidden OCR docs from older behavior.
+        setSelectedDocs(prev => prev.filter(d => !d?.isHidden));
+
         const visibleDocCount = selectedDocs.filter(d => !d.isHidden).length;
         const currentAttachmentCount = selectedImages.length + visibleDocCount;
         const availableSlots = Math.max(0, MAX_ATTACHMENTS - currentAttachmentCount);
@@ -1237,13 +1315,15 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         }
         console.log('📎 [UPLOAD] Files to process:', filesToProcess.length, 'Available slots:', availableSlots);
 
-        setIsParsingFile(true);
+        const imageFiles = filesToProcess.filter(file => file.type.startsWith('image/'));
+        const docFiles = filesToProcess.filter(file => !file.type.startsWith('image/'));
+        if (docFiles.length > 0) setIsParsingFile(true);
+
         try {
-            const imageFiles = filesToProcess.filter(file => file.type.startsWith('image/'));
-            const docFiles = filesToProcess.filter(file => !file.type.startsWith('image/'));
             console.log('🖼️ [UPLOAD] Images:', imageFiles.length, '| Docs:', docFiles.length);
 
-            // 1) Mostrar imágenes inmediatamente (sin esperar OCR)
+            // 1) Mostrar imágenes inmediatamente.
+            // Importante: las imágenes NO pasan por OCR; solo se analizarán con Gemma al enviar.
             if (imageFiles.length > 0) {
                 const previewPromises = imageFiles.map((file) => new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -1268,23 +1348,20 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 console.log('✅ [UPLOAD] Image previews ready:', readyPreviews.length);
             }
 
-            // 2) Extraer texto en background (OCR e documentos)
-            const extractionTasks = filesToProcess.map(async (file) => {
+            // Si solo hay imágenes, terminamos aquí sin extracción de texto.
+            if (docFiles.length === 0) {
+                console.log('📄 [UPLOAD] No hay documentos de texto para parsear. Fin del procesamiento.');
+                return;
+            }
+
+            // 2) Extraer texto en background SOLO para documentos no-imagen.
+            const extractionTasks = docFiles.map(async (file) => {
                 try {
                     console.log('🧠 [UPLOAD] Extracting text from:', file.name);
                     const textContent = await uploadAndExtractFile(file);
                     if (!textContent || !textContent.trim()) {
                         console.warn('⚠️ [UPLOAD] Empty extracted text for:', file.name);
                         return null;
-                    }
-
-                    if (file.type.startsWith('image/')) {
-                        return {
-                            name: `OCR: ${file.name}`,
-                            content: textContent,
-                            type: 'text/plain',
-                            isHidden: true
-                        };
                     }
 
                     return {
@@ -1294,9 +1371,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     };
                 } catch (err) {
                     console.error(`❌ [UPLOAD] Extraction failed for ${file.name}:`, err);
-                    if (!file.type.startsWith('image/')) {
-                        alert(`Error procesando ${file.name}: ${err.message}`);
-                    }
+                    alert(`Error procesando ${file.name}: ${err.message}`);
                     return null;
                 }
             });
@@ -1312,7 +1387,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             }
             console.log('✅ [UPLOAD] Background extraction completed. Docs added:', extractedDocs.length);
         } finally {
-            setIsParsingFile(false);
+            if (docFiles.length > 0) setIsParsingFile(false);
             if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
             console.log('📎 [UPLOAD] File processing finished');
         }
@@ -1363,15 +1438,8 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     };
 
     const removeImage = (index) => {
-        const removedImage = selectedImages[index];
         const newImages = selectedImages.filter((_, i) => i !== index);
         const newPreviews = imagePreviews.filter((_, i) => i !== index);
-
-        // También eliminar el texto OCR asociado si existe
-        if (removedImage) {
-            const ocrName = `OCR: ${removedImage.name}`;
-            setSelectedDocs(prev => prev.filter(d => d.name !== ocrName));
-        }
 
         setSelectedImages(newImages);
         setImagePreviews(newPreviews);
@@ -1554,113 +1622,113 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             {/* Sidebar */}
             {!isGuest && (
                 <aside className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ''}`}>
-                <div className={styles.sidebarHeader}>
-                    <div className={styles.sidebarLogoContainer}>
-                        <h1 style={{ display: 'none' }}>Sigma AI - Chat de Inteligencia Artificial Avanzada</h1>
-                        <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI Logo - Inteligencia Artificial de Sigma Company" className={styles.sidebarLogo} />
-                        <span className={styles.sidebarBrand}>Sigma AI</span>
+                    <div className={styles.sidebarHeader}>
+                        <div className={styles.sidebarLogoContainer}>
+                            <h1 style={{ display: 'none' }}>Sigma AI - Chat de Inteligencia Artificial Avanzada</h1>
+                            <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI Logo - Inteligencia Artificial de Sigma Company" className={styles.sidebarLogo} />
+                            <span className={styles.sidebarBrand}>Sigma AI</span>
+                        </div>
+
+                        <div className={styles.sidebarSearchWrapper}>
+                            <Search size={14} className={styles.sidebarSearchIcon} />
+                            <input
+                                type="text"
+                                placeholder="Buscar chats..."
+                                className={styles.sidebarSearchInput}
+                                value={sidebarSearch}
+                                onChange={(e) => setSidebarSearch(e.target.value)}
+                            />
+                        </div>
+
+                        <button className={styles.newChatBtn} onClick={createNewChat}>
+                            <Plus size={18} /> {t('new_chat')}
+                        </button>
+                        <button className={styles.iconBtn} onClick={() => setIsSidebarOpen(false)} style={{ display: isSidebarOpen ? 'block' : 'none' }}>
+                            <X size={20} />
+                        </button>
                     </div>
 
-                    <div className={styles.sidebarSearchWrapper}>
-                        <Search size={14} className={styles.sidebarSearchIcon} />
-                        <input
-                            type="text"
-                            placeholder="Buscar chats..."
-                            className={styles.sidebarSearchInput}
-                            value={sidebarSearch}
-                            onChange={(e) => setSidebarSearch(e.target.value)}
-                        />
-                    </div>
-
-                    <button className={styles.newChatBtn} onClick={createNewChat}>
-                        <Plus size={18} /> {t('new_chat')}
-                    </button>
-                    <button className={styles.iconBtn} onClick={() => setIsSidebarOpen(false)} style={{ display: isSidebarOpen ? 'block' : 'none' }}>
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <div className={styles.sidebarContent}>
-                    <div className={styles.sidebarSection}>
-                        <div className={styles.sidebarHeading}>{sidebarSearch ? t('search_results') : t('recent_chats')}</div>
-                        {savedChats.filter(chat => !chat.is_archived).filter(chat =>
-                            chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
-                            chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
-                        ).length > 0 ? (
-                            savedChats.filter(chat => !chat.is_archived).filter(chat =>
+                    <div className={styles.sidebarContent}>
+                        <div className={styles.sidebarSection}>
+                            <div className={styles.sidebarHeading}>{sidebarSearch ? t('search_results') : t('recent_chats')}</div>
+                            {savedChats.filter(chat => !chat.is_archived).filter(chat =>
                                 chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
                                 chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
-                            ).map(chat => (
-                                <div
-                                    key={chat.id}
-                                    className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
-                                    onClick={() => loadChat(chat.id, user?.id)}
-                                >
-                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
-                                        <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Archivar">
-                                            <Archive size={14} />
-                                        </button>
-                                        <button onClick={(e) => deleteChat(chat.id, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Eliminar">
-                                            <Trash2 size={14} />
-                                        </button>
+                            ).length > 0 ? (
+                                savedChats.filter(chat => !chat.is_archived).filter(chat =>
+                                    chat.title?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+                                    chat.messages?.some(m => m.content?.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                                ).map(chat => (
+                                    <div
+                                        key={chat.id}
+                                        className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
+                                        onClick={() => loadChat(chat.id, user?.id)}
+                                    >
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                            <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Archivar">
+                                                <Archive size={14} />
+                                            </button>
+                                            <button onClick={(e) => deleteChat(chat.id, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Eliminar">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
+                                    {sidebarSearch ? 'No se encontraron chats' : 'Sin chats recientes'}
                                 </div>
-                            ))
-                        ) : (
-                            <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
-                                {sidebarSearch ? 'No se encontraron chats' : 'Sin chats recientes'}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className={styles.sidebarSection}>
-                        <div className={styles.sidebarHeading}>Chats archivados</div>
-                        {savedChats.filter(chat => chat.is_archived).length > 0 ? (
-                            savedChats.filter(chat => chat.is_archived).map(chat => (
-                                <div
-                                    key={chat.id}
-                                    className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
-                                    onClick={() => loadChat(chat.id, user?.id)}
-                                >
-                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
-                                    <div style={{ display: 'flex', gap: '4px' }}>
-                                        <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id, true); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Desarchivar">
-                                            <RotateCcw size={14} />
-                                        </button>
-                                        <button onClick={(e) => deleteChat(chat.id, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Eliminar">
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
-                                No hay chats archivados
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className={styles.sidebarFooter}>
-                    <div className={styles.profileInfo}>
-                        {profilePic ? (
-                            <img src={profilePic} alt="Profile" className={styles.profileAvatar} style={{ objectFit: 'cover', width: '40px', height: '40px', borderRadius: '50%' }} />
-                        ) : (
-                            <div className={styles.profileAvatar}>{userName.substring(0, 2).toUpperCase()}</div>
-                        )}
-                        <div className={styles.profileDetails}>
-                            <div className={styles.profileName}>{userName}</div>
-                            <div className={styles.profileStatus}>{userRole}</div>
+                            )}
                         </div>
-                        {userRole === 'Administrador' && (
-                            <button className={styles.iconBtn} onClick={() => window.location.href = '/admin'} title="Panel Admin" style={{ color: '#8b5cf6' }}>
-                                <Shield size={18} />
-                            </button>
-                        )}
-                        <button className={styles.iconBtn} onClick={() => setShowSettings(true)} title="Configuración"><Settings size={18} /></button>
+
+                        <div className={styles.sidebarSection}>
+                            <div className={styles.sidebarHeading}>Chats archivados</div>
+                            {savedChats.filter(chat => chat.is_archived).length > 0 ? (
+                                savedChats.filter(chat => chat.is_archived).map(chat => (
+                                    <div
+                                        key={chat.id}
+                                        className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
+                                        onClick={() => loadChat(chat.id, user?.id)}
+                                    >
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
+                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                            <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id, true); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Desarchivar">
+                                                <RotateCcw size={14} />
+                                            </button>
+                                            <button onClick={(e) => deleteChat(chat.id, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Eliminar">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
+                                    No hay chats archivados
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
+
+                    <div className={styles.sidebarFooter}>
+                        <div className={styles.profileInfo}>
+                            {profilePic ? (
+                                <img src={profilePic} alt="Profile" className={styles.profileAvatar} style={{ objectFit: 'cover', width: '40px', height: '40px', borderRadius: '50%' }} />
+                            ) : (
+                                <div className={styles.profileAvatar}>{userName.substring(0, 2).toUpperCase()}</div>
+                            )}
+                            <div className={styles.profileDetails}>
+                                <div className={styles.profileName}>{userName}</div>
+                                <div className={styles.profileStatus}>{userRole}</div>
+                            </div>
+                            {userRole === 'Administrador' && (
+                                <button className={styles.iconBtn} onClick={() => window.location.href = '/admin'} title="Panel Admin" style={{ color: '#8b5cf6' }}>
+                                    <Shield size={18} />
+                                </button>
+                            )}
+                            <button className={styles.iconBtn} onClick={() => setShowSettings(true)} title="Configuración"><Settings size={18} /></button>
+                        </div>
+                    </div>
                 </aside>
             )}
 
@@ -1965,7 +2033,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                         </span>
                                         <span className={styles.loaderSubtitle}>
                                             {isProcessingImage
-                                                ? 'Extrayendo contexto visual con Gemma...'
+                                                ? 'Gemma está analizando la imagen...'
                                                 : 'Extrayendo texto y preparando contexto...'}
                                         </span>
                                     </div>
@@ -2014,52 +2082,52 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                             .map((doc, idx) => ({ doc, idx }))
                                             .filter(({ doc }) => !doc.isHidden)
                                             .map(({ doc, idx }) => (
-                                            <div key={idx} style={{
-                                                position: 'relative',
-                                                flexShrink: 0,
-                                                width: '140px',
-                                                height: '60px',
-                                                background: 'rgba(255,255,255,0.05)',
-                                                borderRadius: '12px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                padding: '0 12px',
-                                                border: '1px solid rgba(255,255,255,0.1)'
-                                            }}>
-                                                <FileText size={20} color="#6366F1" />
-                                                <span style={{
-                                                    fontSize: '0.75rem',
-                                                    color: 'white',
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
-                                                    maxWidth: '80px'
+                                                <div key={idx} style={{
+                                                    position: 'relative',
+                                                    flexShrink: 0,
+                                                    width: '140px',
+                                                    height: '60px',
+                                                    background: 'rgba(255,255,255,0.05)',
+                                                    borderRadius: '12px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '0 12px',
+                                                    border: '1px solid rgba(255,255,255,0.1)'
                                                 }}>
-                                                    {doc.name}
-                                                </span>
-                                                <button
-                                                    onClick={() => removeDoc(idx)}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: '-6px',
-                                                        right: '-6px',
-                                                        background: 'rgba(239, 68, 68, 0.9)',
-                                                        border: 'none',
-                                                        borderRadius: '50%',
-                                                        width: '18px',
-                                                        height: '18px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        cursor: 'pointer',
-                                                        color: 'white'
-                                                    }}
-                                                >
-                                                    <X size={10} strokeWidth={3} />
-                                                </button>
-                                            </div>
-                                        ))}
+                                                    <FileText size={20} color="#6366F1" />
+                                                    <span style={{
+                                                        fontSize: '0.75rem',
+                                                        color: 'white',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        maxWidth: '80px'
+                                                    }}>
+                                                        {doc.name}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => removeDoc(idx)}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: '-6px',
+                                                            right: '-6px',
+                                                            background: 'rgba(239, 68, 68, 0.9)',
+                                                            border: 'none',
+                                                            borderRadius: '50%',
+                                                            width: '18px',
+                                                            height: '18px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            cursor: 'pointer',
+                                                            color: 'white'
+                                                        }}
+                                                    >
+                                                        <X size={10} strokeWidth={3} />
+                                                    </button>
+                                                </div>
+                                            ))}
                                     </div>
                                 </div>
                             )}

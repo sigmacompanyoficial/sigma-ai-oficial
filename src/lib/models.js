@@ -25,5 +25,16 @@ export const models = [
         platformLink: "https://openrouter.ai",
         imageInput: false,
         maxContext: 32768
+    },
+    {
+    },
+    {
+        modelId: "nvidia/nemotron-nano-12b-v2-vl:free",
+        modelName: "Sigma Vision (Nemotron)",
+        provider: "openrouter",
+        hostedId: "nvidia/nemotron-nano-12b-v2-vl:free",
+        platformLink: "https://openrouter.ai",
+        imageInput: true,
+        maxContext: 32768
     }
 ];
