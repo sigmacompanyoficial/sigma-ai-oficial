@@ -311,6 +311,11 @@
     z-index: 10;
 }
 
+.guestHeader {
+    background: linear-gradient(90deg, #1d1d1f 0%, #222225 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .headerLeft {
     display: flex;
     align-items: center;
@@ -456,6 +461,49 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+}
+
+.guestHeaderPrimaryBtn {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: #f4f4f5;
+    color: #0f0f0f;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.guestHeaderSecondaryBtn {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: transparent;
+    color: #f4f4f5;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.guestHeaderIconBtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: transparent;
+    color: #f4f4f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.guestHeaderPrimaryBtn:hover,
+.guestHeaderSecondaryBtn:hover,
+.guestHeaderIconBtn:hover {
+    filter: brightness(1.08);
 }
 
 .moreMenuWrapper {
@@ -904,6 +952,30 @@
     margin-top: 1rem;
     font-size: 0.75rem;
     color: #555;
+}
+
+.guestLegalLink {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+[data-theme="light"] .modelSelector,
+[data-theme="light"] .shareButton,
+[data-theme="light"] .iconBtn,
+[data-theme="light"] .footer {
+    color: #111827;
+}
+
+[data-theme="light"] .guestHeader {
+    background: #f3f4f6;
+    border-bottom: 1px solid #d1d5db;
+}
+
+[data-theme="light"] .guestHeaderSecondaryBtn,
+[data-theme="light"] .guestHeaderIconBtn {
+    color: #111827;
+    border-color: #d1d5db;
 }
 
 /* Loading */
@@ -2397,6 +2469,93 @@
 
 .modalCloseBtn:hover {
     color: #fff;
+}
+
+.guestPromptModal {
+    background: radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.2), transparent 40%), var(--bg-tertiary);
+    border: 1px solid rgba(99, 102, 241, 0.28);
+    border-radius: 24px;
+    padding: 2rem;
+    max-width: 460px;
+    width: calc(100% - 32px);
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+    animation: scaleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.guestPromptIcon {
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 1rem;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6366F1;
+    background: rgba(99, 102, 241, 0.14);
+    border: 1px solid rgba(99, 102, 241, 0.24);
+}
+
+.guestPromptTitle {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.75rem;
+}
+
+.guestPromptText {
+    color: var(--text-secondary);
+    font-size: 0.96rem;
+    line-height: 1.55;
+    margin: 0 0 1.5rem;
+}
+
+.guestPromptActions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.guestPromptPrimary,
+.guestPromptSecondary {
+    width: 100%;
+    border-radius: 12px;
+    padding: 0.82rem 1rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.guestPromptPrimary {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    border: none;
+    color: #fff;
+}
+
+.guestPromptPrimary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(79, 70, 229, 0.35);
+}
+
+.guestPromptSecondary {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.guestPromptSecondary:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] .guestPromptModal {
+    background: radial-gradient(120% 120% at 0% 0%, rgba(99, 102, 241, 0.1), transparent 42%), #ffffff;
+    border-color: rgba(99, 102, 241, 0.25);
+    box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16);
+}
+
+[data-theme="light"] .guestPromptSecondary:hover {
+    background: rgba(17, 24, 39, 0.04);
 }
 
 .legalLinkItem {

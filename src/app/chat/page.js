@@ -5,7 +5,7 @@ import {
     ChevronDown, Settings, Mic, Send, User, Bot, Sparkles, MessageSquare, LogOut, Camera,
     Copy, Check, Trash2, AlertCircle, Upload,
     ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square,
-    Archive, Flag, BarChart3, Zap, FileText, File, Cookie, ShieldCheck, Shield
+    Archive, Flag, BarChart3, Zap, FileText, File, Cookie, ShieldCheck, Shield, CircleHelp
 } from 'lucide-react';
 import SigmaMarkdown from '@/components/SigmaMarkdown';
 import { supabase } from '@/lib/supabaseClient';
@@ -179,6 +179,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     const [mounted, setMounted] = useState(false);
     const [messageCount, setMessageCount] = useState(0);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
+    const [showGuestOptionsModal, setShowGuestOptionsModal] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [theme, setTheme] = useState('dark');
     const canUsePro = rawRole === 'admin' || rawRole === 'premium' || rawRole === 'superadmin';
@@ -268,6 +269,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     }, [messages]);
 
     useEffect(() => {
+        if (isGuest && activeSettingsTab !== 'General') {
+            setActiveSettingsTab('General');
+        }
+    }, [isGuest, activeSettingsTab]);
+
+    useEffect(() => {
         if (!canUsePro && selectedModel.modelId === PRO_MODEL_ID) {
             setSelectedModel(models[0]);
             setBotName('SigmaLLM 1');
@@ -352,6 +359,9 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             if (!user) {
                 console.log('👤 Modo Invitado activado');
                 setIsGuest(true);
+                setUserName('Invitado');
+                setUserRole('Invitado');
+                setProfilePic('');
 
                 if (chatIdFromUrl) {
                     console.log('👀 Viendo chat compartido como invitado...');
@@ -1358,6 +1368,9 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     };
 
     if (!mounted) return null;
+    const settingsTabs = isGuest
+        ? ['General']
+        : ['General', 'Estadísticas', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta', 'Legal'];
 
     // Loading Screen
     if (isInitialLoading) {
@@ -1381,7 +1394,8 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     return (
         <div className={styles.pageContainer} data-theme={theme}>
             {/* Sidebar */}
-            <aside className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ''}`}>
+            {!isGuest && (
+                <aside className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ''}`}>
                 <div className={styles.sidebarHeader}>
                     <div className={styles.sidebarLogoContainer}>
                         <h1 style={{ display: 'none' }}>Sigma AI - Chat de Inteligencia Artificial Avanzada</h1>
@@ -1489,17 +1503,20 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                         <button className={styles.iconBtn} onClick={() => setShowSettings(true)} title="Configuración"><Settings size={18} /></button>
                     </div>
                 </div>
-            </aside>
+                </aside>
+            )}
 
-            {isSidebarOpen && <div className={styles.sidebarOverlay} onClick={() => setIsSidebarOpen(false)} />}
+            {!isGuest && isSidebarOpen && <div className={styles.sidebarOverlay} onClick={() => setIsSidebarOpen(false)} />}
 
             {/* Main Chat Area */}
             <main className={styles.main}>
-                <header className={styles.header}>
+                <header className={`${styles.header} ${isGuest ? styles.guestHeader : ''}`}>
                     <div className={styles.headerLeft}>
-                        <button className={styles.mobileMenuBtn} onClick={() => setIsSidebarOpen(true)} title="Menú">
-                            <PanelLeft size={20} />
-                        </button>
+                        {!isGuest && (
+                            <button className={styles.mobileMenuBtn} onClick={() => setIsSidebarOpen(true)} title="Menú">
+                                <PanelLeft size={20} />
+                            </button>
+                        )}
                         <div className={styles.modelSelectorWrapper}>
                             <div className={styles.modelSelector} onClick={() => {
                                 setShowModelDropdown(!showModelDropdown);
@@ -1587,36 +1604,55 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     </div>
 
                     <div className={styles.headerActions}>
-                        <button
-                            className={styles.shareButton}
-                            onClick={handleShareChat}
-                            title={t('share')}
-                        >
-                            <Upload size={16} />
-                            <span>{t('share')}</span>
-                        </button>
-                        <div className={styles.moreMenuWrapper}>
-                            <button className={styles.iconBtn} onClick={() => setShowMoreMenu(!showMoreMenu)}>
-                                <MoreHorizontal size={20} />
-                            </button>
+                        {isGuest ? (
+                            <>
+                                <button className={styles.guestHeaderIconBtn} onClick={() => setShowSettings(true)} title="Configuración">
+                                    <Settings size={18} />
+                                </button>
+                                <button className={styles.guestHeaderPrimaryBtn} onClick={() => window.location.href = '/login'}>
+                                    Iniciar sesión
+                                </button>
+                                <button className={styles.guestHeaderSecondaryBtn} onClick={() => window.location.href = '/login?mode=signup'}>
+                                    Registrarse gratuitamente
+                                </button>
+                                <button className={styles.guestHeaderIconBtn} onClick={() => window.location.href = '/about'} title="Ayuda">
+                                    <CircleHelp size={18} />
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    className={styles.shareButton}
+                                    onClick={handleShareChat}
+                                    title={t('share')}
+                                >
+                                    <Upload size={16} />
+                                    <span>{t('share')}</span>
+                                </button>
+                                <div className={styles.moreMenuWrapper}>
+                                    <button className={styles.iconBtn} onClick={() => setShowMoreMenu(!showMoreMenu)}>
+                                        <MoreHorizontal size={20} />
+                                    </button>
 
-                            {showMoreMenu && (
-                                <div className={styles.moreMenuDropdown}>
-                                    <div className={styles.moreMenuOption} onClick={() => archiveChat(currentChatId)}>
-                                        <Archive size={16} />
-                                        <span>Archivar chat</span>
-                                    </div>
-                                    <div className={styles.moreMenuOption} onClick={() => reportChat(currentChatId)}>
-                                        <Flag size={16} />
-                                        <span>Denunciar chat</span>
-                                    </div>
-                                    <div className={`${styles.moreMenuOption} ${styles.deleteOption}`} onClick={() => deleteChat(currentChatId)}>
-                                        <Trash2 size={16} />
-                                        <span>Eliminar chat</span>
-                                    </div>
+                                    {showMoreMenu && (
+                                        <div className={styles.moreMenuDropdown}>
+                                            <div className={styles.moreMenuOption} onClick={() => archiveChat(currentChatId)}>
+                                                <Archive size={16} />
+                                                <span>Archivar chat</span>
+                                            </div>
+                                            <div className={styles.moreMenuOption} onClick={() => reportChat(currentChatId)}>
+                                                <Flag size={16} />
+                                                <span>Denunciar chat</span>
+                                            </div>
+                                            <div className={`${styles.moreMenuOption} ${styles.deleteOption}`} onClick={() => deleteChat(currentChatId)}>
+                                                <Trash2 size={16} />
+                                                <span>Eliminar chat</span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                            </>
+                        )}
                     </div>
                 </header>
 
@@ -1708,6 +1744,31 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             <div className={styles.modalActions}>
                                 <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
                                 <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isGuest && showGuestOptionsModal && (
+                    <div className={styles.modalOverlay} onClick={() => setShowGuestOptionsModal(false)}>
+                        <div className={styles.guestPromptModal} onClick={(e) => e.stopPropagation()}>
+                            <div className={styles.guestPromptIcon}>
+                                <AlertCircle size={30} />
+                            </div>
+                            <h2 className={styles.guestPromptTitle}>Inicia sesión para continuar</h2>
+                            <p className={styles.guestPromptText}>
+                                Esta opción está disponible para cuentas registradas. Accede para desbloquear herramientas avanzadas.
+                            </p>
+                            <div className={styles.guestPromptActions}>
+                                <button className={styles.guestPromptPrimary} onClick={() => window.location.href = '/login'}>
+                                    Iniciar sesión
+                                </button>
+                                <button className={styles.guestPromptSecondary} onClick={() => window.location.href = '/login?mode=signup'}>
+                                    Crear cuenta
+                                </button>
+                                <button onClick={() => setShowGuestOptionsModal(false)} className={styles.modalCloseBtn}>
+                                    Cerrar
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1821,7 +1882,14 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                     <button
                                         type="button"
                                         className={`${styles.attachButton} ${showAttachMenu ? styles.attachActive : ''}`}
-                                        onClick={() => setShowAttachMenu(!showAttachMenu)}
+                                        onClick={() => {
+                                            if (isGuest) {
+                                                setShowGuestOptionsModal(true);
+                                                setShowAttachMenu(false);
+                                                return;
+                                            }
+                                            setShowAttachMenu(!showAttachMenu);
+                                        }}
                                         disabled={isLoading}
                                         title={"Más opciones"}
                                     >
@@ -1896,7 +1964,13 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             )}
                         </div>
                     )}
-                    <p className={styles.footer}>Sigma AI puede cometer errores. Verifica la información importante</p>
+                    {isGuest ? (
+                        <p className={styles.footer}>
+                            Al enviar un mensaje a Sigma AI, un asistente de IA, aceptas nuestras <Link className={styles.guestLegalLink} href="/terms">condiciones</Link> y confirmas que has leído nuestra <Link className={styles.guestLegalLink} href="/privacy">política de privacidad</Link>. <Link className={styles.guestLegalLink} href="/cookies">Ver preferencias de cookies</Link>.
+                        </p>
+                    ) : (
+                        <p className={styles.footer}>Sigma AI puede cometer errores. Verifica la información importante</p>
+                    )}
                 </div>
             </main>
 
@@ -1907,7 +1981,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                         <div className={styles.settingsSidebar}>
                             <h2 className={styles.settingsTitle}>Ajustes</h2>
                             <div className={styles.settingsNav}>
-                                {['General', 'Estadísticas', 'Notificaciones', 'Personalización', 'Aplicaciones', 'Datos', 'Seguridad', 'Cuenta', 'Legal'].map(tab => (
+                                {settingsTabs.map(tab => (
                                     <button
                                         key={tab}
                                         className={`${styles.settingsTab} ${activeSettingsTab === tab ? styles.activeSettingsTab : ''}`}
@@ -1926,11 +2000,13 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                     </button>
                                 ))}
                             </div>
-                            <div className={styles.settingsSidebarFooter}>
-                                <button className={styles.logoutBtn} onClick={handleLogout}>
-                                    <LogOut size={16} /> Cerrar sesión
-                                </button>
-                            </div>
+                            {!isGuest && (
+                                <div className={styles.settingsSidebarFooter}>
+                                    <button className={styles.logoutBtn} onClick={handleLogout}>
+                                        <LogOut size={16} /> Cerrar sesión
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         {/* Settings Content */}
@@ -1943,10 +2019,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             <div className={styles.settingsScrollArea}>
                                 {activeSettingsTab === 'General' && (
                                     <div className={styles.settingsSection}>
-                                        <div className={styles.settingGroup}>
-                                            <label>{t('username')}</label>
-                                            <input className={styles.inputField} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder={t('username')} />
-                                        </div>
+                                        {!isGuest && (
+                                            <div className={styles.settingGroup}>
+                                                <label>{t('username')}</label>
+                                                <input className={styles.inputField} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder={t('username')} />
+                                            </div>
+                                        )}
                                         <div className={styles.settingGroup}>
                                             <label>{t('appearance')}</label>
                                             <div className={styles.radioGroup}>
@@ -2180,7 +2258,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
                             <div className={styles.settingsFooter}>
                                 <button className={styles.saveSettingsBtn} onClick={saveSettings}>
-                                    <Check size={16} /> Guardar cambios
+                                    <Check size={16} /> {isGuest ? 'Aplicar cambios' : 'Guardar cambios'}
                                 </button>
                             </div>
                         </div>

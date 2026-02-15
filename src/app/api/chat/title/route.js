@@ -29,19 +29,19 @@ export async function POST(req) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "google/gemini-2.0-flash-lite-preview-02-05:free",
+                model: "google/gemma-3-27b-it:free",
                 messages: [
                     {
                         role: "system",
-                        content: "Genera un título muy corto (máximo 4-5 palabras) y descriptivo para una conversación que empieza con este mensaje del usuario. Devuelve SOLO el título, sin comillas ni puntos finales."
+                        content: "Genera un título muy corto (máximo 4-6 palabras) y descriptivo para este inicio de conversación (usuario + primera respuesta del asistente). Devuelve SOLO el título, sin comillas ni punto final."
                     },
                     {
                         role: "user",
                         content: prompt
                     }
                 ],
-                max_tokens: 20,
-                temperature: 0.7
+                max_tokens: 24,
+                temperature: 0.4
             })
         });
 

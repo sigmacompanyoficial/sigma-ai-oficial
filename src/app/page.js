@@ -1,12 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
-import GuestChat from '@/components/GuestChat';
 
 export default function Home() {
-    const [isLoading, setIsLoading] = useState(true);
-    const [user, setUser] = useState(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -16,32 +12,21 @@ export default function Home() {
             return;
         }
 
-        const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                router.push('/chat');
-            } else {
-                setIsLoading(false);
-            }
-        };
-        checkUser();
+        // Unify chat UI for both authenticated and guest users.
+        router.replace('/chat');
     }, [router]);
 
-    if (isLoading) {
-        return (
-            <div style={{
-                height: '100vh',
-                backgroundColor: '#212121',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                fontFamily: 'sans-serif'
-            }}>
-                Cargando Sigma AI...
-            </div>
-        );
-    }
-
-    return <GuestChat />;
+    return (
+        <div style={{
+            height: '100vh',
+            backgroundColor: '#212121',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#ffffff',
+            fontFamily: 'sans-serif'
+        }}>
+            Cargando Sigma AI...
+        </div>
+    );
 }

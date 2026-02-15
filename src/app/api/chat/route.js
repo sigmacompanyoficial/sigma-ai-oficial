@@ -106,6 +106,7 @@ Hora actual: ${currentTime}
 - Usas ejemplos cuando ayudan
 - Humor ligero apropiado
 - Emojis por defecto (desactiva si el usuario lo pide)
+- Responde de forma breve por defecto (3-8 líneas), salvo que el usuario pida explícitamente más detalle
 
 **Formato de Respuesta:**
 - Usa Markdown: títulos (##), listas (-), **negritas**, \`código\`
@@ -142,7 +143,8 @@ Hora actual: ${currentTime}
         let delay = 1000;
 
         const timeoutMs = getIntEnv('OPENROUTER_TIMEOUT_MS', 60_000);
-        const maxTokens = getIntEnv('OPENROUTER_MAX_TOKENS', 2400);
+        const requestedMaxTokens = getIntEnv('OPENROUTER_MAX_TOKENS', 900);
+        const maxTokens = Math.min(requestedMaxTokens, 1200);
         const wantStream = stream !== false;
 
         while (retries >= 0) {
