@@ -84,17 +84,38 @@ export default function LoginPage() {
     }, [router, isResettingPassword]);
 
     const checkUserStatus = async (user) => {
-        if (!user) return;
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('onboarding_completed')
-            .eq('id', user.id)
-            .single();
+        console.log('🔍 Comprobando estado del usuario:', user.id);
+        if (!user) {
+            console.error('❌ No se encontró usuario para comprobar estado');
+            return;
+        }
 
-        if (error || !data || !data.onboarding_completed) {
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('onboarding_completed, role, username')
+                .eq('id', user.id)
+                .single();
+
+            if (error) {
+                console.error('❌ Error al obtener perfil:', error);
+                // Si el error es que no existe el perfil, forzamos onboarding
+                router.push('/onboarding');
+                return;
+            }
+
+            console.log('📄 Perfil encontrado:', data);
+
+            if (!data || !data.onboarding_completed) {
+                console.log('🏃 Redirigiendo a onboarding...');
+                router.push('/onboarding');
+            } else {
+                console.log('✅ Onboarding completado, redirigiendo a chat...');
+                router.push('/chat');
+            }
+        } catch (err) {
+            console.error('❌ Error inesperado en checkUserStatus:', err);
             router.push('/onboarding');
-        } else {
-            router.push('/chat');
         }
     };
 
@@ -115,19 +136,35 @@ export default function LoginPage() {
             }
 
             if (isSignUp) {
-                if (password !== confirmPassword) throw new Error('Las contraseñas no coinciden');
-                const { error } = await supabase.auth.signUp({
+                console.log('🚀 Iniciando proceso de registro para:', email);
+                if (password !== confirmPassword) {
+                    console.error('❌ Error: Las contraseñas no coinciden');
+                    throw new Error('Las contraseñas no coinciden');
+                }
+
+                const redirectUrl = `${window.location.origin}/auth/callback`;
+                console.log('🔗 URL de redirección configurada:', redirectUrl);
+
+                const { data, error } = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
                         data: { name: name },
-                        emailRedirectTo: "https://sigma-ai-oficial.vercel.app/auth/callback"
+                        emailRedirectTo: redirectUrl
                     }
                 });
-                if (error) throw error;
+
+                if (error) {
+                    console.error('❌ Error de Supabase al registrarse:', error);
+                    throw error;
+                }
+
+                console.log('✅ Registro exitoso en Supabase:', data);
+                console.log('📧 Estado del correo:', data?.user?.identities?.length > 0 ? 'Identidad creada' : 'Usuario ya existía o error de identidad');
+
                 setSuccess(true);
                 setEmailSent(true);
-                setEmail('');
+                // No borramos el email para poder usarlo en el componente de verificación
                 setPassword('');
                 setConfirmPassword('');
                 setName('');
@@ -199,13 +236,23 @@ export default function LoginPage() {
 
     const handleResendVerification = async () => {
         if (resendCooldown > 0) return;
+
+        // Capture email from state OR from the input if state was lost
+        const targetEmail = email.trim();
+
+        if (!targetEmail) {
+            setError('❌ No se encontró el correo. Por favor, intenta iniciar sesión para reenviar la verificación.');
+            return;
+        }
+
+        console.log('📧 Reenviando verificación a:', targetEmail);
         setLoading(true);
         try {
             const { error } = await supabase.auth.resend({
                 type: 'signup',
-                email: email,
+                email: targetEmail,
                 options: {
-                    emailRedirectTo: "https://sigma-ai-oficial.vercel.app/auth/callback"
+                    emailRedirectTo: `${window.location.origin}/auth/callback`
                 }
             });
             if (error) throw error;

@@ -53,13 +53,37 @@ on messages for insert with check (
   )
 );
 
+create policy "Admins pueden ver todos los chats" 
+on chats for select using (
+  exists (
+    select 1 from profiles 
+    where profiles.id = auth.uid() 
+    and profiles.role = 'admin'
+  )
+);
+
+create policy "Admins pueden ver todos los mensajes" 
+on messages for select using (
+  exists (
+    select 1 from profiles 
+    where profiles.id = auth.uid() 
+    and profiles.role = 'admin'
+  )
+);
+
 -- 5. Crear tabla de perfiles para onboarding
 create table if not exists profiles (
   id uuid references auth.users(id) on delete cascade primary key,
   full_name text,
+  username text unique, -- Nuevo: Para inicio de sesión y perfil
   how_known text, -- ¿De dónde nos has conocido?
   usage_intent text, -- ¿Para qué vas a usar Sigma AI?
   onboarding_completed boolean default false,
+  role text default 'normal', -- 'admin', 'normal', 'premium'
+  email text,
+  total_messages int default 0,
+  total_tokens int default 0,
+  created_at timestamp with time zone default timezone('utc'::text, now()),
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -69,18 +93,45 @@ alter table profiles enable row level security;
 create policy "Usuarios pueden ver su propio perfil" 
 on profiles for select using (auth.uid() = id);
 
+create policy "Admins pueden ver todos los perfiles" 
+on profiles for select using (
+  exists (
+    select 1 from profiles 
+    where profiles.id = auth.uid() 
+    and profiles.role = 'admin'
+  )
+);
+
 create policy "Usuarios pueden actualizar su propio perfil" 
 on profiles for update using (auth.uid() = id);
 
+create policy "Admins pueden actualizar cualquier perfil" 
+on profiles for update using (
+  exists (
+    select 1 from profiles 
+    where profiles.id = auth.uid() 
+    and profiles.role = 'admin'
+  )
+);
+
 create policy "Usuarios pueden insertar su propio perfil" 
 on profiles for insert with check (auth.uid() = id);
+
+create policy "Admins pueden eliminar perfiles" 
+on profiles for delete using (
+  exists (
+    select 1 from profiles 
+    where profiles.id = auth.uid() 
+    and profiles.role = 'admin'
+  )
+);
 
 -- 6. Trigger para crear perfil automáticamente al registrarse
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, full_name)
-  values (new.id, new.raw_user_meta_data->>'name');
+  insert into public.profiles (id, full_name, email)
+  values (new.id, new.raw_user_meta_data->>'name', new.email);
   return new;
 end;
 $$ language plpgsql security definer;

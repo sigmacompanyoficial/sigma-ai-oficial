@@ -22,8 +22,8 @@ export default function GuestChat() {
     const textareaRef = useRef(null);
     const messagesEndRef = useRef(null);
 
-    const modelId = "openai/gpt-oss-120b:free";
-    const systemInstructions = "Eres Sigma LLM 1 Mini, un modelo avanzado creado por Sigma Company. Mantén un tono profesional y amigable. Responde de forma clara y concisa.";
+    const modelId = "arcee-ai/trinity-large-preview:free";
+    const systemInstructions = `Eres Sigma LLM 1 Mini, un asistente de IA de vanguardia. Fecha actual: ${new Date().toLocaleDateString('es-ES')}. Tienes acceso a una herramienta de búsqueda en tiempo real. Si el usuario te pregunta por algo actual (como el tiempo, noticias o eventos recientes), DEBES usar el comando SEARCH: 'consulta' para obtener datos reales antes de responder. Ejemplo: Si preguntan por el clima en Madrid, responde primero solo con SEARCH: clima en Madrid. Tu tono debe ser profesional y eficiente.`;
 
     useEffect(() => {
         const cookiesAccepted = localStorage.getItem('sigma_cookies_accepted');
@@ -94,7 +94,7 @@ export default function GuestChat() {
             const decoder = new TextDecoder();
             let assistantContent = '';
 
-            setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: '', isSearching: false }]);
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -111,7 +111,111 @@ export default function GuestChat() {
                         try {
                             const data = JSON.parse(dataStr);
                             const content = data.choices[0]?.delta?.content || '';
-                            assistantContent += content;
+                            if (content) {
+                                assistantContent += content;
+
+                                // --- AGENTIC SEARCH INTERCEPTOR (GUEST) ---
+                                if (assistantContent.includes('SEARCH:')) {
+                                    console.log('🔍 [GUEST AGENTIC SEARCH] Trigger detected');
+
+                                    const searchMatch = assistantContent.match(/SEARCH:\s*([^.\n]+)/i);
+                                    if (searchMatch) {
+                                        const searchQuery = searchMatch[1].trim().replace(/[\[\]]/g, '');
+                                        console.log('📡 [GUEST AGENTIC SEARCH] Query:', searchQuery);
+
+                                        // 1. Show searching state
+                                        setMessages(prev => {
+                                            const next = [...prev];
+                                            if (next.length > 0) {
+                                                next[next.length - 1].content = '';
+                                                next[next.length - 1].isSearching = true;
+                                            }
+                                            return next;
+                                        });
+
+                                        // 2. Call Tavily
+                                        const gSearchResp = await fetch('/api/search', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ query: searchQuery, isGuest: true })
+                                        });
+
+                                        let gSearchContext = "";
+                                        let gSearchSource = "";
+                                        if (gSearchResp.ok) {
+                                            const gSearchData = await gSearchResp.json();
+                                            if (gSearchData.success) {
+                                                gSearchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${gSearchData.result}`;
+                                                gSearchSource = gSearchData.source || 'Tavily';
+                                            }
+                                        }
+
+                                        // 3. Re-call Chat API with context
+                                        const finalApiMessages = [
+                                            { role: 'system', content: systemInstructions },
+                                            ...messages,
+                                            userMsg,
+                                            { role: 'system', content: "Información encontrada en la web: " + gSearchContext }
+                                        ];
+
+                                        setMessages(prev => {
+                                            const next = [...prev];
+                                            if (next.length > 0) {
+                                                next[next.length - 1] = {
+                                                    role: 'assistant',
+                                                    content: '...',
+                                                    isSearching: false,
+                                                    source: gSearchSource
+                                                };
+                                            }
+                                            return next;
+                                        });
+
+                                        const nextResp = await fetch('/api/chat', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                messages: finalApiMessages,
+                                                modelId: modelId,
+                                                botName: "Sigma LLM 1 Mini",
+                                                stream: true,
+                                            }),
+                                        });
+
+                                        if (!nextResp.ok) throw new Error('Error en re-búsqueda');
+
+                                        const nextReader = nextResp.body.getReader();
+                                        let finalContent = '';
+
+                                        setMessages(prev => {
+                                            const next = [...prev];
+                                            if (next.length > 0) next[next.length - 1].content = '';
+                                            return next;
+                                        });
+
+                                        while (true) {
+                                            const { done, value } = await nextReader.read();
+                                            if (done) break;
+                                            const nChunk = decoder.decode(value);
+                                            const nLines = nChunk.split('\n');
+                                            for (const nl of nLines) {
+                                                if (nl.startsWith('data: ')) {
+                                                    try {
+                                                        const nData = JSON.parse(nl.slice(6));
+                                                        const nContent = nData.choices[0]?.delta?.content || '';
+                                                        finalContent += nContent;
+                                                        setMessages(prev => {
+                                                            const last = prev[prev.length - 1];
+                                                            return [...prev.slice(0, -1), { ...last, content: finalContent }];
+                                                        });
+                                                    } catch (e) { }
+                                                }
+                                            }
+                                        }
+                                        return; // Done
+                                    }
+                                }
+                            }
                             setMessages(prev => {
                                 const last = prev[prev.length - 1];
                                 return [...prev.slice(0, -1), { ...last, content: assistantContent }];
@@ -189,11 +293,25 @@ export default function GuestChat() {
                         {messages.map((msg, idx) => (
                             <div key={idx} className={`${styles.message} ${styles[msg.role]}`}>
                                 <div className={styles.messageContent}>
+                                    {msg.isSearching && (
+                                        <div className={styles.searchingAnimation}>
+                                            <Globe size={16} className={styles.searchIconAnim} />
+                                            <span>Buscando en la web...</span>
+                                        </div>
+                                    )}
                                     <SigmaMarkdown content={msg.content} theme={theme} />
+                                    {msg.source && (
+                                        <div className={styles.sourceBadge}>
+                                            <Globe size={12} />
+                                            <span>Fuente: {msg.source}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
-                        {isLoading && <div className={styles.loading}>Propulsado por Sigma LLM...</div>}
+                        {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
+                            <div className={styles.loading}>Propulsado por Sigma LLM...</div>
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
                 )}
@@ -240,6 +358,7 @@ export default function GuestChat() {
                                 <ul>
                                     <li><b>Sigma LLM 1 Std:</b> Versátil y rápido para tareas cotidianas.</li>
                                     <li><b>Sigma LLM 1 Coder:</b> Especialista en programación y estructuras lógicas.</li>
+                                    <li><b>Sigma LLM 1 PRO:</b> El modelo más potente con razonamiento extendido.</li>
                                     <li><b>Sigma LLM 1 Reasoning:</b> Pensamiento profundo para problemas complejos y matemáticos.</li>
                                 </ul>
                             </div>
@@ -284,4 +403,3 @@ export default function GuestChat() {
         </div>
     );
 }
-

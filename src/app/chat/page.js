@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { uploadAndExtractFile } from '@/lib/fileParser';
 
 
-const guestModel = { modelId: 'openai/gpt-oss-120b:free', modelName: 'Sigma LMM 1 Mini', provider: 'openrouter', hostedId: 'openai/gpt-oss-120b:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
+const guestModel = { modelId: 'arcee-ai/trinity-large-preview:free', modelName: 'Sigma LMM 1 Mini', provider: 'openrouter', hostedId: 'arcee-ai/trinity-large-preview:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
 
 const translations = {
     'Español': {
@@ -399,7 +399,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             // Cargar datos del perfil
             if (profile) {
                 setUserName(profile.full_name || user.email.split('@')[0]);
-                setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario Estándar');
+                setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario');
                 setProfilePic(profile.avatar_url || '');
 
                 // Cargar configuraciones guardadas si existen
@@ -769,7 +769,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             } catch (err) { console.warn('DB Save err:', err); }
         }
 
-        setMessages(prev => [...prev, { role: 'assistant', content: '...', timestamp: new Date().toISOString() }]);
+        setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: '...',
+            timestamp: new Date().toISOString(),
+            isSearching: useWebSearch // Show animation if explicit search is on
+        }]);
 
         const controller = new AbortController();
         streamAbortRef.current = controller;
@@ -777,20 +782,36 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         try {
             let modelToUse = (isGuest || !user) ? guestModel.modelId : (useReasoning ? 'nvidia/nemotron-3-nano-30b-a3b:free' : selectedModel.modelId);
             let searchContext = "";
+            let searchSource = "";
+
             if (useWebSearch) {
+                console.log(`🔍 [${isGuest ? 'GUEST' : 'USER'}] Performing explicit web search...`);
                 try {
                     const searchResp = await fetchWithRetry('/api/search', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query: currentInput })
+                        body: JSON.stringify({ query: currentInput, isGuest: isGuest })
                     });
                     if (searchResp.ok) {
                         const searchData = await searchResp.json();
                         if (searchData.success) {
                             searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}`;
+                            searchSource = searchData.source || 'Tavily';
+                            console.log(`✅ [${isGuest ? 'GUEST' : 'USER'}] Search results acquired.`);
                         }
+                    } else {
+                        console.warn(`⚠️ [${isGuest ? 'GUEST' : 'USER'}] Search API returned error:`, searchResp.status);
                     }
-                } catch (e) { console.error('Search failed:', e); }
+                } catch (e) {
+                    console.error(`❌ [${isGuest ? 'GUEST' : 'USER'}] Search failed:`, e);
+                } finally {
+                    // Turn off searching animation before starting chat
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) next[next.length - 1].isSearching = false;
+                        return next;
+                    });
+                }
             }
 
             const messagesForAPI = [...newMessages];
@@ -829,12 +850,17 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
             setMessages(prev => {
                 const next = [...prev];
-                next[next.length - 1] = { role: 'assistant', content: '', timestamp: new Date().toISOString() };
+                next[next.length - 1] = {
+                    role: 'assistant',
+                    content: '',
+                    timestamp: new Date().toISOString(),
+                    source: searchSource
+                };
                 return next;
             });
 
             let hasDeterminedThinking = false;
-            const assistantMsgIndex = messages.length + 1; // User message then assistant message
+            const assistantMsgIndex = messages.length + 1;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -847,14 +873,147 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             const json = JSON.parse(line.replace('data: ', ''));
                             const delta = json.choices?.[0]?.delta?.content || '';
                             if (delta) {
-                                console.log('📥 Sigma AI chunk:', delta);
                                 botResponse += delta;
+
+                                // --- AGENTIC SEARCH INTERCEPTOR ---
+                                if (botResponse.includes('SEARCH:')) { // Using isStreaming check or just length
+                                    // If we see SEARCH: at any point, we trigger it.
+                                    // Usually it's at the start or start of a line.
+                                    console.log('🔍 [AGENTIC SEARCH] Trigger detected in bot response');
+
+                                    // Extract the full query string
+                                    const searchMatch = botResponse.match(/SEARCH:\s*([^.\n]+)/i);
+                                    if (searchMatch) {
+                                        const searchQuery = searchMatch[1].trim().replace(/[\[\]]/g, '');
+                                        console.log('📡 [AGENTIC SEARCH] Executing query:', searchQuery);
+
+                                        // 1. Terminate current stream
+                                        controller.abort();
+
+                                        // 2. Clear visual SEARCH text and show animation
+                                        setMessages(prev => {
+                                            const next = [...prev];
+                                            if (next.length > 0) {
+                                                next[next.length - 1].content = '';
+                                                next[next.length - 1].isSearching = true;
+                                            }
+                                            return next;
+                                        });
+
+                                        // 3. Process the rest is similar to before...
+                                        try {
+                                            const aSearchResp = await fetch('/api/search', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ query: searchQuery, isGuest: isGuest })
+                                            });
+
+                                            let autoSearchContext = "";
+                                            let autoSearchSource = "";
+                                            if (aSearchResp.ok) {
+                                                const aSearchData = await aSearchResp.json();
+                                                if (aSearchData.success) {
+                                                    autoSearchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${aSearchData.result}`;
+                                                    autoSearchSource = aSearchData.source || 'Tavily';
+                                                    console.log('✅ [AGENTIC SEARCH] Results received');
+                                                }
+                                            }
+
+                                            const updatedMessages = [...newMessages];
+                                            const lastMsg = updatedMessages[updatedMessages.length - 1];
+                                            updatedMessages[updatedMessages.length - 1] = {
+                                                ...lastMsg,
+                                                content: lastMsg.content + gemmaContext + searchContext + docContext + autoSearchContext
+                                            };
+
+                                            setMessages(prev => {
+                                                const next = [...prev];
+                                                if (next.length > 0) {
+                                                    next[next.length - 1] = {
+                                                        role: 'assistant',
+                                                        content: '...',
+                                                        timestamp: new Date().toISOString(),
+                                                        isSearching: false,
+                                                        source: autoSearchSource
+                                                    };
+                                                }
+                                                return next;
+                                            });
+
+                                            const nextController = new AbortController();
+                                            streamAbortRef.current = nextController;
+
+                                            const nextResponse = await fetchWithRetry('/api/chat', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    messages: updatedMessages,
+                                                    modelId: modelToUse,
+                                                    systemPrompt: systemInstructions,
+                                                    botName: botName,
+                                                    stream: true,
+                                                    tone: botTone,
+                                                    detailLevel: detailLevel,
+                                                    language: language
+                                                }),
+                                                signal: nextController.signal
+                                            });
+
+                                            if (!nextResponse.ok) throw new Error('Retry Chat failed');
+
+                                            const nextReader = nextResponse.body.getReader();
+                                            let finalBotResponse = '';
+
+                                            setMessages(prev => {
+                                                const next = [...prev];
+                                                if (next.length > 0) next[next.length - 1].content = '';
+                                                return next;
+                                            });
+
+                                            while (true) {
+                                                const { done, value } = await nextReader.read();
+                                                if (done) break;
+                                                const nextChunk = decoder.decode(value);
+                                                const nextLines = nextChunk.split('\n');
+                                                for (const nLine of nextLines) {
+                                                    if (nLine.startsWith('data: ')) {
+                                                        try {
+                                                            const nJson = JSON.parse(nLine.replace('data: ', ''));
+                                                            const nDelta = nJson.choices?.[0]?.delta?.content || '';
+                                                            if (nDelta) {
+                                                                finalBotResponse += nDelta;
+                                                                setMessages(prev => {
+                                                                    const last = [...prev];
+                                                                    if (last.length > 0) last[last.length - 1].content = finalBotResponse;
+                                                                    return last;
+                                                                });
+                                                            }
+                                                        } catch (e) { }
+                                                    }
+                                                }
+                                            }
+
+                                            if (user && chatId) {
+                                                await supabase.from('messages').insert({
+                                                    chat_id: chatId,
+                                                    role: 'assistant',
+                                                    content: finalBotResponse,
+                                                    created_at: new Date().toISOString()
+                                                });
+                                                updateUserStats(Math.ceil(finalBotResponse.length / 4));
+                                            }
+                                            return;
+                                        } catch (searchErr) {
+                                            console.error('❌ [AGENTIC SEARCH] Error:', searchErr);
+                                            // Fallback: show what we have
+                                        }
+                                    }
+                                }
 
                                 // Auto-collapse if thought just ended
                                 if (!hasDeterminedThinking && botResponse.includes('</think>')) {
                                     hasDeterminedThinking = true;
                                     setCollapsedThinking(prev => ({ ...prev, [assistantMsgIndex]: true }));
-                                    console.log('🤖 Thought process finished, auto-collapsing block...');
                                 }
                             }
                             setMessages(prev => {
@@ -879,6 +1038,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             }
 
         } catch (err) {
+            if (err.name === 'AbortError') return;
             console.error('Final flow error:', err);
             setError('Error al obtener respuesta.');
         } finally {
@@ -1304,6 +1464,24 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                         <p className={styles.modelDescription}>Especializado en programación y creación de apps.</p>
                                     </div>
                                     <div
+                                        className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[2].modelId ? styles.activeModel : ''}`}
+                                        onClick={() => {
+                                            setUseReasoning(false);
+                                            setSelectedModel(models[2]);
+                                            setShowModelDropdown(false);
+                                            setBotName('SigmaLLM 1 PRO');
+                                        }}
+                                    >
+                                        <div className={styles.modelOptionHeader}>
+                                            <Sparkles size={16} />
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Zap size={14} style={{ color: '#8b5cf6' }} />
+                                                Sigma LLM 1 PRO
+                                            </span>
+                                        </div>
+                                        <p className={styles.modelDescription}>El modelo más potente y con razonamiento extendido.</p>
+                                    </div>
+                                    <div
                                         className={`${styles.modelOption} ${useReasoning ? styles.activeModel : ''}`}
                                         onClick={() => {
                                             setUseReasoning(true);
@@ -1440,7 +1618,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                         <div className={styles.modalContent}>
                             <div className={styles.modalIcon}><Sparkles size={32} /></div>
                             <h2>Desbloquea todo el potencial</h2>
-                            <p>Únete a Sigma AI para acceder al <b>Razonamiento Avanzado</b>, la <b>Búsqueda en Internet</b> y poder <b>subir archivos e imágenes</b>.</p>
+                            <p>Únete a Sigma AI para acceder al <b>Razonamiento Avanzado</b>, mayor velocidad y poder <b>subir archivos e imágenes</b>.</p>
                             <div className={styles.modalActions}>
                                 <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
                                 <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
@@ -1571,7 +1749,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
                                             <button
                                                 type="button"
-                                                className={`${styles.attachItem} ${useReasoning ? styles.activeItem : ''}`}
+                                                className={`${styles.attachItem} ${useReasoning ? styles.activeOption : ''}`}
                                                 onClick={() => { setUseReasoning(!useReasoning); setShowAttachMenu(false); }}
                                             >
                                                 <Brain size={18} />
@@ -1580,7 +1758,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
                                             <button
                                                 type="button"
-                                                className={`${styles.attachItem} ${useWebSearch ? styles.activeItem : ''}`}
+                                                className={`${styles.attachItem} ${useWebSearch ? styles.activeOption : ''}`}
                                                 onClick={() => { setUseWebSearch(!useWebSearch); setShowAttachMenu(false); }}
                                             >
                                                 <Search size={18} />

@@ -27,7 +27,7 @@ function checkRateLimit(ip) {
         rateLimitMap.set(ip, [now]);
         return true;
     }
-    
+
     const timestamps = rateLimitMap.get(ip).filter(t => now - t < RATE_LIMIT_WINDOW);
     if (timestamps.length >= RATE_LIMIT_MAX) {
         return false;
@@ -44,15 +44,15 @@ function jsonError(message, status = 500) {
 export async function POST(req) {
     try {
         const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-        
+
         // Rate limiting
         if (!checkRateLimit(ip)) {
             console.warn('⚠️ [SEARCH] Rate limit exceeded for IP:', ip);
             return jsonError('Too many search requests. Please wait a moment.', 429);
         }
 
-        const { query } = await req.json();
-        console.log('🌐 [SEARCH] Tavily Request for:', query);
+        const { query, isGuest } = await req.json();
+        console.log(`🌐 [SEARCH] Tavily Request (Guest: ${isGuest}) for:`, query);
 
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
             console.warn('⚠️ [SEARCH] Invalid or empty query');
@@ -61,7 +61,7 @@ export async function POST(req) {
 
         const cacheKey = getCacheKey(query);
         const cachedResult = searchCache.get(cacheKey);
-        
+
         if (cachedResult) {
             console.log('💾 [SEARCH] Returning cached result for:', query);
             return NextResponse.json({
@@ -74,9 +74,11 @@ export async function POST(req) {
 
         let apiKey;
         try {
-            apiKey = getRequiredEnv('TAVILY_API_KEY');
+            const keyName = isGuest ? 'GUEST_TAVILY_API_KEY' : 'TAVILY_API_KEY';
+            apiKey = getRequiredEnv(keyName);
+            console.log(`🔑 [SEARCH] Using ${keyName} (${apiKey.substring(0, 8)}...)`);
         } catch {
-            console.error('❌ [SEARCH] TAVILY_API_KEY is missing');
+            console.error(`❌ [SEARCH] API Key for ${isGuest ? 'guest' : 'standard'} is missing or empty`);
             return jsonError('Search API key not configured', 500);
         }
 

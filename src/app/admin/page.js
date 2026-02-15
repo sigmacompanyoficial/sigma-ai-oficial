@@ -11,6 +11,8 @@ import styles from './admin.module.css';
 
 export default function AdminPage() {
     const [users, setUsers] = useState([]);
+    const [activity, setActivity] = useState([]);
+    const [activeTab, setActiveTab] = useState('users'); // 'users', 'activity', 'security'
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
@@ -19,13 +21,6 @@ export default function AdminPage() {
     const [theme, setTheme] = useState('dark');
     const router = useRouter();
 
-    useEffect(() => {
-        const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
-        setTheme(savedTheme);
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        checkAdmin();
-    }, []);
-
     const checkAdmin = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
@@ -33,7 +28,6 @@ export default function AdminPage() {
             return;
         }
 
-        // Check profile for role
         const { data: profile } = await supabase
             .from('profiles')
             .select('*')
@@ -41,19 +35,26 @@ export default function AdminPage() {
             .single();
 
         if (profile?.role !== 'admin' && profile?.role !== 'superadmin') {
-            // Not authorized
             router.push('/chat');
             return;
         }
 
         setCurrentUser(profile);
         setIsAdmin(true);
-        fetchUsers();
+        loadAllData();
+    };
+
+    const loadAllData = async () => {
+        setLoading(true);
+        await Promise.all([
+            fetchUsers(),
+            fetchActivity()
+        ]);
+        setLoading(false);
     };
 
     const fetchUsers = async () => {
         try {
-            // Fetch profiles
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
@@ -64,10 +65,53 @@ export default function AdminPage() {
             }
         } catch (error) {
             console.error('Error fetching users:', error);
-        } finally {
-            setLoading(false);
         }
     };
+
+    const fetchActivity = async () => {
+        try {
+            console.log('--- Intentando cargar actividad ---');
+            const { data, error } = await supabase
+                .from('chats')
+                .select(`
+                    id,
+                    title,
+                    created_at,
+                    user_id,
+                    profiles (
+                        full_name,
+                        email
+                    )
+                `)
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (error) {
+                console.error('Error en fetchActivity:', error);
+
+                // Intento de rescate: cargar chats sin perfiles si la unión falla
+                const { data: simpleData } = await supabase
+                    .from('chats')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (simpleData) setActivity(simpleData);
+            } else {
+                console.log('Actividad cargada:', data?.length, 'chats');
+                setActivity(data || []);
+            }
+        } catch (error) {
+            console.error('Error catastrófico en actividad:', error);
+        }
+    };
+
+    useEffect(() => {
+        const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
+        setTheme(savedTheme);
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        checkAdmin();
+    }, []);
 
     const handleUpdateRole = async (userId, newRole) => {
         const { error } = await supabase
@@ -84,9 +128,8 @@ export default function AdminPage() {
     };
 
     const handleDeleteUser = async (userId) => {
-        if (!confirm('¿Estás seguro de que quieres eliminar a este usuario? Esta acción no se puede deshacer.')) return;
+        if (!confirm('¿Estás seguro de que quieres eliminar a este usuario?')) return;
 
-        // In a real app, you'd use a server-side function to delete from auth.users too
         const { error } = await supabase
             .from('profiles')
             .delete()
@@ -105,6 +148,12 @@ export default function AdminPage() {
         user.role?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const filteredActivity = activity.filter(act =>
+        act.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        act.profiles?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        act.profiles?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     if (loading) return <div className={styles.loading}>Cargando panel de administración...</div>;
     if (!isAdmin) return null;
 
@@ -117,15 +166,24 @@ export default function AdminPage() {
                 </div>
 
                 <nav className={styles.nav}>
-                    <button className={`${styles.navItem} ${styles.active}`}>
+                    <button
+                        className={`${styles.navItem} ${activeTab === 'users' ? styles.active : ''}`}
+                        onClick={() => setActiveTab('users')}
+                    >
                         <Users size={20} />
                         Usuarios
                     </button>
-                    <button className={styles.navItem}>
+                    <button
+                        className={`${styles.navItem} ${activeTab === 'activity' ? styles.active : ''}`}
+                        onClick={() => setActiveTab('activity')}
+                    >
                         <Activity size={20} />
                         Actividad
                     </button>
-                    <button className={styles.navItem}>
+                    <button
+                        className={`${styles.navItem} ${activeTab === 'security' ? styles.active : ''}`}
+                        onClick={() => setActiveTab('security')}
+                    >
                         <Shield size={20} />
                         Seguridad
                     </button>
@@ -141,7 +199,7 @@ export default function AdminPage() {
 
             <main className={styles.main}>
                 <header className={styles.header}>
-                    <h1>Gestión de Usuarios</h1>
+                    <h1>{activeTab === 'users' ? 'Gestión de Usuarios' : activeTab === 'activity' ? 'Actividad de la Plataforma' : 'Seguridad y Sistema'}</h1>
                     <div className={styles.userProfile}>
                         <span>{currentUser?.full_name}</span>
                         <span className={styles.badge}>{currentUser?.role}</span>
@@ -149,98 +207,184 @@ export default function AdminPage() {
                 </header>
 
                 <div className={styles.content}>
-                    <div className={styles.toolbar}>
-                        <div className={styles.searchBar}>
-                            <Search size={18} />
-                            <input
-                                type="text"
-                                placeholder="Buscar usuarios..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        <div className={styles.stats}>
-                            <div className={styles.stat}>
-                                <span className={styles.statValue}>{users.length}</span>
-                                <span className={styles.statLabel}>Total</span>
+                    {activeTab !== 'security' && (
+                        <div className={styles.toolbar}>
+                            <div className={styles.searchBar}>
+                                <Search size={18} />
+                                <input
+                                    type="text"
+                                    placeholder={activeTab === 'users' ? "Buscar usuarios..." : "Buscar actividad..."}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
                             </div>
-                            <div className={styles.stat}>
-                                <span className={styles.statValue}>{users.filter(u => u.role === 'admin').length}</span>
-                                <span className={styles.statLabel}>Admins</span>
+                            <div className={styles.stats}>
+                                <div className={styles.stat}>
+                                    <span className={styles.statValue}>{users.length}</span>
+                                    <span className={styles.statLabel}>Total</span>
+                                </div>
+                                <div className={styles.stat}>
+                                    <span className={styles.statValue}>{activity.length}</span>
+                                    <span className={styles.statLabel}>Chats</span>
+                                </div>
+                                <div className={styles.stat}>
+                                    <span className={styles.statValue}>{users.reduce((acc, curr) => acc + (curr.total_messages || 0), 0)}</span>
+                                    <span className={styles.statLabel}>Msgs</span>
+                                </div>
+                                <div className={styles.stat}>
+                                    <span className={styles.statValue}>{(users.reduce((acc, curr) => acc + (curr.total_tokens || 0), 0) / 1000).toFixed(1)}k</span>
+                                    <span className={styles.statLabel}>Tokens</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
-                    <div className={styles.tableWrapper}>
-                        <table className={styles.table}>
-                            <thead>
-                                <tr>
-                                    <th>Usuario</th>
-                                    <th>Email</th>
-                                    <th>Rol</th>
-                                    <th>Estado</th>
-                                    <th>Fecha Registro</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredUsers.map(user => (
-                                    <tr key={user.id}>
-                                        <td>
-                                            <div className={styles.userInfo}>
-                                                <div className={styles.avatar}>
-                                                    {user.full_name?.charAt(0).toUpperCase() || 'U'}
-                                                </div>
-                                                <span>{user.full_name || 'Sin nombre'}</span>
-                                            </div>
-                                        </td>
-                                        <td>{user.email}</td>
-                                        <td>
-                                            {editingUser === user.id ? (
-                                                <select
-                                                    defaultValue={user.role}
-                                                    onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                                                    className={styles.roleSelect}
-                                                >
-                                                    <option value="user">User</option>
-                                                    <option value="premium">Premium</option>
-                                                    <option value="admin">Admin</option>
-                                                </select>
-                                            ) : (
-                                                <span className={`${styles.roleBadge} ${styles[user.role || 'user']}`}>
-                                                    {user.role || 'user'}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <span className={styles.statusBadge}>
-                                                <CheckCircle size={14} /> Activo
-                                            </span>
-                                        </td>
-                                        <td>{new Date(user.created_at).toLocaleDateString()}</td>
-                                        <td>
-                                            <div className={styles.actions}>
-                                                <button
-                                                    className={styles.iconBtn}
-                                                    onClick={() => setEditingUser(editingUser === user.id ? null : user.id)}
-                                                    title="Editar Rol"
-                                                >
-                                                    {editingUser === user.id ? <X size={18} /> : <Edit size={18} />}
-                                                </button>
-                                                <button
-                                                    className={`${styles.iconBtn} ${styles.deleteBtn}`}
-                                                    onClick={() => handleDeleteUser(user.id)}
-                                                    title="Eliminar Usuario"
-                                                >
-                                                    <Trash2 size={18} />
-                                                </button>
-                                            </div>
-                                        </td>
+                    {activeTab === 'users' ? (
+                        <div className={styles.tableWrapper}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Email</th>
+                                        <th>Rol</th>
+                                        <th>Uso (Mensajes/Tokens)</th>
+                                        <th>Fecha Registro</th>
+                                        <th>Acciones</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {filteredUsers.map(user => (
+                                        <tr key={user.id}>
+                                            <td>
+                                                <div className={styles.userInfo}>
+                                                    <div className={styles.avatar}>
+                                                        {user.full_name?.charAt(0).toUpperCase() || 'U'}
+                                                    </div>
+                                                    <span>{user.full_name || 'Sin nombre'}</span>
+                                                </div>
+                                            </td>
+                                            <td>{user.email}</td>
+                                            <td>
+                                                {editingUser === user.id ? (
+                                                    <select
+                                                        defaultValue={user.role}
+                                                        onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                                                        className={styles.roleSelect}
+                                                    >
+                                                        <option value="user">User</option>
+                                                        <option value="premium">Premium</option>
+                                                        <option value="admin">Admin</option>
+                                                    </select>
+                                                ) : (
+                                                    <span className={`${styles.roleBadge} ${styles[user.role || 'user']}`}>
+                                                        {user.role || 'user'}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                    <span style={{ fontWeight: '600', color: '#6366f1' }}>{user.total_messages || 0} msgs</span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#888' }}>{user.total_tokens || 0} tokens</span>
+                                                </div>
+                                            </td>
+                                            <td>{new Date(user.created_at).toLocaleDateString()}</td>
+                                            <td>
+                                                <div className={styles.actions}>
+                                                    <button
+                                                        className={styles.iconBtn}
+                                                        onClick={() => setEditingUser(editingUser === user.id ? null : user.id)}
+                                                        title="Editar Rol"
+                                                    >
+                                                        {editingUser === user.id ? <X size={18} /> : <Edit size={18} />}
+                                                    </button>
+                                                    <button
+                                                        className={`${styles.iconBtn} ${styles.deleteBtn}`}
+                                                        onClick={() => handleDeleteUser(user.id)}
+                                                        title="Eliminar Usuario"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : activeTab === 'activity' ? (
+                        <div className={styles.tableWrapper}>
+                            <table className={styles.table}>
+                                <thead>
+                                    <tr>
+                                        <th>Chat / Título</th>
+                                        <th>Propietario</th>
+                                        <th>Fecha</th>
+                                        <th>ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredActivity.map(act => (
+                                        <tr key={act.id}>
+                                            <td>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Activity size={16} style={{ color: '#888' }} />
+                                                    <span style={{ fontWeight: '500' }}>{act.title || 'Chat sin título'}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    <span>{act.profiles?.full_name || 'Desconocido'}</span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#888' }}>{act.profiles?.email}</span>
+                                                </div>
+                                            </td>
+                                            <td>{new Date(act.created_at).toLocaleString()}</td>
+                                            <td style={{ fontSize: '0.7rem', color: '#444' }}>{act.id.slice(0, 8)}...</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className={styles.securityGrid}>
+                            <div className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <Shield size={20} style={{ color: '#6366f1' }} />
+                                    <h3>Estado del RLS</h3>
+                                </div>
+                                <p>Todos los perfiles, chats y mensajes tienen Row Level Security habilitado.</p>
+                                <div className={styles.statusList}>
+                                    <div className={styles.statusItem}>
+                                        <CheckCircle size={16} color="#10b981" />
+                                        <span>Perfiles: Protegido</span>
+                                    </div>
+                                    <div className={styles.statusItem}>
+                                        <CheckCircle size={16} color="#10b981" />
+                                        <span>Mensajes: Protegido</span>
+                                    </div>
+                                    <div className={styles.statusItem}>
+                                        <CheckCircle size={16} color="#10b981" />
+                                        <span>Chats: Protegido</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <AlertTriangle size={20} style={{ color: '#fbbf24' }} />
+                                    <h3>Configuración del Sistema</h3>
+                                </div>
+                                <p>Configuración global de la plataforma.</p>
+                                <div className={styles.configItem}>
+                                    <span>Modo Mantenimiento</span>
+                                    <button className={styles.toggleBtn}>Desactivado</button>
+                                </div>
+                                <div className={styles.configItem}>
+                                    <span>Registros Abiertos</span>
+                                    <button className={styles.toggleBtn}>Activado</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
