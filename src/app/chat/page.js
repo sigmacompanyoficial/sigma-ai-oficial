@@ -7,7 +7,7 @@ import {
     ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square,
     Archive, Flag, BarChart3, Zap, FileText, File, Cookie, ShieldCheck, Shield, CircleHelp
 } from 'lucide-react';
-import SigmaMarkdown from '@/components/SigmaMarkdown';
+import SigmaMarkdown from '@/components/sigmaMarkdown';
 import { supabase } from '@/lib/supabaseClient';
 import { formatAndLogSupabaseError } from '@/lib/supabaseHelpers';
 import styles from './page.module.css';
@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { uploadAndExtractFile } from '@/lib/fileParser';
 
 
-const guestModel = { modelId: 'arcee-ai/trinity-large-preview:free', modelName: 'Sigma LMM 1 Mini', provider: 'openrouter', hostedId: 'arcee-ai/trinity-large-preview:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
+const guestModel = { modelId: 'arcee-ai/trinity-large-preview:free', modelName: 'Sigma AI 1 Mini', provider: 'openrouter', hostedId: 'arcee-ai/trinity-large-preview:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
 const PRO_MODEL_ID = 'stepfun/step-3.5-flash:free';
 
 const translations = {
@@ -112,9 +112,9 @@ export default function ChatPage() {
     const [userName, setUserName] = useState('Sigma User');
     const [userRole, setUserRole] = useState('Usuario Sigma');
     const [rawRole, setRawRole] = useState('normal'); // 'normal', 'premium', 'admin'
-    const [botName, setBotName] = useState('Sigma LLM 1');
+    const [botName, setBotName] = useState('Sigma AI 1');
     const [profilePic, setProfilePic] = useState('');
-    const [systemInstructions, setSystemInstructions] = useState(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
+    const [systemInstructions, setSystemInstructions] = useState(`Eres Sigma AI 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
 IDENTIDAD Y PERSONALIDAD:
 - Eres un modelo de lenguaje de última generación, diseñado para ser útil, preciso y confiable
@@ -400,7 +400,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     useEffect(() => {
         if (!canUsePro && selectedModel.modelId === PRO_MODEL_ID) {
             setSelectedModel(models[0]);
-            setBotName('SigmaLLM 1');
+            setBotName('Sigma AI 1');
         }
     }, [canUsePro, selectedModel.modelId]);
 
@@ -490,8 +490,8 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     await loadChat(chatIdFromUrl, null);
                 } else {
                     setSelectedModel(guestModel);
-                    setBotName('Sigma LMM 1 Mini');
-                    setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
+                    setBotName('Sigma AI 1 Mini');
+                    setSystemInstructions(`Eres Sigma AI 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
 IDENTIDAD Y PERSONALIDAD:
 - Eres un modelo de lenguaje de última generación, diseñado para ser útil, preciso y confiable
@@ -522,7 +522,7 @@ DIRECTRICES IMPORTANTES:
 - Sé conciso pero completo, evitando redundancias innecesarias
 
 Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor real en cada interacción.`);
-                    console.log('🤖 Bot configurado:', 'Sigma LMM 1 Mini');
+                    console.log('🤖 Bot configurado:', 'Sigma AI 1 Mini');
                 }
                 return;
             }
@@ -659,7 +659,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 setIsReadOnly(!isOwner);
 
                 if (!isOwner) {
-                    setBotName('Sigma LLM 1 (Solo Lectura)');
+                    setBotName('Sigma AI 1 (Solo Lectura)');
                 }
             }
         } catch (err) {
@@ -995,7 +995,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             if (!canUsePro && modelToUse === PRO_MODEL_ID) {
                 modelToUse = models[0].modelId;
                 setSelectedModel(models[0]);
-                setBotName('SigmaLLM 1');
+                setBotName('Sigma AI 1');
             }
             let searchContext = "";
             let searchSource = "";
@@ -1748,7 +1748,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                 setShowModelDropdown(!showModelDropdown);
                             }}>
 
-                                <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : selectedModel.modelName}</span>
+                                <span>{useReasoning ? 'Sigma AI 1 Reasoning' : selectedModel.modelName}</span>
                                 <ChevronDown size={16} className={styles.chevronIcon} />
                             </div>
 
@@ -1760,12 +1760,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                             setUseReasoning(false);
                                             setSelectedModel(models[0]);
                                             setShowModelDropdown(false);
-                                            setBotName('SigmaLLM 1');
+                                            setBotName('Sigma AI 1');
                                         }}
                                     >
                                         <div className={styles.modelOptionHeader}>
                                             <Sparkles size={16} />
-                                            <span>Sigma LLM 1</span>
+                                            <span>Sigma AI 1</span>
                                         </div>
                                         <p className={styles.modelDescription}>Nuestro modelo estándar, rápido y eficiente.</p>
                                     </div>
@@ -1775,14 +1775,14 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                             setUseReasoning(false);
                                             setSelectedModel(models[1]);
                                             setShowModelDropdown(false);
-                                            setBotName('SigmaLLM 1 Coder');
+                                            setBotName('Sigma AI 1 Coder');
                                         }}
                                     >
                                         <div className={styles.modelOptionHeader}>
                                             <ImageIcon size={16} />
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <Zap size={14} style={{ color: '#fbbf24' }} />
-                                                Sigma LLM 1 Coder
+                                                Sigma AI 1 Coder
                                             </span>
                                         </div>
                                         <p className={styles.modelDescription}>Especializado en programación y creación de apps.</p>
@@ -1798,14 +1798,14 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                             setUseReasoning(false);
                                             setSelectedModel(models[2]);
                                             setShowModelDropdown(false);
-                                            setBotName('SigmaLLM 1 PRO');
+                                            setBotName('Sigma AI 1 PRO');
                                         }}
                                     >
                                         <div className={styles.modelOptionHeader}>
                                             <Sparkles size={16} />
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <Zap size={14} style={{ color: '#8b5cf6' }} />
-                                                Sigma LLM 1 PRO {!canUsePro && <span style={{ color: '#22c55e', fontWeight: 700 }}>$</span>}
+                                                Sigma AI 1 PRO {!canUsePro && <span style={{ color: '#22c55e', fontWeight: 700 }}>$</span>}
                                             </span>
                                         </div>
                                         <p className={styles.modelDescription}>El modelo más potente y con razonamiento extendido.</p>
@@ -1815,12 +1815,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                         onClick={() => {
                                             setUseReasoning(true);
                                             setShowModelDropdown(false);
-                                            setBotName('SigmaLLM 1 Reasoning');
+                                            setBotName('Sigma AI 1 Reasoning');
                                         }}
                                     >
                                         <div className={styles.modelOptionHeader}>
                                             <Brain size={16} />
-                                            <span>Sigma LLM 1 Reasoning</span>
+                                            <span>Sigma AI 1 Reasoning</span>
                                         </div>
                                         <p className={styles.modelDescription}>Pensamiento avanzado para tareas complejas.</p>
                                     </div>

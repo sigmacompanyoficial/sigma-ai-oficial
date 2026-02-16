@@ -404,7 +404,7 @@ export default function LoginPage() {
                     <div className={styles.logoIcon}>
                         <Sparkles size={40} />
                     </div>
-                    <h1 className={styles.logoText}>SIGMA AI</h1>
+                    <h1 className={styles.logoText}>Sigma AI</h1>
                     <p className={styles.logoSubtext}>Tu puerta al futuro de la inteligencia</p>
                 </div>
 
@@ -495,8 +495,8 @@ export default function LoginPage() {
                                     {resendAttempts >= 3
                                         ? 'Muchos mensajes enviados. Prueba mañana.'
                                         : resendCooldown > 0
-                                        ? `Reenviar en ${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
-                                        : <span><RefreshCw size={16} /> Reenviar correo</span>
+                                            ? `Reenviar en ${Math.floor(resendCooldown / 60)}:${(resendCooldown % 60).toString().padStart(2, '0')}`
+                                            : <span><RefreshCw size={16} /> Reenviar correo</span>
                                     }
                                 </button>
                             </div>
@@ -657,9 +657,9 @@ export default function LoginPage() {
                 </div>
 
                 <p className={styles.footer}>
-                    BY <strong>SIGMA COMPANY</strong>
+                    BY <strong>Sigma Company</strong>
                 </p>
-                <p className={styles.disclaimer}>sigma ai puede cometer errores</p>
+                <p className={styles.disclaimer}>Sigma AI puede cometer errores</p>
             </div>
         </div>
     );

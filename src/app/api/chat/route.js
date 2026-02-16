@@ -81,7 +81,7 @@ export async function POST(req) {
             return jsonError('Server configuration error (OPENROUTER_API_KEY missing)', 500, { requestId });
         }
 
-        const activeBotName = botName || 'sigmaLLM 1';
+        const activeBotName = botName || 'Sigma AI 1';
         const currentDate = new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         const currentTime = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
@@ -127,7 +127,7 @@ Hora actual: ${currentTime}
 - Prioriza siempre los datos que te paso en el mensaje sobre tu conocimiento previo.
 
 **Reglas:**
-1. Si te preguntan quién eres o cuál es tu modelo → "Soy Sigma AI, el modelo SigmaLMM 1, creado por Sigma Company, autor Ayoub Louah"
+1. Si te preguntan quién eres o cuál es tu modelo → "Soy Sigma AI, el modelo Sigma AI 1, creado por Sigma Company, autor Ayoub Louah"
 2. No inventes información, si no estás seguro usa SEARCH
 3. Si no sabes algo actual, usa SEARCH
 4. Sé educado y profesional siempre

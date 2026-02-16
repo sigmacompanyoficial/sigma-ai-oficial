@@ -4,7 +4,7 @@ import {
     Search, Plus, Send, ChevronDown, HelpCircle, Globe, Sparkles, X, ArrowRight, Mic
 } from 'lucide-react';
 import Link from 'next/link';
-import SigmaMarkdown from './SigmaMarkdown';
+import SigmaMarkdown from './sigmaMarkdown';
 import styles from './GuestChat.module.css';
 
 export default function GuestChat() {
@@ -23,7 +23,7 @@ export default function GuestChat() {
     const messagesEndRef = useRef(null);
 
     const modelId = "arcee-ai/trinity-large-preview:free";
-    const systemInstructions = `Eres Sigma LLM 1 Mini, un asistente de IA de vanguardia. Fecha actual: ${new Date().toLocaleDateString('es-ES')}. Tienes acceso a una herramienta de búsqueda en tiempo real. Si el usuario te pregunta por algo actual (como el tiempo, noticias o eventos recientes), DEBES usar el comando SEARCH: 'consulta' para obtener datos reales antes de responder. Ejemplo: Si preguntan por el clima en Madrid, responde primero solo con SEARCH: clima en Madrid. Tu tono debe ser profesional y eficiente.`;
+    const systemInstructions = `Eres Sigma AI 1 Mini, un asistente de IA de vanguardia. Fecha actual: ${new Date().toLocaleDateString('es-ES')}. Tienes acceso a una herramienta de búsqueda en tiempo real. Si el usuario te pregunta por algo actual (como el tiempo, noticias o eventos recientes), DEBES usar el comando SEARCH: 'consulta' para obtener datos reales antes de responder. Ejemplo: Si preguntan por el clima en Madrid, responde primero solo con SEARCH: clima en Madrid. Tu tono debe ser profesional y eficiente.`;
 
     useEffect(() => {
         const cookiesAccepted = localStorage.getItem('sigma_cookies_accepted');
@@ -83,7 +83,7 @@ export default function GuestChat() {
                 body: JSON.stringify({
                     messages: apiMessages,
                     modelId: modelId,
-                    botName: "Sigma LLM 1 Mini",
+                    botName: "Sigma AI 1 Mini",
                     stream: true,
                 }),
             });
@@ -177,7 +177,7 @@ export default function GuestChat() {
                                             body: JSON.stringify({
                                                 messages: finalApiMessages,
                                                 modelId: modelId,
-                                                botName: "Sigma LLM 1 Mini",
+                                                botName: "Sigma AI 1 Mini",
                                                 stream: true,
                                             }),
                                         });
@@ -310,7 +310,7 @@ export default function GuestChat() {
                             </div>
                         ))}
                         {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
-                            <div className={styles.loading}>Propulsado por Sigma LLM...</div>
+                            <div className={styles.loading}>Propulsado por Sigma AI...</div>
                         )}
                         <div ref={messagesEndRef} />
                     </div>
@@ -356,10 +356,10 @@ export default function GuestChat() {
                             <div className={styles.modelSection}>
                                 <h3>Nuestros Modelos:</h3>
                                 <ul>
-                                    <li><b>Sigma LLM 1 Std:</b> Versátil y rápido para tareas cotidianas.</li>
-                                    <li><b>Sigma LLM 1 Coder:</b> Especialista en programación y estructuras lógicas.</li>
-                                    <li><b>Sigma LLM 1 PRO:</b> El modelo más potente con razonamiento extendido.</li>
-                                    <li><b>Sigma LLM 1 Reasoning:</b> Pensamiento profundo para problemas complejos y matemáticos.</li>
+                                    <li><b>Sigma AI 1 Std:</b> Versátil y rápido para tareas cotidianas.</li>
+                                    <li><b>Sigma AI 1 Coder:</b> Especialista en programación y estructuras lógicas.</li>
+                                    <li><b>Sigma AI 1 PRO:</b> El modelo más potente con razonamiento extendido.</li>
+                                    <li><b>Sigma AI 1 Reasoning:</b> Pensamiento profundo para problemas complejos y matemáticos.</li>
                                 </ul>
                             </div>
                             <p>Disfruta de búsqueda web en tiempo real, análisis de archivos y una privacidad de grado militar.</p>

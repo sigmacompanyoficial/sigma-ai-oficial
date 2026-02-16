@@ -46,7 +46,7 @@ export const metadata = {
     title: 'Sigma AI | Inteligencia Artificial de Sigma Company',
     description: 'El asistente de IA más potente y versátil. Razonamiento, código y búsqueda web.',
     images: ['/logo-fondo-negro.png'],
-    creator: '@SigmaCompany',
+    creator: '@sigmaCompany',
   },
   robots: {
     index: true,
