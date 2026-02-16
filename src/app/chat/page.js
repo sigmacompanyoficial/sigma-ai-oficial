@@ -1926,7 +1926,15 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                                                     </div>
                                                 </div>
                                             )}
-                                            {msg.content === '...' && !msg.isSearching ? (
+                                            {msg.content === '...' && !msg.isSearching && isProcessingImage && idx === messages.length - 1 ? (
+                                                <div className={styles.analyzingContainer}>
+                                                    <div className={styles.analyzingPulse}></div>
+                                                    <div className={styles.loaderTextBlock}>
+                                                        <span className={styles.loaderTitle}>Analizando imagen</span>
+                                                        <span className={styles.loaderSubtitle}>Nemotron está examinando el contenido...</span>
+                                                    </div>
+                                                </div>
+                                            ) : msg.content === '...' && !msg.isSearching ? (
                                                 <div className={styles.loadingContainer}>
                                                     <div className={styles.thinkingPulse}>
                                                         <span></span>
