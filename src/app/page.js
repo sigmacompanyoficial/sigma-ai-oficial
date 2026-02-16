@@ -26,7 +26,7 @@ export default function Home() {
             color: '#ffffff',
             fontFamily: 'sans-serif'
         }}>
-            Cargando Sigma AI...
+            Cargando Sigma LLM...
         </div>
     );
 }

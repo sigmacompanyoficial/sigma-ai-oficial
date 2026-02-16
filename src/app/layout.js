@@ -5,9 +5,9 @@ import Script from 'next/script';
 
 
 export const metadata = {
-  title: 'Sigma AI - El Asistente de Inteligencia Artificial de Sigma Company',
-  description: 'Sigma AI: La plataforma definitiva de chat con Inteligencia Artificial. Accede a modelos avanzados, razonamiento lógico, búsqueda web en tiempo real y análisis de archivos. Desarrollado por Sigma Company.',
-  keywords: ['Sigma AI', 'Sigma Company', 'Chatbot AI', 'Inteligencia Artificial gratis', 'DeepSeek', 'LLM', 'Productividad AI', 'IA Avanzada', 'Ayoub Louah', 'Chat GPT alternativas'],
+  title: 'Sigma LLM - El Asistente de Inteligencia Artificial de Sigma Company',
+  description: 'Sigma LLM: La plataforma definitiva de chat con Inteligencia Artificial. Accede a modelos avanzados, razonamiento lógico, búsqueda web en tiempo real y análisis de archivos. Desarrollado por Sigma Company.',
+  keywords: ['Sigma LLM', 'Sigma Company', 'Chatbot AI', 'Inteligencia Artificial gratis', 'DeepSeek', 'LLM', 'Productividad AI', 'IA Avanzada', 'Ayoub Louah', 'Chat GPT alternativas'],
   authors: [{ name: 'Ayoub Louah', url: 'https://sigma-ai-oficial.vercel.app/' }, { name: 'Sigma Company' }],
   creator: 'Sigma Company',
   publisher: 'Sigma Company',
@@ -26,16 +26,16 @@ export const metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'Sigma AI | El Futuro de la Inteligencia Artificial',
-    description: 'Experimenta la IA de próxima generación con Sigma AI. Productividad, razonamiento y búsqueda web en un solo lugar.',
+    title: 'Sigma LLM | El Futuro de la Inteligencia Artificial',
+    description: 'Experimenta la IA de próxima generación con Sigma LLM. Productividad, razonamiento y búsqueda web en un solo lugar.',
     url: 'https://sigma-ai-oficial.vercel.app/',
-    siteName: 'Sigma AI',
+    siteName: 'Sigma LLM',
     images: [
       {
         url: '/logo-fondo-negro.png',
         width: 1200,
         height: 630,
-        alt: 'Sigma AI - Inteligencia Artificial Avanzada',
+        alt: 'Sigma LLM - Inteligencia Artificial Avanzada',
       },
     ],
     locale: 'es_ES',
@@ -43,7 +43,7 @@ export const metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sigma AI | Inteligencia Artificial de Sigma Company',
+    title: 'Sigma LLM | Inteligencia Artificial de Sigma Company',
     description: 'El asistente de IA más potente y versátil. Razonamiento, código y búsqueda web.',
     images: ['/logo-fondo-negro.png'],
     creator: '@sigmaCompany',
@@ -83,10 +83,10 @@ export default function RootLayout({ children }) {
               {
                 "@context": "https://schema.org",
                 "@type": "SoftwareApplication",
-                "name": "Sigma AI",
+                "name": "Sigma LLM",
                 "operatingSystem": "All",
                 "applicationCategory": "ProductivityApplication",
-                "description": "Sigma AI es la plataforma líder de chat con Inteligencia Artificial, ofreciendo modelos avanzados y razonamiento profundo.",
+                "description": "Sigma LLM es la plataforma líder de chat con Inteligencia Artificial, ofreciendo modelos avanzados y razonamiento profundo.",
                 "offers": {
                   "@type": "Offer",
                   "price": "0",
@@ -101,7 +101,7 @@ export default function RootLayout({ children }) {
               {
                 "@context": "https://schema.org",
                 "@type": "WebSite",
-                "name": "Sigma AI",
+                "name": "Sigma LLM",
                 "url": "https://sigma-ai-oficial.vercel.app/",
                 "inLanguage": "es"
               },

@@ -404,7 +404,7 @@ export default function LoginPage() {
                     <div className={styles.logoIcon}>
                         <Sparkles size={40} />
                     </div>
-                    <h1 className={styles.logoText}>Sigma AI</h1>
+                    <h1 className={styles.logoText}>Sigma LLM</h1>
                     <p className={styles.logoSubtext}>Tu puerta al futuro de la inteligencia</p>
                 </div>
 
@@ -659,7 +659,7 @@ export default function LoginPage() {
                 <p className={styles.footer}>
                     BY <strong>Sigma Company</strong>
                 </p>
-                <p className={styles.disclaimer}>Sigma AI puede cometer errores</p>
+                <p className={styles.disclaimer}>Sigma LLM puede cometer errores</p>
             </div>
         </div>
     );

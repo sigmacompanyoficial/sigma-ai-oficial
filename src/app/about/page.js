@@ -76,8 +76,8 @@ export default function AboutPage() {
             {/* Navigation */}
             <nav className={styles.nav}>
                 <Link href="/" className={styles.logoContainer}>
-                    <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.logo} />
-                    <span className={styles.brand}>Sigma AI</span>
+                    <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma LLM" className={styles.logo} />
+                    <span className={styles.brand}>Sigma LLM</span>
                 </Link>
                 <div className={styles.navLinks}>
                     <Link href="/about" className={styles.navLink}>Tecnología</Link>
@@ -112,8 +112,8 @@ export default function AboutPage() {
                 <div className={styles.showcaseShell}>
                     <div className={styles.showcaseHeader}>
                         <div className={styles.logoPill}>
-                            <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.showcaseLogo} />
-                            <span>Sigma AI Product Showcase</span>
+                            <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma LLM" className={styles.showcaseLogo} />
+                            <span>Sigma LLM Product Showcase</span>
                         </div>
                         <p className={styles.showcaseSub}>
                             Interfaz enfocada en velocidad, claridad y análisis contextual de documentos e imágenes.
@@ -219,28 +219,28 @@ export default function AboutPage() {
             {/* Models/Features Bento Grid */}
             <section id="tecnologia" className={styles.section}>
                 <div className={styles.sectionHeader}>
-                    <span className={styles.sectionLabel}>Modelos Sigma AI 1</span>
+                    <span className={styles.sectionLabel}>Modelos Sigma LLM 1</span>
                     <h2 className={styles.sectionTitle}>Potencia Adaptativa</h2>
                 </div>
 
                 <div className={styles.featureGrid}>
                     <div className={styles.featureCard}>
                         <div className={styles.featureIcon}><Cpu size={32} /></div>
-                        <h3 className={styles.featureTitle}>Sigma AI 1 Std</h3>
+                        <h3 className={styles.featureTitle}>Sigma LLM 1 Std</h3>
                         <p className={styles.featureDescription}>
                             Optimizado para el uso diario. Respuestas instantáneas con un balance perfecto entre velocidad y razonamiento creativo.
                         </p>
                     </div>
                     <div className={styles.featureCard}>
                         <div className={styles.featureIcon}><Code size={32} /></div>
-                        <h3 className={styles.featureTitle}>Sigma AI 1 Coder</h3>
+                        <h3 className={styles.featureTitle}>Sigma LLM 1 Coder</h3>
                         <p className={styles.featureDescription}>
                             Arquitectura especializada en estructuras de datos, backend, frontend y optimización algorítmica. Tu compañero de pair programming.
                         </p>
                     </div>
                     <div className={styles.featureCard}>
                         <div className={styles.featureIcon}><Brain size={32} /></div>
-                        <h3 className={styles.featureTitle}>Sigma AI 1 Reasoning</h3>
+                        <h3 className={styles.featureTitle}>Sigma LLM 1 Reasoning</h3>
                         <p className={styles.featureDescription}>
                             Núcleo de pensamiento profundo. Diseñado para desglosar problemas complejos paso a paso (Chain-of-Thought).
                         </p>
@@ -297,7 +297,7 @@ export default function AboutPage() {
                     <div className={styles.stepContent}>
                         <h3 className={styles.featureTitle}>Razonamiento Transparente</h3>
                         <p className={styles.featureDescription}>
-                            Entiende el &quot;por qué&quot; de cada respuesta. Gracias a Sigma AI 1 Reasoning, puedes visualizar el proceso cognitivo del modelo antes de recibir la conclusión final.
+                            Entiende el &quot;por qué&quot; de cada respuesta. Gracias a Sigma LLM 1 Reasoning, puedes visualizar el proceso cognitivo del modelo antes de recibir la conclusión final.
                         </p>
                         <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', marginTop: '2rem' }}>
                             <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
@@ -329,8 +329,8 @@ export default function AboutPage() {
                 <div className={styles.footerGrid}>
                     <div className={styles.footerInfo}>
                         <Link href="/" className={styles.logoContainer}>
-                            <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.logo} />
-                            <span className={styles.brand}>Sigma AI</span>
+                            <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma LLM" className={styles.logo} />
+                            <span className={styles.brand}>Sigma LLM</span>
                         </Link>
                         <p>
                             Construyendo el futuro de la inteligencia artificial soberana y accesible para todos. Un producto de Sigma Company.

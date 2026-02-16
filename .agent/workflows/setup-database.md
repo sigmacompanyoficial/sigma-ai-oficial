@@ -1,5 +1,5 @@
 ---
-description: SQL para configurar las tablas de Sigma AI en Supabase
+description: SQL para configurar las tablas de Sigma LLM en Supabase
 ---
 
 Para que el historial de chats funcione correctamente, copia y pega este código en el **SQL Editor** de tu proyecto en Supabase:
@@ -77,7 +77,7 @@ create table if not exists profiles (
   full_name text,
   username text unique, -- Nuevo: Para inicio de sesión y perfil
   how_known text, -- ¿De dónde nos has conocido?
-  usage_intent text, -- ¿Para qué vas a usar Sigma AI?
+  usage_intent text, -- ¿Para qué vas a usar Sigma LLM?
   onboarding_completed boolean default false,
   role text default 'normal', -- 'admin', 'normal', 'premium'
   email text,

@@ -135,7 +135,7 @@ export default function OnboardingPage() {
                             <Sparkles size={32} />
                         </div>
                         <h1>¡Casi listo!</h1>
-                        <p>Ayúdanos a personalizar tu experiencia en Sigma AI</p>
+                        <p>Ayúdanos a personalizar tu experiencia en Sigma LLM</p>
                     </div>
 
                     {!isUsernameRequiredOnly && (
@@ -213,7 +213,7 @@ export default function OnboardingPage() {
                         </div>
                     ) : (
                         <div className={styles.stepContent}>
-                            <h2>¿Para qué vas a usar Sigma AI?</h2>
+                            <h2>¿Para qué vas a usar Sigma LLM?</h2>
                             <div className={styles.options}>
                                 {['Estudios / Universidad', 'Trabajo / Productividad', 'Creatividad / Arte', 'Programación', 'Solo por curiosidad'].map((opt) => (
                                     <button

@@ -24,7 +24,7 @@ export default function PrivacyPage() {
                 <section className={styles.legalSection}>
                     <h2><Lock size={20} /> 1. Responsable del tratamiento</h2>
                     <p>
-                        Sigma Company es responsable del tratamiento de los datos personales obtenidos a través de Sigma AI.
+                        Sigma Company es responsable del tratamiento de los datos personales obtenidos a través de Sigma LLM.
                         Para asuntos de privacidad puedes escribir a sigmacompanyoficial@gmail.com.
                     </p>
                 </section>
@@ -88,7 +88,7 @@ export default function PrivacyPage() {
                 <section className={styles.legalSection}>
                     <h2>8. Menores de edad</h2>
                     <p>
-                        Sigma AI no está dirigido a menores sin supervisión legal suficiente. Si detectamos tratamiento de datos
+                        Sigma LLM no está dirigido a menores sin supervisión legal suficiente. Si detectamos tratamiento de datos
                         de menores sin base válida, adoptaremos medidas para su eliminación.
                     </p>
                 </section>
@@ -105,7 +105,7 @@ export default function PrivacyPage() {
                     <h2>10. Copyright</h2>
                     <p>
                         © {year} Sigma Company. Todos los derechos reservados. Los materiales, textos, interfaces y activos
-                        de Sigma AI están protegidos por copyright y propiedad intelectual.
+                        de Sigma LLM están protegidos por copyright y propiedad intelectual.
                     </p>
                 </section>
             </div>

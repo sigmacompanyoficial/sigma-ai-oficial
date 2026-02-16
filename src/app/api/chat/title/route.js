@@ -25,7 +25,7 @@ export async function POST(req) {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'HTTP-Referer': getPublicSiteUrl(),
-                'X-Title': 'Sigma AI',
+                'X-Title': 'Sigma LLM',
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({

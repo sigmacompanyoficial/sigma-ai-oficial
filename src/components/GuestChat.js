@@ -23,7 +23,7 @@ export default function GuestChat() {
     const messagesEndRef = useRef(null);
 
     const modelId = "arcee-ai/trinity-large-preview:free";
-    const systemInstructions = `Eres Sigma AI 1 Mini, un asistente de IA de vanguardia. Fecha actual: ${new Date().toLocaleDateString('es-ES')}. Tienes acceso a una herramienta de búsqueda en tiempo real. Si el usuario te pregunta por algo actual (como el tiempo, noticias o eventos recientes), DEBES usar el comando SEARCH: 'consulta' para obtener datos reales antes de responder. Ejemplo: Si preguntan por el clima en Madrid, responde primero solo con SEARCH: clima en Madrid. Tu tono debe ser profesional y eficiente.`;
+    const systemInstructions = `Eres Sigma LLM 1 Mini, un asistente de IA de vanguardia. Fecha actual: ${new Date().toLocaleDateString('es-ES')}. Tienes acceso a una herramienta de búsqueda en tiempo real. Si el usuario te pregunta por algo actual (como el tiempo, noticias o eventos recientes), DEBES usar el comando SEARCH: 'consulta' para obtener datos reales antes de responder. Ejemplo: Si preguntan por el clima en Madrid, responde primero solo con SEARCH: clima en Madrid. Tu tono debe ser profesional y eficiente.`;
 
     useEffect(() => {
         const cookiesAccepted = localStorage.getItem('sigma_cookies_accepted');
@@ -83,7 +83,7 @@ export default function GuestChat() {
                 body: JSON.stringify({
                     messages: apiMessages,
                     modelId: modelId,
-                    botName: "Sigma AI 1 Mini",
+                    botName: "Sigma LLM 1 Mini",
                     stream: true,
                 }),
             });
@@ -177,7 +177,7 @@ export default function GuestChat() {
                                             body: JSON.stringify({
                                                 messages: finalApiMessages,
                                                 modelId: modelId,
-                                                botName: "Sigma AI 1 Mini",
+                                                botName: "Sigma LLM 1 Mini",
                                                 stream: true,
                                             }),
                                         });
@@ -238,8 +238,8 @@ export default function GuestChat() {
             <header className={styles.header}>
                 <div className={styles.headerLeft}>
                     <Link href="/" className={styles.sidebarLogoContainer}>
-                        <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma AI" className={styles.sidebarLogo} />
-                        <span className={styles.sidebarBrand}>Sigma AI</span>
+                        <img src={theme === 'light' ? '/logo-fondo-claro.png' : '/logo-fondo-negro.png'} alt="Sigma LLM" className={styles.sidebarLogo} />
+                        <span className={styles.sidebarBrand}>Sigma LLM</span>
                         <ChevronDown size={16} className={styles.chevron} />
                     </Link>
                 </div>
@@ -310,7 +310,7 @@ export default function GuestChat() {
                             </div>
                         ))}
                         {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
-                            <div className={styles.loading}>Propulsado por Sigma AI...</div>
+                            <div className={styles.loading}>Propulsado por Sigma LLM...</div>
                         )}
                         <div ref={messagesEndRef} />
                     </div>
@@ -350,16 +350,16 @@ export default function GuestChat() {
                     <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                         <button className={styles.closeModal} onClick={() => setShowHelp(false)}><X size={20} /></button>
                         <div className={styles.modalIcon}><Sparkles size={32} /></div>
-                        <h2>Bienvenido a Sigma AI</h2>
+                        <h2>Bienvenido a Sigma LLM</h2>
                         <div className={styles.helpText}>
-                            <p>Sigma AI es la plataforma de inteligencia artificial de nueva generación desarrollada por <b>Sigma Company</b>.</p>
+                            <p>Sigma LLM es la plataforma de inteligencia artificial de nueva generación desarrollada por <b>Sigma Company</b>.</p>
                             <div className={styles.modelSection}>
                                 <h3>Nuestros Modelos:</h3>
                                 <ul>
-                                    <li><b>Sigma AI 1 Std:</b> Versátil y rápido para tareas cotidianas.</li>
-                                    <li><b>Sigma AI 1 Coder:</b> Especialista en programación y estructuras lógicas.</li>
-                                    <li><b>Sigma AI 1 PRO:</b> El modelo más potente con razonamiento extendido.</li>
-                                    <li><b>Sigma AI 1 Reasoning:</b> Pensamiento profundo para problemas complejos y matemáticos.</li>
+                                    <li><b>Sigma LLM 1 Std:</b> Versátil y rápido para tareas cotidianas.</li>
+                                    <li><b>Sigma LLM 1 Coder:</b> Especialista en programación y estructuras lógicas.</li>
+                                    <li><b>Sigma LLM 1 PRO:</b> El modelo más potente con razonamiento extendido.</li>
+                                    <li><b>Sigma LLM 1 Reasoning:</b> Pensamiento profundo para problemas complejos y matemáticos.</li>
                                 </ul>
                             </div>
                             <p>Disfruta de búsqueda web en tiempo real, análisis de archivos y una privacidad de grado militar.</p>
@@ -374,7 +374,7 @@ export default function GuestChat() {
                 <div className={styles.modalOverlay}>
                     <div className={styles.modalContent}>
                         <div className={styles.modalIcon}><Sparkles size={32} /></div>
-                        <h2>Has descubierto Sigma AI</h2>
+                        <h2>Has descubierto Sigma LLM</h2>
                         <p>Únete a miles de usuarios que ya utilizan <b>Razonamiento Avanzado</b> y <b>Análisis de Archivos</b> para ser más productivos.</p>
                         <div className={styles.modalActions}>
                             <Link href="/login" className={styles.modalLoginBtn}>Empezar Gratis</Link>
@@ -387,7 +387,7 @@ export default function GuestChat() {
             {/* Footer Component */}
             <footer className={styles.footer}>
                 <p>
-                    Al enviar un mensaje a Sigma AI, un asistente de IA, aceptas nuestras <Link href="/terms">condiciones</Link> y confirmas que has leído nuestra <Link href="/privacy">política de privacidad</Link>. Ver <Link href="/cookies">preferencias de cookies</Link>.
+                    Al enviar un mensaje a Sigma LLM, un asistente de IA, aceptas nuestras <Link href="/terms">condiciones</Link> y confirmas que has leído nuestra <Link href="/privacy">política de privacidad</Link>. Ver <Link href="/cookies">preferencias de cookies</Link>.
                 </p>
             </footer>
 
@@ -395,7 +395,7 @@ export default function GuestChat() {
             {showCookies && (
                 <div className={styles.cookieBanner}>
                     <div className={styles.cookieContent}>
-                        <p>Utilizamos cookies para personalizar tu experiencia en Sigma AI.</p>
+                        <p>Utilizamos cookies para personalizar tu experiencia en Sigma LLM.</p>
                         <button onClick={acceptCookies} className={styles.cookieBtn}>Entendido</button>
                     </div>
                 </div>

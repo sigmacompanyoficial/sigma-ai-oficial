@@ -1,7 +1,7 @@
 export default function manifest() {
     return {
-        name: 'Sigma AI',
-        short_name: 'Sigma AI',
+        name: 'Sigma LLM',
+        short_name: 'Sigma LLM',
         description: 'La plataforma de Inteligencia Artificial de Sigma Company',
         start_url: '/',
         display: 'standalone',

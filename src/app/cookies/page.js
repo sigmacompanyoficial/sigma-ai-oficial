@@ -85,7 +85,7 @@ export default function CookiesPage() {
                         Para dudas sobre cookies o privacidad: sigmacompanyoficial@gmail.com.
                     </p>
                     <p>
-                        © {year} Sigma Company. Todos los derechos reservados. El contenido, diseño y marcas de Sigma AI
+                        © {year} Sigma Company. Todos los derechos reservados. El contenido, diseño y marcas de Sigma LLM
                         están protegidos por copyright y legislación de propiedad intelectual.
                     </p>
                 </section>

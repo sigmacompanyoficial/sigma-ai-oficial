@@ -1,7 +1,7 @@
 export const models = [
     {
         modelId: "arcee-ai/trinity-large-preview:free",
-        modelName: "Sigma AI 1",
+        modelName: "Sigma LLM 1",
         provider: "openrouter",
         hostedId: "arcee-ai/trinity-large-preview:free",
         platformLink: "https://openrouter.ai",
@@ -10,7 +10,7 @@ export const models = [
     },
     {
         modelId: "qwen/qwen3-coder:free",
-        modelName: "Sigma AI 1 Coder",
+        modelName: "Sigma LLM 1 Coder",
         provider: "openrouter",
         hostedId: "qwen/qwen3-coder:free",
         platformLink: "https://openrouter.ai",
@@ -19,7 +19,7 @@ export const models = [
     },
     {
         modelId: "stepfun/step-3.5-flash:free",
-        modelName: "Sigma AI 1 PRO",
+        modelName: "Sigma LLM 1 PRO",
         provider: "openrouter",
         hostedId: "stepfun/step-3.5-flash:free",
         platformLink: "https://openrouter.ai",

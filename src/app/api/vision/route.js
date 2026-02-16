@@ -40,7 +40,7 @@ export async function POST(req) {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
                 'HTTP-Referer': 'https://sigma.ai', // Reemplaza con tu dominio real si tienes
-                'X-Title': 'Sigma AI'
+                'X-Title': 'Sigma LLM'
             },
             body: JSON.stringify({
                 model: VISION_MODEL,
