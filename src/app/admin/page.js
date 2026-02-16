@@ -109,9 +109,14 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
+        const cookiesAccepted = localStorage.getItem('sigma_cookies_accepted');
+        if (cookiesAccepted) {
+            setTimeout(() => setShowCookies(false), 0);
+        }
+
         const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
-        setTheme(savedTheme);
         document.documentElement.setAttribute('data-theme', savedTheme);
+        setTimeout(() => setTheme(savedTheme), 0);
         checkAdmin();
     }, []);
 

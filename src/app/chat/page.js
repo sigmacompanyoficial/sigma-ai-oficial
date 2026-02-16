@@ -7,13 +7,13 @@ import {
     ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square,
     Archive, Flag, BarChart3, Zap, FileText, File, Cookie, ShieldCheck, Shield, CircleHelp
 } from 'lucide-react';
-import SigmaMarkdown from '@/components/sigmaMarkdown';
+import SigmaMarkdown from '@/components/SigmaMarkdown';
 import { supabase } from '@/lib/supabaseClient';
 import { formatAndLogSupabaseError } from '@/lib/supabaseHelpers';
 import styles from './page.module.css';
 import { models } from '@/lib/models';
 import Link from 'next/link';
-import { uploadAndExtractFile } from '@/lib/fileParser';
+import { uploadAndExtractFile, uploadAndVisionPDF } from '@/lib/fileParser';
 
 
 const guestModel = { modelId: 'arcee-ai/trinity-large-preview:free', modelName: 'Sigma LLM 1 Mini', provider: 'openrouter', hostedId: 'arcee-ai/trinity-large-preview:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
@@ -369,12 +369,16 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     useEffect(() => {
         // Initialize theme from localStorage
         const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
-        setTheme(savedTheme);
         document.documentElement.setAttribute('data-theme', savedTheme);
 
-        // Initialize appearance setting
-        const themeMap = { 'dark': 'Oscuro', 'light': 'Claro', 'system': 'Sistema' };
-        setAppearance(themeMap[savedTheme] || 'Oscuro');
+        // Defer state updates to avoid synchronous cascading renders
+        setTimeout(() => {
+            setTheme(savedTheme);
+
+            // Initialize appearance setting
+            const themeMap = { 'dark': 'Oscuro', 'light': 'Claro', 'system': 'Sistema' };
+            setAppearance(themeMap[savedTheme] || 'Oscuro');
+        }, 0);
 
         const cookieConsent = localStorage.getItem('sigma-cookie-consent');
         if (!cookieConsent) setShowCookieConsent(true);
@@ -1357,10 +1361,16 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             // 2) Extraer texto en background SOLO para documentos no-imagen.
             const extractionTasks = docFiles.map(async (file) => {
                 try {
-                    console.log('🧠 [UPLOAD] Extracting text from:', file.name);
-                    const textContent = await uploadAndExtractFile(file);
+                    console.log('🧠 [UPLOAD] Processing:', file.name, 'Type:', file.type);
+                    let textContent = "";
+                    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                        textContent = await uploadAndVisionPDF(file);
+                    } else {
+                        textContent = await uploadAndExtractFile(file);
+                    }
+
                     if (!textContent || !textContent.trim()) {
-                        console.warn('⚠️ [UPLOAD] Empty extracted text for:', file.name);
+                        console.warn('⚠️ [UPLOAD] Empty content for:', file.name);
                         return null;
                     }
 

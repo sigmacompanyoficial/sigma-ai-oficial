@@ -27,8 +27,6 @@ export const models = [
         maxContext: 32768
     },
     {
-    },
-    {
         modelId: "nvidia/nemotron-nano-12b-v2-vl:free",
         modelName: "Sigma Vision (Nemotron)",
         provider: "openrouter",

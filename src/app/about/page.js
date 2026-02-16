@@ -21,9 +21,14 @@ export default function AboutPage() {
     const [theme, setTheme] = useState('dark');
 
     useEffect(() => {
-        const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
-        setTheme(savedTheme);
-        document.documentElement.setAttribute('data-theme', savedTheme);
+        const savedTheme = localStorage.getItem('sigma-theme');
+        if (savedTheme && savedTheme !== theme) {
+            setTimeout(() => setTheme(savedTheme), 0);
+        }
+        document.documentElement.setAttribute('data-theme', savedTheme || 'dark');
+    }, [theme]);
+
+    useEffect(() => {
         // Hero Entrance
         gsap.to(`.${styles.heroContent}`, {
             opacity: 1,

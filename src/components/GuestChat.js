@@ -4,7 +4,7 @@ import {
     Search, Plus, Send, ChevronDown, HelpCircle, Globe, Sparkles, X, ArrowRight, Mic
 } from 'lucide-react';
 import Link from 'next/link';
-import SigmaMarkdown from './sigmaMarkdown';
+import SigmaMarkdown from './SigmaMarkdown';
 import styles from './GuestChat.module.css';
 
 export default function GuestChat() {
@@ -27,11 +27,13 @@ export default function GuestChat() {
 
     useEffect(() => {
         const cookiesAccepted = localStorage.getItem('sigma_cookies_accepted');
-        if (cookiesAccepted) setShowCookies(false);
+        if (cookiesAccepted) {
+            setTimeout(() => setShowCookies(false), 0);
+        }
 
         const savedTheme = localStorage.getItem('sigma-theme') || 'dark';
-        setTheme(savedTheme);
         document.documentElement.setAttribute('data-theme', savedTheme);
+        setTimeout(() => setTheme(savedTheme), 0);
     }, []);
 
     const acceptCookies = () => {
