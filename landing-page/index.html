@@ -35,12 +35,19 @@
             <span class="brand-name">Sigma LLM</span>
         </div>
         <nav>
-            <ul>
+            <ul class="nav-links">
                 <li><a href="#inicio">Inicio</a></li>
-                <li><a href="#sobre-nosotros">Sobre Nosotros</a></li>
+                <li><a href="#sobre-nosotros">Qué es Sigma</a></li>
+                <li><a href="#demostracion">Demostración</a></li>
                 <li><a href="#modelos">Modelos</a></li>
-                <li><a href="https://sigma-ai-oficial.vercel.app/" class="btn-primary-nav">Probar Chatbot</a></li>
+                <li><a href="#faq">FAQ</a></li>
+                <li><a href="#countdown-section" class="btn-primary-nav">Lanzamiento 02/03</a></li>
             </ul>
+            <div class="burger">
+                <div class="line1"></div>
+                <div class="line2"></div>
+                <div class="line3"></div>
+            </div>
         </nav>
     </header>
 
@@ -48,10 +55,19 @@
         <section id="inicio" class="hero">
             <div class="hero-content">
                 <h1 class="fade-in-up">El Futuro de la <span class="gradient-text">Inteligencia Artificial</span></h1>
-                <p class="fade-in-up delay-1">Desata tu potencial con Sigma LLM. Accede a los modelos más potentes del
-                    mundo en una interfaz unificada y elegante.</p>
-                <div class="hero-buttons fade-in-up delay-2">
-                    <a href="https://sigma-ai-oficial.vercel.app/" class="btn-primary">Empezar Ahora</a>
+                <p class="fade-in-up delay-1">Sigma LLM es una plataforma revolucionaria que integra los modelos de
+                    lenguaje más potentes en una interfaz diseñada para la máxima productividad y creatividad.</p>
+                <div id="countdown-wrapper" class="fade-in-up delay-2">
+                    <p class="countdown-label">Disponible en:</p>
+                    <div id="countdown">
+                        <div class="time-unit"><span id="days">00</span><label>Días</label></div>
+                        <div class="time-unit"><span id="hours">00</span><label>Horas</label></div>
+                        <div class="time-unit"><span id="minutes">00</span><label>Mins</label></div>
+                        <div class="time-unit"><span id="seconds">00</span><label>Segs</label></div>
+                    </div>
+                </div>
+                <div class="hero-buttons fade-in-up delay-3">
+                    <a href="#demostracion" class="btn-primary">Ver Demostración</a>
                     <a href="#sobre-nosotros" class="btn-secondary">Saber Más</a>
                 </div>
             </div>
@@ -77,29 +93,80 @@
 
         <section id="sobre-nosotros" class="features">
             <h2 class="section-title">¿Qué es Sigma LLM?</h2>
-            <p class="section-subtitle">Una nueva era de asistencia digital diseñada para potenciar tu creatividad y
-                productividad.</p>
+            <p class="section-subtitle">Sigma LLM no es solo otro chatbot. Es un ecosistema de inteligencia artificial
+                multimodal diseñado para ser tu copiloto definitivo en el mundo digital.</p>
 
             <div class="features-grid">
                 <div class="feature-card glass-card">
                     <div class="icon">🚀</div>
-                    <h3>Velocidad Extremas</h3>
-                    <p>Respuestas instantneas impulsadas por la arquitectura más eficiente.</p>
+                    <h3>Inteligencia de Vanguardia</h3>
+                    <p>Accede a modelos optimizados que superan los límites del razonamiento lógico y la creatividad
+                        lingüística.</p>
                 </div>
                 <div class="feature-card glass-card">
                     <div class="icon">🧠</div>
-                    <h3>Razonamiento Avanzado</h3>
-                    <p>Capacidad para resolver problemas complejos y análisis profundo.</p>
+                    <h3>Arquitectura Sigma</h3>
+                    <p>Nuestra infraestructura permite procesar contextos masivos con una latencia mínima, ideal para
+                        flujos de trabajo profesionales.</p>
                 </div>
                 <div class="feature-card glass-card">
                     <div class="icon">👁️</div>
-                    <h3>Visión Computacional</h3>
-                    <p>Sube imágenes y obtén análisis detallados al instante.</p>
+                    <h3>Visión y Comprensión</h3>
+                    <p>Interpreta diagramas complejos, código manuscrito o escenas visuales con una precisión
+                        quirúrgica.</p>
                 </div>
                 <div class="feature-card glass-card">
                     <div class="icon">🌐</div>
-                    <h3>Búsqueda Web</h3>
-                    <p>Acceso a información en tiempo real directamente desde la web.</p>
+                    <h3>Conectividad Total</h3>
+                    <p>Búsqueda en tiempo real y herramientas integradas para que nunca pierdas el ritmo de la
+                        información actual.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="demostracion" class="demo-section">
+            <h2 class="section-title">Mira a Sigma en Acción</h2>
+            <p class="section-subtitle">Descubre cómo Sigma LLM puede transformar tu manera de trabajar con estas
+                demostraciones reales.</p>
+
+            <div class="video-grid">
+                <div class="video-card glass-card">
+                    <div class="video-wrapper">
+                        <video loop muted controls>
+                            <source src="Video pregunta.mp4" type="video/mp4">
+                            Tu navegador no soporta videos.
+                        </video>
+                    </div>
+                    <div class="video-info">
+                        <h3>Interacción Natural</h3>
+                        <p>Respuestas rápidas y precisas a cualquier pregunta compleja.</p>
+                    </div>
+                </div>
+
+                <div class="video-card glass-card">
+                    <div class="video-wrapper">
+                        <video loop muted controls>
+                            <source src="video codigo.mp4" type="video/mp4">
+                            Tu navegador no soporta videos.
+                        </video>
+                    </div>
+                    <div class="video-info">
+                        <h3>Generación de Código</h3>
+                        <p>De la idea a la implementación en segundos con Sigma Coder.</p>
+                    </div>
+                </div>
+
+                <div class="video-card glass-card">
+                    <div class="video-wrapper">
+                        <video loop muted controls>
+                            <source src="Video subida imagen.mp4" type="video/mp4">
+                            Tu navegador no soporta videos.
+                        </video>
+                    </div>
+                    <div class="video-info">
+                        <h3>Visión Inteligente</h3>
+                        <p>Análisis profundo de imágenes y documentos al instante.</p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -117,7 +184,7 @@
                     </div>
                     <p>El núcleo de nuestra inteligencia. Un modelo equilibrado perfecto para redacción, asistencia
                         general y tareas cotidianas con una fluidez natural.</p>
-                    <a href="https://sigma-ai-oficial.vercel.app/" class="btn-text">Probar &rarr;</a>
+                    <a href="#countdown-section" class="btn-text">Próximamente &rarr;</a>
                 </div>
                 <div class="model-card glass-card">
                     <div class="model-header">
@@ -126,7 +193,7 @@
                     </div>
                     <p>Entrenado con millones de líneas de código. Experto en refactorización, depuración y creación de
                         arquitecturas de software complejas en múltiples lenguajes.</p>
-                    <a href="https://sigma-ai-oficial.vercel.app/" class="btn-text">Probar &rarr;</a>
+                    <a href="#countdown-section" class="btn-text">Próximamente &rarr;</a>
                 </div>
                 <div class="model-card glass-card">
                     <div class="model-header">
@@ -135,7 +202,7 @@
                     </div>
                     <p>Nuestra versión más potente. Capaz de razonamiento deductivo profundo, análisis de datos
                         complejos y resolución de problemas de alto nivel.</p>
-                    <a href="https://sigma-ai-oficial.vercel.app/" class="btn-text">Probar &rarr;</a>
+                    <a href="#countdown-section" class="btn-text">Próximamente &rarr;</a>
                 </div>
                 <div class="model-card glass-card">
                     <div class="model-header">
@@ -144,7 +211,7 @@
                     </div>
                     <p>Rompe la barrera del texto. Sube esquemas, fotografías o documentos manuscritos y obtén un
                         análisis detallado e instantáneo.</p>
-                    <a href="https://sigma-ai-oficial.vercel.app/" class="btn-text">Probar &rarr;</a>
+                    <a href="#countdown-section" class="btn-text">Próximamente &rarr;</a>
                 </div>
             </div>
         </section>
@@ -233,11 +300,42 @@
             </div>
         </section>
 
-        <section class="cta-section">
+        <section id="comunidad" class="community-section">
+            <h2 class="section-title">Únete a la Revolución</h2>
+            <p class="section-subtitle">Sigma LLM crece gracias a una comunidad apasionada. Participa en el desarrollo y
+                sé de los primeros en probar las nuevas funciones.</p>
+            <div class="community-grid">
+                <div class="community-card glass-card">
+                    <h3>Abierto a Todos</h3>
+                    <p>Creemos en la democratización de la IA. Nuestra plataforma está diseñada para ser accesible y
+                        potente para todos.</p>
+                </div>
+                <div class="community-card glass-card">
+                    <h3>Feedback Real</h3>
+                    <p>Escuchamos a nuestros usuarios. Cada actualización de Sigma LLM incorpora las sugerencias de la
+                        comunidad.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="countdown-section" class="cta-section">
             <div class="cta-content glass-card">
-                <h2>¿Listo para elevar tu productividad?</h2>
-                <p>Únete a miles de usuarios que ya están construyendo el futuro con Sigma LLM.</p>
-                <a href="https://sigma-ai-oficial.vercel.app/" class="btn-primary glow">Abrir Chatbot</a>
+                <h2>El Lanzamiento Oficial está Cerca</h2>
+                <p>Estamos perfeccionando los últimos detalles para ofrecerte la mejor experiencia de IA. Síguenos en
+                    nuestras redes para no perderte nada.</p>
+                <div id="cta-countdown" class="countdown-large">
+                    <!-- Countdown injected via JS -->
+                </div>
+                <div class="social-cta">
+                    <a href="https://github.com/sigmacompanyoficial" target="_blank"
+                        class="social-btn github">GitHub</a>
+                    <a href="https://www.tiktok.com/@sigmacompanyoficial" target="_blank"
+                        class="social-btn tiktok">TikTok</a>
+                    <a href="https://www.instagram.com/sigmacompanyoficial" target="_blank"
+                        class="social-btn instagram">Instagram</a>
+                    <a href="https://www.youtube.com/@sigmacompanyoficial" target="_blank"
+                        class="social-btn youtube">YouTube</a>
+                </div>
             </div>
         </section>
     </main>
@@ -246,8 +344,53 @@
         <div class="footer-content">
             <div class="footer-brand">
                 <img src="./logo-fondo-negro.png" alt="Sigma LLM" class="footer-logo">
-                <p>&copy; 2026 Sigma LLM. Todos los derechos reservados.</p>
+                <div class="brand-text">
+                    <h3>Sigma LLM</h3>
+                    <p>&copy; 2026 Sigma Company Oficial. Todos los derechos reservados.</p>
+                </div>
             </div>
+
+            <div class="footer-social">
+                <h4>Síguenos</h4>
+                <div class="social-links">
+                    <a href="https://github.com/sigmacompanyoficial" target="_blank" title="GitHub">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="lucide lucide-github">
+                            <path
+                                d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+                            <path d="M9 18c-4.51 2-5-2-7-2" />
+                        </svg>
+                    </a>
+                    <a href="https://www.tiktok.com/@sigmacompanyoficial" target="_blank" title="TikTok">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="lucide lucide-music-2">
+                            <circle cx="8" cy="18" r="4" />
+                            <path d="M12 18V2l7 4" />
+                        </svg>
+                    </a>
+                    <a href="https://www.instagram.com/sigmacompanyoficial" target="_blank" title="Instagram">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="lucide lucide-instagram">
+                            <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+                            <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                            <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+                        </svg>
+                    </a>
+                    <a href="https://www.youtube.com/@sigmacompanyoficial" target="_blank" title="YouTube">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="lucide lucide-youtube">
+                            <path
+                                d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 2-2 69.44 69.44 0 0 1 15 0 2 2 0 0 1 2 2 24.12 24.12 0 0 1 0 10 2 2 0 0 1-2 2 69.44 69.44 0 0 1-15 0 2 2 0 0 1-2-2Z" />
+                            <path d="m10 15 5-3-5-3z" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
             <div class="footer-links">
                 <a href="#">Privacidad</a>
                 <a href="#">Términos</a>

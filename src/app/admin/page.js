@@ -20,6 +20,8 @@ export default function AdminPage() {
     const [editingUser, setEditingUser] = useState(null);
     const [theme, setTheme] = useState('dark');
     const [lastSyncAt, setLastSyncAt] = useState(null);
+    const [migrating, setMigrating] = useState(false);
+    const [migrationResult, setMigrationResult] = useState(null);
     const router = useRouter();
 
     const checkAdmin = async () => {
@@ -72,39 +74,20 @@ export default function AdminPage() {
 
     const fetchActivity = async () => {
         try {
-            console.log('--- Intentando cargar actividad ---');
-            const { data, error } = await supabase
-                .from('chats')
-                .select(`
-                    id,
-                    title,
-                    created_at,
-                    user_id,
-                    profiles (
-                        full_name,
-                        email
-                    )
-                `)
-                .order('created_at', { ascending: false })
-                .limit(50);
-
-            if (error) {
-                console.error('Error en fetchActivity:', error);
-
-                // Intento de rescate: cargar chats sin perfiles si la unión falla
-                const { data: simpleData } = await supabase
-                    .from('chats')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(50);
-
-                if (simpleData) setActivity(simpleData);
-            } else {
-                console.log('Actividad cargada:', data?.length, 'chats');
+            console.log('--- Cargando actividad desde MySQL ---');
+            const resp = await fetch('/api/mysql/admin/activity');
+            if (resp.ok) {
+                const data = await resp.json();
+                console.log('Actividad MySQL cargada:', data?.length, 'chats');
                 setActivity(data || []);
+            } else {
+                throw new Error('Failed to fetch MySQL activity');
             }
         } catch (error) {
-            console.error('Error catastrófico en actividad:', error);
+            console.error('Error cargando actividad MySQL:', error);
+            // Si el error tiene detalles, los mostramos en consola
+            const errorText = await error.message;
+            console.log('Detalles del error:', errorText);
         }
     };
 
@@ -146,6 +129,26 @@ export default function AdminPage() {
             setUsers(users.filter(u => u.id !== userId));
         } else {
             alert('Error al eliminar usuario');
+        }
+    };
+
+    const runMigration = async () => {
+        if (!confirm('¿Estás seguro de que quieres iniciar la migración? Esto copiará todos los datos de Supabase a MySQL.')) return;
+
+        setMigrating(true);
+        setMigrationResult(null);
+        try {
+            const resp = await fetch('/api/mysql/migrate', { method: 'POST' });
+            const data = await resp.json();
+            if (resp.ok) {
+                setMigrationResult({ success: true, data: data.summary });
+            } else {
+                setMigrationResult({ success: false, error: data.error });
+            }
+        } catch (error) {
+            setMigrationResult({ success: false, error: error.message });
+        } finally {
+            setMigrating(false);
         }
     };
 
@@ -241,6 +244,13 @@ export default function AdminPage() {
                     >
                         <Shield size={20} />
                         Seguridad
+                    </button>
+                    <button
+                        className={`${styles.navItem} ${activeTab === 'migration' ? styles.active : ''}`}
+                        onClick={() => setActiveTab('migration')}
+                    >
+                        <RefreshCw size={20} />
+                        Migración
                     </button>
                 </nav>
 
@@ -478,6 +488,41 @@ export default function AdminPage() {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    ) : activeTab === 'migration' ? (
+                        <div className={styles.securityGrid}>
+                            <div className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <RefreshCw size={20} style={{ color: '#6366f1' }} />
+                                    <h3>Migración Supabase ➔ MySQL</h3>
+                                </div>
+                                <p>Copia todos los datos de Supabase (Perfiles, Chats, Mensajes) a tu nueva base de datos MySQL.</p>
+                                <button
+                                    className={styles.toggleBtn}
+                                    onClick={runMigration}
+                                    disabled={migrating}
+                                    style={{ marginTop: '1rem', background: '#6366f1', color: '#fff', border: 'none' }}
+                                >
+                                    {migrating ? 'Migrando datos...' : 'Iniciar Migración de Datos'}
+                                </button>
+
+                                {migrationResult && (
+                                    <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '8px', background: migrationResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', border: `1px solid ${migrationResult.success ? '#10b981' : '#ef4444'}` }}>
+                                        {migrationResult.success ? (
+                                            <>
+                                                <h4 style={{ color: '#10b981', marginBottom: '0.5rem' }}>Migración completada con éxito</h4>
+                                                <ul style={{ listStyle: 'none', fontSize: '0.9rem', color: '#d1d5db' }}>
+                                                    <li>Perfiles: {migrationResult.data.profiles}</li>
+                                                    <li>Chats: {migrationResult.data.chats}</li>
+                                                    <li>Mensajes: {migrationResult.data.messages}</li>
+                                                </ul>
+                                            </>
+                                        ) : (
+                                            <h4 style={{ color: '#ef4444' }}>Error: {migrationResult.error}</h4>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ) : (
                         <div className={styles.securityGrid}>

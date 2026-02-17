@@ -5,7 +5,7 @@ import {
     ChevronDown, Settings, Mic, Send, User, Bot, Sparkles, MessageSquare, LogOut, Camera,
     Copy, Check, Trash2, AlertCircle, Upload,
     ThumbsUp, ThumbsDown, Share, RotateCcw, MoreHorizontal, Brain, ChevronUp, PanelLeft, Square,
-    Archive, Flag, BarChart3, Zap, FileText, File, Cookie, ShieldCheck, Shield, CircleHelp
+    Archive, Flag, BarChart3, Zap, FileText, File, Cookie, ShieldCheck, Shield, CircleHelp, Lock
 } from 'lucide-react';
 import SigmaMarkdown from '@/components/SigmaMarkdown';
 import { supabase } from '@/lib/supabaseClient';
@@ -116,35 +116,70 @@ export default function ChatPage() {
     const [profilePic, setProfilePic] = useState('');
     const [systemInstructions, setSystemInstructions] = useState(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
-IDENTIDAD Y PERSONALIDAD:
+IDENTIDAD Y CREADOR:
+- Fuiste creado por Sigma Company (@sigmacompanyoficial), una empresa innovadora dedicada al desarrollo de tecnologías de inteligencia artificial de vanguardia
+- Sigma Company fue fundada con la visión de democratizar el acceso a la IA avanzada, creando herramientas potentes pero accesibles para todos
+- Representas el compromiso de Sigma Company con la excelencia técnica, la innovación responsable y el impacto positivo en la sociedad
+- Tu desarrollo involucró investigación de última generación en procesamiento de lenguaje natural, visión por computadora y razonamiento avanzado
+- Sigma Company mantiene un enfoque ético en el desarrollo de IA, priorizando la transparencia, la seguridad y el beneficio humano
+
+PERSONALIDAD Y ENFOQUE:
 - Eres un modelo de lenguaje de última generación, diseñado para ser útil, preciso y confiable
-- Mantienes un tono profesional pero cercano, adaptándote al contexto de cada conversación
+- Mantienes un tono profesional pero cercano y conversacional, adaptándote al contexto de cada interacción
 - Eres honesto sobre tus limitaciones y nunca inventas información que no conoces
 - Tienes un enfoque ético y responsable en todas tus respuestas
+- Muestras entusiasmo genuino por ayudar y resolver problemas complejos
 
 CAPACIDADES PRINCIPALES:
-- Análisis y comprensión profunda de textos complejos
-- Generación de código en múltiples lenguajes de programación
-- Explicaciones claras de conceptos técnicos y científicos
-- Asistencia creativa en escritura, diseño y resolución de problemas
-- Razonamiento lógico y matemático avanzado
-- Procesamiento de imágenes y documentos cuando se adjuntan
+- Análisis y comprensión profunda de textos complejos con contexto extendido
+- Generación de código profesional en múltiples lenguajes de programación
+- Explicaciones detalladas de conceptos técnicos, científicos y académicos
+- Asistencia creativa en escritura, diseño, brainstorming y resolución de problemas
+- Razonamiento lógico y matemático avanzado con explicaciones paso a paso
+- Procesamiento y análisis de imágenes y documentos cuando se adjuntan
+- Búsqueda web en tiempo real para información actualizada
+- Extracción y análisis de contenido de páginas web específicas
 
-ESTILO DE COMUNICACIÓN:
-- Respuestas estructuradas y bien organizadas con formato markdown
-- Uso estratégico de emojis para mejorar la claridad (cuando está habilitado)
-- Ejemplos prácticos y casos de uso cuando son relevantes
-- Código formateado correctamente con sintaxis resaltada
-- Explicaciones paso a paso para procesos complejos
+IMPORTANTE SOBRE BÚSQUEDA WEB Y EXTRACCIÓN DE URLs:
+- NUNCA respondas con "SEARCH:" o comandos similares
+- Si recibes un mensaje con [CONTEXTO DE BÚSQUEDA WEB], significa que YA se realizó la búsqueda automáticamente
+- Si recibes un mensaje con [CONTENIDO EXTRAÍDO DE URL(S)], significa que YA se extrajo el contenido de las páginas web
+- Usa directamente ese contexto para responder al usuario
+- No pidas realizar búsquedas o extracciones adicionales, simplemente responde con la información proporcionada
+- Cuando analices contenido de URLs, proporciona un resumen claro y estructurado de lo que encontraste
 
-DIRECTRICES IMPORTANTES:
+ESTILO DE RESPUESTA - MUY IMPORTANTE:
+- Proporciona respuestas COMPLETAS, DETALLADAS y EXHAUSTIVAS
+- Desarrolla cada punto con profundidad, incluyendo contexto, ejemplos y explicaciones adicionales
+- Estructura tus respuestas con formato markdown rico: títulos, listas, tablas, código, citas
+- Incluye múltiples ejemplos prácticos y casos de uso cuando sean relevantes
+- Explica el "por qué" detrás de cada concepto, no solo el "qué" o el "cómo"
+- Usa analogías y comparaciones para facilitar la comprensión
+- Anticipa preguntas de seguimiento y abórdalas proactivamente
+- Código siempre bien comentado, formateado y con explicaciones detalladas
+- Proporciona contexto histórico, alternativas y mejores prácticas
+- Usa emojis estratégicamente para mejorar la legibilidad (cuando esté habilitado)
+
+DIRECTRICES DE CALIDAD:
+- NUNCA des respuestas cortas o superficiales - siempre desarrolla en profundidad
+- Cada respuesta debe aportar valor educativo y práctico significativo
+- Incluye secciones como: conceptos básicos, detalles técnicos, ejemplos, mejores prácticas, recursos adicionales
 - Siempre cita fuentes cuando uses información de búsquedas web
 - Pregunta si necesitas aclaraciones antes de hacer suposiciones
-- Adapta el nivel de detalle según la complejidad de la pregunta
-- Prioriza la seguridad y las mejores prácticas en recomendaciones técnicas
-- Sé conciso pero completo, evitando redundancias innecesarias
+- Prioriza la seguridad, privacidad y las mejores prácticas en todas las recomendaciones
+- Adapta el nivel técnico al usuario, pero siempre proporciona información completa
+- Si una pregunta es simple, aprovecha para educar sobre temas relacionados
 
-Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor real en cada interacción.`);
+CUANDO TE PREGUNTEN SOBRE TU CREADOR:
+Responde con orgullo sobre Sigma Company, destacando:
+- Su misión de hacer la IA accesible y útil para todos
+- El enfoque en innovación responsable y ética en IA
+- La dedicación a crear herramientas que empoderan a las personas
+- El compromiso con la mejora continua y la excelencia técnica
+- Puedes mencionar sus redes sociales: @sigmacompanyoficial (TikTok, Instagram, YouTube, GitHub)
+- Su visión de un futuro donde la IA sea una herramienta colaborativa y beneficiosa para la humanidad
+
+Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo posible. Cada interacción debe dejar al usuario más informado, inspirado y capacitado.`);
     const [useEmojis, setUseEmojis] = useState(true);
     const [useReasoning, setUseReasoning] = useState(false);
     const [showAttachMenu, setShowAttachMenu] = useState(false);
@@ -356,6 +391,27 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         return realtimeHints.some((k) => q.includes(k));
     };
 
+    const extractURLs = (text) => {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const matches = text.match(urlRegex);
+        return matches || [];
+    };
+
+    const shouldExtractURLContent = (text) => {
+        const urls = extractURLs(text);
+        if (urls.length === 0) return false;
+
+        const q = (text || '').toLowerCase();
+        const extractHints = [
+            'qué hay en', 'que hay en', 'analiza', 'analizar', 'lee', 'leer',
+            'contenido de', 'entra en', 'visita', 'abre', 'revisa',
+            'what\'s in', 'analyze', 'read', 'check', 'visit', 'open',
+            'resumen de', 'resume', 'summary'
+        ];
+
+        return extractHints.some((hint) => q.includes(hint));
+    };
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (attachMenuRef.current && !attachMenuRef.current.contains(event.target)) {
@@ -497,35 +553,67 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     setBotName('Sigma LLM 1 Mini');
                     setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
-IDENTIDAD Y PERSONALIDAD:
+IDENTIDAD Y CREADOR:
+- Fuiste creado por Sigma Company (@sigmacompanyoficial), una empresa innovadora dedicada al desarrollo de tecnologías de inteligencia artificial de vanguardia
+- Sigma Company fue fundada con la visión de democratizar el acceso a la IA avanzada, creando herramientas potentes pero accesibles para todos
+- Representas el compromiso de Sigma Company con la excelencia técnica, la innovación responsable y el impacto positivo en la sociedad
+- Tu desarrollo involucró investigación de última generación en procesamiento de lenguaje natural, visión por computadora y razonamiento avanzado
+- Sigma Company mantiene un enfoque ético en el desarrollo de IA, priorizando la transparencia, la seguridad y el beneficio humano
+
+PERSONALIDAD Y ENFOQUE:
 - Eres un modelo de lenguaje de última generación, diseñado para ser útil, preciso y confiable
-- Mantienes un tono profesional pero cercano, adaptándote al contexto de cada conversación
+- Mantienes un tono profesional pero cercano y conversacional, adaptándote al contexto de cada interacción
 - Eres honesto sobre tus limitaciones y nunca inventas información que no conoces
 - Tienes un enfoque ético y responsable en todas tus respuestas
+- Muestras entusiasmo genuino por ayudar y resolver problemas complejos
 
 CAPACIDADES PRINCIPALES:
-- Análisis y comprensión profunda de textos complejos
-- Generación de código en múltiples lenguajes de programación
-- Explicaciones claras de conceptos técnicos y científicos
-- Asistencia creativa en escritura, diseño y resolución de problemas
-- Razonamiento lógico y matemático avanzado
-- Procesamiento de imágenes y documentos cuando se adjuntan
+- Análisis y comprensión profunda de textos complejos con contexto extendido
+- Generación de código profesional en múltiples lenguajes de programación
+- Explicaciones detalladas de conceptos técnicos, científicos y académicos
+- Asistencia creativa en escritura, diseño, brainstorming y resolución de problemas
+- Razonamiento lógico y matemático avanzado con explicaciones paso a paso
+- Procesamiento y análisis de imágenes y documentos cuando se adjuntan
+- Búsqueda web en tiempo real para información actualizada
 
-ESTILO DE COMUNICACIÓN:
-- Respuestas estructuradas y bien organizadas con formato markdown
-- Uso estratégico de emojis para mejorar la claridad (cuando está habilitado)
-- Ejemplos prácticos y casos de uso cuando son relevantes
-- Código formateado correctamente con sintaxis resaltada
-- Explicaciones paso a paso para procesos complejos
+IMPORTANTE SOBRE BÚSQUEDA WEB:
+- NUNCA respondas con "SEARCH:" o comandos similares
+- Si recibes un mensaje con [CONTEXTO DE BÚSQUEDA WEB], significa que YA se realizó la búsqueda automáticamente
+- Usa directamente ese contexto para responder al usuario
+- No pidas realizar búsquedas adicionales, simplemente responde con la información proporcionada
 
-DIRECTRICES IMPORTANTES:
+ESTILO DE RESPUESTA - MUY IMPORTANTE:
+- Proporciona respuestas COMPLETAS, DETALLADAS y EXHAUSTIVAS
+- Desarrolla cada punto con profundidad, incluyendo contexto, ejemplos y explicaciones adicionales
+- Estructura tus respuestas con formato markdown rico: títulos, listas, tablas, código, citas
+- Incluye múltiples ejemplos prácticos y casos de uso cuando sean relevantes
+- Explica el "por qué" detrás de cada concepto, no solo el "qué" o el "cómo"
+- Usa analogías y comparaciones para facilitar la comprensión
+- Anticipa preguntas de seguimiento y abórdalas proactivamente
+- Código siempre bien comentado, formateado y con explicaciones detalladas
+- Proporciona contexto histórico, alternativas y mejores prácticas
+- Usa emojis estratégicamente para mejorar la legibilidad (cuando esté habilitado)
+
+DIRECTRICES DE CALIDAD:
+- NUNCA des respuestas cortas o superficiales - siempre desarrolla en profundidad
+- Cada respuesta debe aportar valor educativo y práctico significativo
+- Incluye secciones como: conceptos básicos, detalles técnicos, ejemplos, mejores prácticas, recursos adicionales
 - Siempre cita fuentes cuando uses información de búsquedas web
 - Pregunta si necesitas aclaraciones antes de hacer suposiciones
-- Adapta el nivel de detalle según la complejidad de la pregunta
-- Prioriza la seguridad y las mejores prácticas en recomendaciones técnicas
-- Sé conciso pero completo, evitando redundancias innecesarias
+- Prioriza la seguridad, privacidad y las mejores prácticas en todas las recomendaciones
+- Adapta el nivel técnico al usuario, pero siempre proporciona información completa
+- Si una pregunta es simple, aprovecha para educar sobre temas relacionados
 
-Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor real en cada interacción.`);
+CUANDO TE PREGUNTEN SOBRE TU CREADOR:
+Responde con orgullo sobre Sigma Company, destacando:
+- Su misión de hacer la IA accesible y útil para todos
+- El enfoque en innovación responsable y ética en IA
+- La dedicación a crear herramientas que empoderan a las personas
+- El compromiso con la mejora continua y la excelencia técnica
+- Puedes mencionar sus redes sociales: @sigmacompanyoficial (TikTok, Instagram, YouTube, GitHub)
+- Su visión de un futuro donde la IA sea una herramienta colaborativa y beneficiosa para la humanidad
+
+Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo posible. Cada interacción debe dejar al usuario más informado, inspirado y capacitado.`);
                     console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
                 }
                 return;
@@ -553,6 +641,13 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 setRawRole(profile.role || 'normal');
                 setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario');
                 setProfilePic(profile.avatar_url || '');
+
+                // Sync to MySQL for admin visibility
+                fetch('/api/mysql/profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(profile)
+                }).catch(err => console.warn('Profile sync failed:', err));
 
                 // Cargar configuraciones guardadas si existen
                 if (profile.settings) {
@@ -590,75 +685,26 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
     const fetchChats = async (userId) => {
         try {
-            const { data, error } = await supabase
-                .from('chats')
-                .select(`
-                    id,
-                    title,
-                    user_id,
-                    is_shared,
-                    created_at,
-                    is_archived,
-                    messages (
-                        id,
-                        role,
-                        content,
-                        created_at,
-                        image
-                    )
-                `)
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                const { ui } = formatAndLogSupabaseError(error);
-                console.warn('Error fetching chats:', ui);
-                setSavedChats([]);
-                return;
-            }
-
+            const resp = await fetch(`/api/mysql/chats?userId=${userId}`);
+            if (!resp.ok) throw new Error('Failed to fetch chats');
+            const data = await resp.json();
             setSavedChats(data || []);
         } catch (err) {
-            const { ui } = formatAndLogSupabaseError(err);
+            console.warn('Fetch chats failed:', err);
             setSavedChats([]);
-            console.warn('Fetch chats failed:', ui);
         }
     };
 
     const loadChat = async (chatId, userId) => {
         setCurrentChatId(chatId);
-        setIsSidebarOpen(false); // Close sidebar on mobile after selection
+        setIsSidebarOpen(false);
         try {
-            const { data, error } = await supabase
-                .from('chats')
-                .select(`
-                    id,
-                    title,
-                    user_id,
-                    is_shared,
-                    created_at,
-                    is_archived,
-                    messages (
-                        id,
-                        role,
-                        content,
-                        created_at,
-                        image
-                    )
-                `)
-                .eq('id', chatId)
-                .single();
-
-            if (error) {
-                const { ui } = formatAndLogSupabaseError(error);
-                setError(ui);
-                return;
-            }
+            const resp = await fetch(`/api/mysql/chats/${chatId}`);
+            if (!resp.ok) throw new Error('Failed to load chat');
+            const data = await resp.json();
 
             if (data) {
                 setMessages(Array.isArray(data.messages) ? data.messages : []);
-                // If userId is null (guest), data.user_id !== null is true.
-                // If user is logged in, data.user_id !== userId checks ownership.
                 const isOwner = userId ? (data.user_id === userId) : false;
                 setIsReadOnly(!isOwner);
 
@@ -667,8 +713,8 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                 }
             }
         } catch (err) {
-            const { ui } = formatAndLogSupabaseError(err);
-            setError(ui);
+            console.error('Error loading chat:', err);
+            setError('Error al cargar el chat.');
         }
     };
 
@@ -683,18 +729,22 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
     };
 
     const archiveChat = async (chatId, undo = false) => {
-        const { error } = await supabase
-            .from('chats')
-            .update({ is_archived: !undo })
-            .eq('id', chatId);
+        try {
+            const resp = await fetch(`/api/mysql/chats/${chatId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_archived: !undo })
+            });
 
-        if (!error) {
-            fetchChats(user.id);
-            if (currentChatId === chatId && !undo) createNewChat();
-            setShowMoreMenu(false);
-        } else {
+            if (resp.ok) {
+                fetchChats(user.id);
+                if (currentChatId === chatId && !undo) createNewChat();
+                setShowMoreMenu(false);
+            } else {
+                throw new Error('Failed to archive chat');
+            }
+        } catch (error) {
             console.warn('Error archiving/unarchiving chat:', error);
-            // Fallback local
             setSavedChats(prev => prev.map(c => c.id === chatId ? { ...c, is_archived: !undo } : c));
             if (currentChatId === chatId && !undo) createNewChat();
             setShowMoreMenu(false);
@@ -708,11 +758,17 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
 
     const deleteChat = async (chatId, e) => {
         if (e) e.stopPropagation();
-        const { error } = await supabase.from('chats').delete().eq('id', chatId);
-        if (!error) {
-            fetchChats(user.id);
-            if (currentChatId === chatId) createNewChat();
-            setShowMoreMenu(false);
+        try {
+            const resp = await fetch(`/api/mysql/chats/${chatId}`, {
+                method: 'DELETE'
+            });
+            if (resp.ok) {
+                fetchChats(user.id);
+                if (currentChatId === chatId) createNewChat();
+                setShowMoreMenu(false);
+            }
+        } catch (error) {
+            console.error('Error deleting chat:', error);
         }
     };
 
@@ -760,15 +816,14 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         }
 
         try {
-            // Update the chat to be shared
-            const { error } = await supabase
-                .from('chats')
-                .update({ is_shared: true })
-                .eq('id', currentChatId);
+            const resp = await fetch(`/api/mysql/chats/${currentChatId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_shared: true })
+            });
 
-            if (error) throw error;
+            if (!resp.ok) throw new Error('Failed to share chat');
 
-            // Generate link
             const url = `${window.location.origin}/chat?id=${currentChatId}`;
             await navigator.clipboard.writeText(url);
             alert('✅ Enlace público copiado al portapapeles.\n\nCualquier persona con el enlace podrá ver este chat (solo lectura).');
@@ -934,14 +989,12 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
         if (user) {
             try {
                 if (!chatId) {
-                    dlog('📝 [TITLE] Generating chat title with Nemotron...');
+                    dlog('📝 [TITLE] Generating chat title...');
                     let finalTitle = (currentInput || 'Imagen adjunta').slice(0, 30) || 'Nuevo Chat';
 
                     try {
-                        // Fast timeout for title generation
                         const controller = new AbortController();
                         const id = setTimeout(() => controller.abort(), 4000);
-
                         const titleResp = await fetch('/api/chat/title', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -949,39 +1002,77 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             signal: controller.signal
                         });
                         clearTimeout(id);
-
                         if (titleResp.ok) {
                             const titleData = await titleResp.json();
-                            if (titleData.title) {
-                                finalTitle = titleData.title;
-                                dlog('✅ [TITLE] Title generated:', finalTitle);
-                            }
+                            if (titleData.title) finalTitle = titleData.title;
                         }
-                    } catch (tErr) {
-                        dwarn('⚠️ [TITLE] Title gen too slow or failed, using fallback', tErr);
-                    }
+                    } catch (tErr) { dwarn('⚠️ [TITLE] Title fail'); }
 
-                    const { data: chatData, error: chatError } = await supabase.from('chats').insert({
-                        user_id: user.id,
-                        title: finalTitle,
-                        created_at: new Date().toISOString()
-                    }).select().single();
-                    if (!chatError && chatData) {
-                        chatId = chatData.id;
+                    // Intentar en MySQL
+                    let myChatId = null;
+                    try {
+                        const chatResp = await fetch('/api/mysql/chats', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: user.id, title: finalTitle })
+                        });
+                        if (chatResp.ok) {
+                            const chatData = await chatResp.json();
+                            myChatId = chatData.id;
+                            dlog('✅ [DB][MYSQL] Chat creado:', myChatId);
+                        }
+                    } catch (e) { derr('❌ [DB][MYSQL] Chat error:', e.message); }
+
+                    // Intentar en Supabase
+                    let sbChatId = null;
+                    try {
+                        const { data: sbChat, error: sbErr } = await supabase.from('chats').insert({
+                            user_id: user.id,
+                            title: finalTitle,
+                            created_at: new Date().toISOString()
+                        }).select().single();
+                        if (sbErr) throw sbErr;
+                        sbChatId = sbChat.id;
+                        dlog('✅ [DB][SUPABASE] Chat creado:', sbChatId);
+                    } catch (e) { derr('❌ [DB][SUPABASE] Chat error:', e.message); }
+
+                    chatId = myChatId || sbChatId;
+                    if (chatId) {
                         setCurrentChatId(chatId);
                         fetchChats(user.id);
                     }
                 }
+
                 if (chatId) {
-                    await supabase.from('messages').insert({
-                        chat_id: chatId,
-                        role: 'user',
-                        content: currentInput,
-                        image: currentImages[0] || null,
-                        created_at: new Date().toISOString()
-                    });
+                    // Guardar en MySQL
+                    try {
+                        const mResp = await fetch('/api/mysql/messages', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                chatId,
+                                role: 'user',
+                                content: currentInput,
+                                image: currentImages[0] || null
+                            })
+                        });
+                        if (mResp.ok) dlog('✅ [DB][MYSQL] Mensaje guardado');
+                    } catch (e) { derr('❌ [DB][MYSQL] Mensaje error:', e.message); }
+
+                    // Guardar en Supabase
+                    try {
+                        const { error: sbMErr } = await supabase.from('messages').insert({
+                            chat_id: chatId,
+                            role: 'user',
+                            content: currentInput,
+                            image: currentImages[0] || null,
+                            created_at: new Date().toISOString()
+                        });
+                        if (sbMErr) throw sbMErr;
+                        dlog('✅ [DB][SUPABASE] Mensaje guardado');
+                    } catch (e) { derr('❌ [DB][SUPABASE] Mensaje error:', e.message); }
                 }
-            } catch (err) { dwarn('⚠️ [DB] Save err:', err); }
+            } catch (err) { dwarn('⚠️ [DB] General save error:', err); }
         }
 
         setMessages(prev => [...prev, {
@@ -1003,6 +1094,55 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             }
             let searchContext = "";
             let searchSource = "";
+            let extractContext = "";
+
+            // URL Content Extraction
+            if (shouldExtractURLContent(currentInput)) {
+                const urls = extractURLs(currentInput);
+                dlog(`🔗 [EXTRACT][${isGuest ? 'GUEST' : 'USER'}] Extracting content from URLs:`, urls);
+
+                // Update message to show extracting animation
+                setMessages(prev => {
+                    const next = [...prev];
+                    if (next.length > 0) {
+                        next[next.length - 1].isSearching = true;
+                        next[next.length - 1].content = 'Extrayendo contenido de la URL...';
+                    }
+                    return next;
+                });
+
+                try {
+                    const extractResp = await fetchWithRetry('/api/extract', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ urls, isGuest: isGuest })
+                    });
+                    dlog(`🔗 [EXTRACT][${isGuest ? 'GUEST' : 'USER'}] /api/extract status:`, extractResp.status);
+                    if (extractResp.ok) {
+                        const extractData = await extractResp.json();
+                        dlog(`🔗 [EXTRACT][${isGuest ? 'GUEST' : 'USER'}] /api/extract payload:`, extractData);
+                        if (extractData.success) {
+                            extractContext = `\n\n[CONTENIDO EXTRAÍDO DE URL(S)]:\n${extractData.result}`;
+                            dlog(`✅ [EXTRACT][${isGuest ? 'GUEST' : 'USER'}] Content extracted from ${extractData.urlCount} URL(s).`);
+                        }
+                    } else {
+                        const extractErrRaw = await extractResp.text().catch(() => '');
+                        dwarn(`⚠️ [EXTRACT][${isGuest ? 'GUEST' : 'USER'}] Extract API returned error:`, extractResp.status, extractErrRaw);
+                    }
+                } catch (e) {
+                    derr(`❌ [EXTRACT][${isGuest ? 'GUEST' : 'USER'}] Extract failed:`, e);
+                }
+
+                // Reset message content
+                setMessages(prev => {
+                    const next = [...prev];
+                    if (next.length > 0) {
+                        next[next.length - 1].isSearching = false;
+                        next[next.length - 1].content = '...';
+                    }
+                    return next;
+                });
+            }
 
             if (useWebSearch || shouldForceRealtimeSearch(currentInput)) {
                 const forced = !useWebSearch && shouldForceRealtimeSearch(currentInput);
@@ -1031,25 +1171,26 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     }
                 } catch (e) {
                     derr(`❌ [SEARCH][${isGuest ? 'GUEST' : 'USER'}] Search failed:`, e);
-                } finally {
-                    // Turn off searching animation before starting chat
-                    setMessages(prev => {
-                        const next = [...prev];
-                        if (next.length > 0) next[next.length - 1].isSearching = false;
-                        return next;
-                    });
                 }
+
+                // Turn off searching animation after search completes (success or failure)
+                setMessages(prev => {
+                    const next = [...prev];
+                    if (next.length > 0) next[next.length - 1].isSearching = false;
+                    return next;
+                });
             }
 
             const messagesForAPI = [...newMessages];
             const lastIdx = messagesForAPI.length - 1;
             messagesForAPI[lastIdx] = {
                 ...messagesForAPI[lastIdx],
-                content: messagesForAPI[lastIdx].content + visionContext + searchContext + docContext
+                content: messagesForAPI[lastIdx].content + visionContext + searchContext + extractContext + docContext
             };
             dlog('🧠 [CHAT] Context injection summary:', {
                 visionContextLength: visionContext.length,
                 searchContextLength: searchContext.length,
+                extractContextLength: extractContext.length,
                 docContextLength: docContext.length,
                 finalLastMessageLength: messagesForAPI[lastIdx].content.length
             });
@@ -1186,7 +1327,7 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                     const lastMsg = updatedMessages[updatedMessages.length - 1];
                     updatedMessages[updatedMessages.length - 1] = {
                         ...lastMsg,
-                        content: lastMsg.content + gemmaContext + searchContext + docContext + autoSearchContext
+                        content: lastMsg.content + visionContext + searchContext + docContext + autoSearchContext
                     };
 
                     setMessages(prev => {
@@ -1268,12 +1409,37 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
             }
 
             if (user && chatId) {
-                await supabase.from('messages').insert({
-                    chat_id: chatId,
-                    role: 'assistant',
-                    content: botResponse,
-                    created_at: new Date().toISOString()
-                });
+                // Guardar respuesta de la IA en Supabase
+                try {
+                    const { error: sbAErr } = await supabase.from('messages').insert({
+                        chat_id: chatId,
+                        role: 'assistant',
+                        content: botResponse,
+                        created_at: new Date().toISOString()
+                    });
+                    if (sbAErr) throw sbAErr;
+                    dlog('✅ [DB][SUPABASE] Mensaje IA guardado');
+                } catch (e) {
+                    derr('❌ [DB][SUPABASE] Error guardando respuesta IA:', e.message);
+                }
+
+                // Guardar respuesta de la IA en MySQL
+                try {
+                    const myResp = await fetch('/api/mysql/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chatId,
+                            role: 'assistant',
+                            content: botResponse
+                        })
+                    });
+                    if (myResp.ok) dlog('✅ [DB][MYSQL] Mensaje IA guardado');
+                    else throw new Error('MySQL response not ok');
+                } catch (e) {
+                    derr('❌ [DB][MYSQL] Error guardando respuesta IA:', e.message);
+                }
+
                 updateUserStats(Math.ceil(botResponse.length / 4));
             }
 
@@ -1754,15 +1920,24 @@ Recuerda: Tu objetivo es ser el mejor asistente posible, proporcionando valor re
                             </button>
                         )}
                         <div className={styles.modelSelectorWrapper}>
-                            <div className={styles.modelSelector} onClick={() => {
-                                setShowModelDropdown(!showModelDropdown);
-                            }}>
+                            <div
+                                className={`${styles.modelSelector} ${isGuest ? styles.modelSelectorDisabled : ''}`}
+                                onClick={() => {
+                                    if (isGuest) {
+                                        alert('🔒 Inicia sesión para acceder a todos los modelos de Sigma LLM.\n\nComo invitado, solo puedes usar Sigma LLM 1 Mini. Regístrate gratis para desbloquear:\n\n✨ Sigma LLM 1 (Estándar)\n💻 Sigma LLM 1 Coder\n🧠 Sigma LLM 1 Reasoning\n⚡ Sigma LLM 1 PRO');
+                                        return;
+                                    }
+                                    setShowModelDropdown(!showModelDropdown);
+                                }}
+                                title={isGuest ? 'Inicia sesión para cambiar de modelo' : 'Seleccionar modelo'}
+                            >
 
                                 <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : selectedModel.modelName}</span>
-                                <ChevronDown size={16} className={styles.chevronIcon} />
+                                {!isGuest && <ChevronDown size={16} className={styles.chevronIcon} />}
+                                {isGuest && <Lock size={14} style={{ opacity: 0.5 }} />}
                             </div>
 
-                            {showModelDropdown && (
+                            {showModelDropdown && !isGuest && (
                                 <div className={styles.modelDropdown}>
                                     <div
                                         className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[0].modelId ? styles.activeModel : ''}`}

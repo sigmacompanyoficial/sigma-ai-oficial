@@ -446,11 +446,20 @@
     font-size: 1.1rem;
     color: #ececf1;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
 }
 
 .modelSelector:hover {
     background-color: rgba(255, 255, 255, 0.05);
+}
+
+.modelSelectorDisabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.modelSelectorDisabled:hover {
+    background-color: transparent;
 }
 
 .chevronIcon {
