@@ -1,5 +1,5 @@
 /**
- * Cliente: Envía archivo al servidor para extracción
+ * Cliente: Envía archivo al servidor para extracción de texto
  */
 export async function uploadAndExtractFile(file) {
   console.log('[FILE_PARSER] Starting extraction:', {
@@ -19,9 +19,13 @@ export async function uploadAndExtractFile(file) {
   console.log('[FILE_PARSER] Parse response status:', response.status, 'for', file?.name);
 
   if (!response.ok) {
-    const error = await response.json();
-    console.error('[FILE_PARSER] Parse failed:', error);
-    throw new Error(error.error || 'Error al procesar el archivo');
+    let errorMsg = 'Error al procesar el archivo';
+    try {
+      const error = await response.json();
+      errorMsg = error.error || errorMsg;
+    } catch { }
+    console.error('[FILE_PARSER] Parse failed:', errorMsg);
+    throw new Error(errorMsg);
   }
 
   const result = await response.json();
@@ -33,36 +37,65 @@ export async function uploadAndExtractFile(file) {
 }
 
 /**
- * PDF Vision: Convierte PDF a imagen y lo analiza con un modelo multimodal
+ * PDF: Analiza un PDF usando extracción de texto + IA (principal)
+ * Con fallback a visión si el PDF es escaneado
  */
 export async function uploadAndVisionPDF(file, prompt = "Resume este documento detalladamente y extrae los puntos clave.") {
-  console.log('[FILE_PARSER] Starting PDF Vision:', {
+  console.log('[FILE_PARSER] Starting PDF analysis:', {
     name: file?.name,
     type: file?.type,
     size: file?.size,
   });
 
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error('El PDF es demasiado grande. Por favor, usa archivos de menos de 20MB.');
+  }
+
   const formData = new FormData();
   formData.append('file', file);
   formData.append('prompt', prompt);
-  // Podemos pasar el modelo aquí si quisiéramos externalizarlo
 
-  const response = await fetch('/api/pdf-vision', {
-    method: 'POST',
-    body: formData,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
 
-  console.log('[FILE_PARSER] PDF Vision response status:', response.status);
+  try {
+    const response = await fetch('/api/pdf-vision', {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    const error = await response.json();
-    console.error('[FILE_PARSER] PDF Vision failed:', error);
-    throw new Error(error.error || 'Error al analizar el PDF con visión');
+    clearTimeout(timeoutId);
+    console.log('[FILE_PARSER] PDF analysis response status:', response.status);
+
+    if (!response.ok) {
+      let errorMsg = 'Error al analizar el PDF';
+      try {
+        const error = await response.json();
+        errorMsg = error.error || errorMsg;
+      } catch { }
+      console.error('[FILE_PARSER] PDF analysis failed:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const result = await response.json();
+    const method = result.method || 'unknown';
+    const pages = result.pages ? ` (${result.pages} páginas)` : '';
+    console.log(`[FILE_PARSER] PDF analysis completed via ${method}${pages}`);
+
+    // Añadir contexto sobre el método usado
+    const methodLabel = method === 'vision'
+      ? '[ANÁLISIS VISUAL DEL PDF]'
+      : method === 'text-fallback'
+        ? '[TEXTO EXTRAÍDO DEL PDF]'
+        : '[ANÁLISIS DEL PDF]';
+
+    return `${methodLabel}:\n${result.result}`;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('El análisis del PDF tardó demasiado. Intenta con un PDF más pequeño.');
+    }
+    throw err;
   }
-
-  const result = await response.json();
-  console.log('[FILE_PARSER] PDF Vision completed for', file?.name);
-
-  // Devolvemos el resultado del análisis visual como "contenido" del documento
-  return `[ANÁLISIS VISUAL DEL PDF]:\n${result.result}`;
 }
