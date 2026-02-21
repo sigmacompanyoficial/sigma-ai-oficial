@@ -60,7 +60,7 @@ export const metadata = {
     },
   },
   verification: {
-    google: 'tu-codigo-de-verificacion-aqui',
+    google: '2jHpnfOH-dy0mc6c6VkefIaXKW1YkmFfvC5kVyKylMs',
   },
 };
 
