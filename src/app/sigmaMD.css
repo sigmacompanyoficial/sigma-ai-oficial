@@ -1,0 +1,279 @@
+/* sigma Markdown CSS - Compact & Professional Dark Theme */
+:root {
+    --sigma-text-primary: #cbd5e1;
+    --sigma-text-secondary: #94a3b8;
+    --sigma-bg: #0f172a;
+    --sigma-code-bg: #1e293b;
+    --sigma-pre-bg: #1e293b;
+    --sigma-table-border: #334155;
+    --sigma-table-stripe: #1e293b;
+    --sigma-table-hover: #334155;
+    --sigma-border: #334155;
+    --sigma-accent: #38bdf8;
+    --sigma-link: #38bdf8;
+    --sigma-font-code: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sigma-font-base: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    /* Alert Colors */
+    --alert-note-bg: rgba(56, 189, 248, 0.1);
+    --alert-note-border: #38bdf8;
+    --alert-tip-bg: rgba(34, 197, 94, 0.1);
+    --alert-tip-border: #22c55e;
+    --alert-warn-bg: rgba(234, 179, 8, 0.1);
+    --alert-warn-border: #eab308;
+    --alert-error-bg: rgba(239, 68, 68, 0.1);
+    --alert-error-border: #ef4444;
+}
+
+.sigma-markdown-container {
+    font-family: var(--sigma-font-base);
+    color: var(--sigma-text-primary);
+    line-height: 1.5;
+    font-size: 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+/* Headings */
+.sigma-h1,
+.sigma-h2,
+.sigma-h3,
+.sigma-h4,
+.sigma-h5,
+.sigma-h6 {
+    margin-top: 0.8rem;
+    margin-bottom: 0.4rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #f8fafc;
+}
+
+.sigma-h1 {
+    font-size: 1.8rem;
+    border-bottom: 1px solid var(--sigma-border);
+    padding-bottom: 0.3rem;
+    margin-top: 1rem;
+}
+
+.sigma-h2 {
+    font-size: 1.5rem;
+    border-bottom: 1px solid var(--sigma-border);
+    padding-bottom: 0.3rem;
+    margin-top: 1.1rem;
+}
+
+.sigma-h3 {
+    font-size: 1.25rem;
+    margin-top: 1rem;
+}
+
+.sigma-h4 {
+    font-size: 1.1rem;
+    margin-top: 0.8rem;
+}
+
+/* Paragraphs */
+.sigma-p {
+    margin-bottom: 0.4rem;
+}
+
+.sigma-link {
+    color: var(--sigma-link);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.sigma-link:hover {
+    color: #7dd3fc;
+}
+
+/* Lists */
+.sigma-ul,
+.sigma-ol {
+    margin-bottom: 0.5rem;
+    padding-left: 1.2rem;
+}
+
+.sigma-li {
+    margin-bottom: 0.2rem;
+}
+
+.sigma-ul {
+    list-style-type: disc;
+}
+
+.sigma-ol {
+    list-style-type: decimal;
+}
+
+/* Blockquotes & Alerts */
+.sigma-blockquote {
+    border-left: 3px solid var(--sigma-border);
+    padding: 0.5rem 0.5rem 0.5rem 1rem;
+    margin: 0.75rem 0;
+    font-style: italic;
+    color: var(--sigma-text-secondary);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0 6px 6px 0;
+}
+
+.sigma-alert {
+    display: flex;
+    align-items: flex-start;
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    border-left: 3px solid var(--sigma-border);
+    border-radius: 0 6px 6px 0;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.sigma-alert-note {
+    border-color: var(--alert-note-border);
+    background: var(--alert-note-bg);
+}
+
+.sigma-alert-tip {
+    border-color: var(--alert-tip-border);
+    background: var(--alert-tip-bg);
+}
+
+.sigma-alert-warning {
+    border-color: var(--alert-warn-border);
+    background: var(--alert-warn-bg);
+}
+
+.sigma-alert-error,
+.sigma-alert-caution {
+    border-color: var(--alert-error-border);
+    background: var(--alert-error-bg);
+}
+
+.sigma-alert-icon {
+    margin-right: 0.5rem;
+    height: 1.25rem;
+    display: flex;
+    align-items: center;
+}
+
+.sigma-alert-title {
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+    font-size: 0.9rem;
+    color: #fff;
+}
+
+/* Images */
+.sigma-image-wrapper {
+    margin: 1rem 0;
+    text-align: center;
+}
+
+.sigma-image {
+    max-width: 100%;
+    border-radius: 8px;
+}
+
+.sigma-image-caption {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--sigma-text-secondary);
+    margin-top: 0.25rem;
+}
+
+/* Horizontal Rule */
+.sigma-hr {
+    border: 0;
+    border-top: 1px solid var(--sigma-border);
+    margin: 1.5rem 0;
+}
+
+/* Code Blocks */
+.sigma-inline-code {
+    font-family: var(--sigma-font-code);
+    font-size: 0.85em;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.15em 0.3em;
+    border-radius: 4px;
+    color: #fcd34d;
+}
+
+.sigma-code-block-wrapper {
+    margin: 0.75rem 0;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--sigma-border);
+    background: var(--sigma-code-bg);
+}
+
+.sigma-code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0.8rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--sigma-border);
+}
+
+.sigma-code-lang {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--sigma-text-secondary);
+    font-family: var(--sigma-font-code);
+}
+
+.sigma-copy-btn {
+    background: transparent;
+    border: none;
+    color: var(--sigma-text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+}
+
+.sigma-pre {
+    margin: 0;
+    padding: 0.8rem;
+    overflow-x: auto;
+    font-size: 0.9rem;
+    font-family: var(--sigma-font-code);
+    line-height: 1.5;
+}
+
+/* Tables */
+.sigma-table-wrapper {
+    overflow-x: auto;
+    margin: 0.5rem 0;
+    border-radius: 6px;
+    border: 1px solid var(--sigma-table-border);
+}
+
+.sigma-table {
+    width: 100%;
+    font-size: 0.9rem;
+}
+
+.sigma-th,
+.sigma-td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--sigma-table-border);
+}
+
+/* Math */
+.katex {
+    font-size: 1.05em;
+    color: #e2e8f0;
+}
+
+.katex-display {
+    background: rgba(255, 255, 255, 0.02);
+    padding: 0.5rem;
+    margin: 0.75rem 0;
+    border-radius: 6px;
+    border: 1px solid var(--sigma-border);
+    text-align: center;
+}

@@ -1,0 +1,219 @@
+import { NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
+import mammoth from 'mammoth';
+import * as XLSX from 'xlsx';
+import { load as cheerioLoad } from 'cheerio';
+import Tesseract from 'tesseract.js';
+
+export const runtime = 'nodejs';
+const MAX_EXTRACTED_CHARS = 100000;
+
+/**
+ * Extrae el texto de un archivo de forma modular
+ */
+async function extractFileText(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const buffer = fs.readFileSync(filePath);
+
+  try {
+    switch (ext) {
+      case '.pdf': {
+        // Intento 1: pdf-parse (rápido)
+        try {
+          const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
+          const data = await pdfParse(buffer);
+          if (data.text && data.text.trim().length > 100) {
+            return data.text;
+          }
+        } catch (e) {
+          console.warn('pdf-parse failed, checking alternatives...', e.message);
+        }
+
+        // Intento 2: pdfjs-dist (más robusto)
+        try {
+          const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+          const loadingTask = pdfjs.getDocument({
+            data: new Uint8Array(buffer),
+            useSystemFonts: true,
+            disableFontFace: true
+          });
+          const pdf = await loadingTask.promise;
+          let fullText = '';
+          const maxPages = Math.min(pdf.numPages, 100);
+          for (let i = 1; i <= maxPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            fullText += content.items.map(item => item.str).join(' ') + '\n';
+          }
+          if (fullText.trim().length > 10) return fullText;
+        } catch (e) {
+          console.error('pdfjs-dist failed:', e.message);
+        }
+
+        return "No se pudo extraer texto claro de este PDF. El archivo podría estar protegido o ser una imagen escaneada.";
+      }
+
+      case '.docx': {
+        const result = await mammoth.extractRawText({ path: filePath });
+        return result.value;
+      }
+
+      case '.xlsx':
+      case '.xls': {
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        let text = '';
+        workbook.SheetNames.forEach(sheetName => {
+          text += `\n=== Hoja: ${sheetName} ===\n`;
+          text += XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]) + '\n';
+        });
+        return text;
+      }
+
+      case '.zip': {
+        const { default: AdmZip } = await import('adm-zip');
+        const zip = new AdmZip(filePath);
+        const zipEntries = zip.getEntries();
+        let zipText = `--- Contenido del ZIP (${zipEntries.length} archivos) ---\n`;
+
+        // Solo extraemos texto de los primeros 15 archivos para no saturar
+        const entriesToProcess = zipEntries.slice(0, 15);
+        for (const entry of entriesToProcess) {
+          if (!entry.isDirectory) {
+            const entryName = entry.entryName;
+            const entryText = entry.getData().toString('utf8');
+            zipText += `\n[Archivo: ${entryName}]\n${entryText.slice(0, 5000)}${entryText.length > 5000 ? '...(truncado)' : ''}\n`;
+          }
+        }
+        return zipText;
+      }
+
+      case '.html':
+      case '.htm': {
+        const $ = cheerioLoad(buffer.toString('utf8'));
+        // Eliminar scripts y estilos para obtener solo texto limpio
+        $('script, style').remove();
+        return $('body').text() || $.text();
+      }
+
+      case '.txt':
+      case '.csv':
+      case '.js':
+      case '.jsx':
+      case '.ts':
+      case '.tsx':
+      case '.py':
+      case '.md':
+      case '.json':
+      case '.yaml':
+      case '.yml':
+      case '.xml':
+      case '.env':
+      case '.sql':
+      case '.c':
+      case '.cpp':
+      case '.java':
+      case '.go':
+      case '.rs':
+        return buffer.toString('utf8');
+
+      // Imágenes (OCR como fallback o por petición explícita)
+      case '.jpg':
+      case '.jpeg':
+      case '.png':
+      case '.webp':
+      case '.bmp': {
+        const { data: { text } } = await Tesseract.recognize(buffer, 'spa+eng');
+        return text;
+      }
+
+      default:
+        // Intentar leer como texto si es una extensión desconocida pero parece texto
+        try {
+          const content = buffer.toString('utf8');
+          if (!content.includes('\ufffd')) { // Si no tiene caracteres nulos/binarios obvios
+            return content;
+          }
+        } catch { }
+        throw new Error(`Extensión ${ext} no soportada`);
+    }
+  } catch (error) {
+    console.error(`Error procesando ${ext}:`, error);
+    throw new Error(`Error al analizar el archivo: ${error.message}`);
+  }
+}
+
+export async function POST(req) {
+  let tempPath = null;
+  try {
+    console.log('📄 [PARSE_API] New parse request');
+    const formData = await req.formData();
+    const file = formData.get('file');
+
+    if (!file) {
+      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    }
+    console.log('📄 [PARSE_API] File received:', { name: file.name, type: file.type, size: file.size });
+
+    // Permitir imágenes y documentos
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/svg+xml'];
+    const allowedDocTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/zip', 'application/x-zip-compressed',
+      'text/plain', 'text/html', 'application/json', 'text/csv'
+    ];
+
+    const isImage = file.type && allowedImageTypes.includes(file.type.toLowerCase());
+    const isDoc = file.type && allowedDocTypes.includes(file.type.toLowerCase());
+    const ext = path.extname(file.name || '').toLowerCase();
+
+    // Lista ampliada de extensiones permitidas
+    const allowedExt = [
+      '.jpg', '.jpeg', '.png', '.webp', '.bmp',
+      '.pdf', '.docx', '.xlsx', '.xls', '.zip',
+      '.txt', '.csv', '.json', '.html', '.htm',
+      '.js', '.jsx', '.ts', '.tsx', '.py', '.md',
+      '.xml', '.yaml', '.yml', '.env', '.sql',
+      '.c', '.cpp', '.java', '.go', '.rs'
+    ];
+
+    if (!isImage && !isDoc && !allowedExt.includes(ext)) {
+      console.warn('⚠️ [PARSE_API] Unsupported format:', { name: file.name, type: file.type, ext });
+      return NextResponse.json({ error: `Formato ${ext} no soportado` }, { status: 400 });
+    }
+
+    // Crear directorio tmp si no existe
+    const tmpDir = path.join(process.cwd(), 'tmp');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+
+    const uniqueName = `${Date.now()}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}-${file.name}`;
+    tempPath = path.join(tmpDir, uniqueName);
+
+    const arrayBuffer = await file.arrayBuffer();
+    fs.writeFileSync(tempPath, Buffer.from(arrayBuffer));
+
+    const text = await extractFileText(tempPath);
+    const normalizedText = (text || '').replace(/\u0000/g, '').replace(/\r\n/g, '\n').trim();
+    console.log('✅ [PARSE_API] Extraction done:', { name: file.name, extractedChars: normalizedText.length });
+
+    return NextResponse.json({ text: normalizedText.slice(0, MAX_EXTRACTED_CHARS) });
+
+  } catch (error) {
+    console.error('❌ [PARSE_API] File parsing error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  } finally {
+    if (tempPath && fs.existsSync(tempPath)) {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (cleanupErr) {
+        console.warn('No se pudo limpiar archivo temporal:', cleanupErr);
+      }
+    }
+  }
+}

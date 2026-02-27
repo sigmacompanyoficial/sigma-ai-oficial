@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth/
+Disallow: /chat/
+
+Sitemap: https://sigma-ai.com/sitemap.xml
