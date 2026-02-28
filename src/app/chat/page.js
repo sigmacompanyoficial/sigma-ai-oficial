@@ -115,6 +115,7 @@ export default function ChatPage() {
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [error, setError] = useState(null);
+    const [showSourcesMap, setShowSourcesMap] = useState({});
 
     // User Profile States
     const [userName, setUserName] = useState('Sigma User');
@@ -1116,6 +1117,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             }
             let searchContext = "";
             let searchSource = "";
+            let searchResultRaw = "";
             let extractContext = "";
 
             // URL Content Extraction
@@ -1185,6 +1187,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         if (searchData.success) {
                             searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}`;
                             searchSource = searchData.source || 'Tavily';
+                            searchResultRaw = searchData.result;
                             dlog(`✅ [SEARCH][${isGuest ? 'GUEST' : 'USER'}] Search results acquired.`);
                         }
                     } else {
@@ -1257,6 +1260,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     content: '',
                     timestamp: new Date().toISOString(),
                     source: searchSource,
+                    searchResults: searchResultRaw,
                     isSearching: false
                 };
                 return next;
@@ -1334,11 +1338,13 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
                     let autoSearchContext = "";
                     let autoSearchSource = "";
+                    let autoSearchResultRaw = "";
                     if (aSearchResp.ok) {
                         const aSearchData = await aSearchResp.json();
                         if (aSearchData.success) {
                             autoSearchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${aSearchData.result}`;
                             autoSearchSource = aSearchData.source || 'Tavily';
+                            autoSearchResultRaw = aSearchData.result;
                             dlog('✅ [AGENTIC SEARCH FALLBACK] Results received');
                         }
                     }
@@ -1376,7 +1382,8 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 content: '',
                                 timestamp: new Date().toISOString(),
                                 isSearching: false,
-                                source: autoSearchSource
+                                source: autoSearchSource,
+                                searchResults: autoSearchResultRaw
                             };
                         }
                         return next;
@@ -2128,7 +2135,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                     <div className={styles.analyzingPulse}></div>
                                                     <div className={styles.loaderTextBlock}>
                                                         <span className={styles.loaderTitle}>Analizando imagen</span>
-                                                        <span className={styles.loaderSubtitle}>Nemotron está examinando el contenido...</span>
+                                                        <span className={styles.loaderSubtitle}>Gemma está examinando el contenido...</span>
                                                     </div>
                                                 </div>
                                             ) : msg.content === '...' && !msg.isSearching ? (
@@ -2147,8 +2154,29 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                 <>
                                                     {renderMessage(msg.content, idx)}
                                                     {msg.source && (
-                                                        <div style={{ marginTop: '8px', fontSize: '0.75rem', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            <Search size={12} /> Fuente: {msg.source}
+                                                        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setShowSourcesMap(prev => ({ ...prev, [idx]: !prev[idx] }))
+                                                                }}
+                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                                                onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                style={{
+                                                                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                                                                    borderRadius: '8px', padding: '6px 12px', color: 'white',
+                                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                                                                    fontSize: '0.8rem', width: 'fit-content', transition: 'all 0.2s', marginTop: '4px'
+                                                                }}
+                                                            >
+                                                                <Search size={14} />
+                                                                {showSourcesMap[idx] ? 'Ocultar Fuentes' : 'Fuentes'}
+                                                                <span style={{ opacity: 0.6, fontSize: '0.7rem' }}>({msg.source})</span>
+                                                            </button>
+                                                            {showSourcesMap[idx] && msg.searchResults && (
+                                                                <div style={{ background: 'var(--bg-secondary, rgba(0,0,0,0.2))', padding: '16px', borderRadius: '12px', fontSize: '0.85rem', width: '100%', border: '1px solid rgba(255,255,255,0.05)', marginTop: '4px', overflowX: 'auto' }}>
+                                                                    <SigmaMarkdown content={msg.searchResults} theme={theme} />
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </>
@@ -2614,7 +2642,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                 <input type="checkbox" checked={useWebSearch} onChange={(e) => setUseWebSearch(e.target.checked)} />
                                             </div>
                                             <div className={styles.settingToggle}>
-                                                <span>Razonamiento (Nemotron)</span>
+                                                <span>Razonamiento (DeepSeek R1)</span>
                                                 <input type="checkbox" checked={useReasoning} onChange={(e) => setUseReasoning(e.target.checked)} />
                                             </div>
                                         </div>

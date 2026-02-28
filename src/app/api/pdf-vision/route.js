@@ -106,9 +106,9 @@ async function analyzeWithVision(images, prompt, model) {
             type: "text",
             text: `Actúa como un experto en visión artificial, OCR y análisis de documentos. 
 Instrucciones críticas para estas ${activeImages.length} páginas:
-1. Si el documento contiene TEXTO, extráelo TODO de forma literal y precisa. No resumas el texto, transcríbelo.
-2. Si el documento contiene DIBUJOS, esquemas o fotos, explícalos detalladamente, describiendo objetos, acciones y contexto visual de forma simple y directa.
-3. Responde de forma clara siguiendo la solicitud: ${prompt || 'Analiza el documento'}`
+1. Resume el contenido visual y textual de forma directa y concisa.
+2. Extrae datos clave sin transcripciones excesivas.
+3. Respuesta rápida: ${prompt || 'Analiza el documento'}`
         }
     ];
 
@@ -180,7 +180,7 @@ export async function POST(req) {
         const formData = await req.formData();
         const file = formData.get("file");
         const prompt = formData.get("prompt") || "Resume este documento y extrae los puntos clave de forma detallada.";
-        const model = formData.get("model") || "nvidia/nemotron-nano-12b-v2-vl:free";
+        const model = formData.get("model") || "google/gemma-3-4b-it:free";
         const forceVision = formData.get("forceVision") === "true";
 
         if (!file) {
@@ -253,8 +253,7 @@ export async function POST(req) {
 
             if (images.length > 0) {
                 console.log(`👁️ [PDF-VISION] Sending ${images.length} pages to ${model}...`);
-                const visionPrompt = `Analiza estas páginas del documento. 
-                Extrae TODO el texto que veas (OCR) de forma precisa y si encuentras dibujos, esquemas o imágenes, explícalos de forma simple y clara.`;
+                const visionPrompt = `Analiza estas páginas. Extrae los datos relevantes y explica los elementos visuales de forma concisa.`;
 
                 visionPart = await analyzeWithVision(images, visionPrompt, model);
             }
@@ -265,11 +264,11 @@ export async function POST(req) {
         // 3. Devolución Directa (Sin unificación intermedia para mayor velocidad y contexto real)
         let finalContext = "";
         if (textPart && textPart.length > 200) {
-            finalContext += `[TEXTO DIGITAL EXTRAÍDO]:\n${textPart}\n\n`;
+            finalContext += `[TEXTO DIGITAL EXTRAÍDO]: \n${textPart} \n\n`;
         }
 
         if (visionPart) {
-            finalContext += `[ANÁLISIS VISUAL Y OCR (VISION MODEL)]: \n${visionPart}`;
+            finalContext += `[ANÁLISIS VISUAL Y OCR(VISION MODEL)]: \n${visionPart} `;
         } else if (!textPart) {
             finalContext = "No se pudo extraer contenido legible del documento.";
         }

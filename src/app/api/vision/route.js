@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getRequiredEnv } from '@/lib/env';
 
-const VISION_MODEL = 'nvidia/nemotron-nano-12b-v2-vl:free';
+const VISION_MODEL = 'google/gemma-3-4b-it:free';
 
 function jsonError(message, status = 500) {
     return NextResponse.json({ error: message }, { status });
@@ -12,6 +12,8 @@ export async function POST(req) {
         const body = await req.json().catch(() => ({}));
         const { imageUrl, imageDataUrl, imageBase64, prompt } = body;
 
+        console.log('📸 [VISION] Request received. Prompt:', prompt?.substring(0, 50));
+
         // Normalize image input
         const finalImageUrl = imageUrl
             || imageDataUrl
@@ -20,37 +22,38 @@ export async function POST(req) {
                 : `data:image/jpeg;base64,${imageBase64}`));
 
         if (!finalImageUrl) {
-            console.error('❌ [VISION] No image provided in request');
-            return jsonError('Image required', 400);
+            console.error('❌ [VISION] No image provided');
+            return jsonError('Se requiere una imagen para el análisis.', 400);
         }
 
-        // Basic validation of data URL format
-        if (typeof finalImageUrl !== 'string' || (!finalImageUrl.startsWith('data:image/') && !finalImageUrl.startsWith('http'))) {
-            console.error('❌ [VISION] Invalid image format');
-            return jsonError('Formato de imagen no soportado', 400);
+        let apiKey;
+        try {
+            apiKey = getRequiredEnv('OPENROUTER_API_KEY');
+        } catch (e) {
+            console.error('❌ [VISION] API Key missing:', e.message);
+            return jsonError('Configuración del servidor incompleta (API Key).', 500);
         }
 
-        const apiKey = getRequiredEnv('OPENROUTER_API_KEY');
         const visionModels = [
             VISION_MODEL,
-            'google/gemini-2.0-flash-exp:free',
             'google/gemini-flash-1.5-8b:free',
-            'mistralai/pixtral-12b:free'
+            'mistralai/pixtral-12b:free',
+            'google/gemini-2.0-flash-exp:free' // Redundant but safe
         ];
 
-        let response = null;
         let lastError = null;
         let visionData = null;
+        let successResponse = null;
 
         for (const targetModel of visionModels) {
-            for (let attempt = 0; attempt < 2; attempt++) {
+            console.log(`📸 [VISION] Trying model: ${targetModel}...`);
+
+            // Reintentos cortos por modelo
+            for (let attempt = 0; attempt < 1; attempt++) {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s per attempt
+                const timeoutId = setTimeout(() => controller.abort(), 25000);
 
                 try {
-                    if (attempt > 0) await new Promise(r => setTimeout(r, 500));
-
-                    console.log(`📸 [VISION] Attempting model: ${targetModel} (Attempt ${attempt + 1})...`);
                     const fetchResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                         method: 'POST',
                         headers: {
@@ -62,18 +65,16 @@ export async function POST(req) {
                         body: JSON.stringify({
                             model: targetModel,
                             stream: false,
-                            temperature: 0.0,
+                            temperature: 0.1,
+                            max_tokens: 1000,
                             messages: [
                                 {
                                     role: 'user',
                                     content: [
                                         {
                                             type: 'text',
-                                            text: `Actúa como un experto en visión artificial y OCR. 
-Instrucciones críticas:
-1. Si la imagen contiene TEXTO, extráelo TODO de forma literal y precisa. No resumas el texto, transcríbelo.
-2. Si la imagen contiene DIBUJOS, esquemas o fotos, explícalos detalladamente, describiendo objetos, acciones y estilo.
-3. Responde de forma rápida y directa siguiendo la solicitud del usuario: ${prompt || 'Analiza la imagen'}`
+                                            text: `Analiza la imagen de forma rápida y concisa (máx 5 líneas). 
+                                            Responde directamente a: ${prompt || '¿Qué ves en esta imagen?'}`
                                         },
                                         {
                                             type: 'image_url',
@@ -88,41 +89,39 @@ Instrucciones críticas:
 
                     clearTimeout(timeoutId);
 
-                    if (fetchResponse.status === 429) {
-                        lastError = new Error('429 Rate Limit/Provider Overloaded');
+                    if (!fetchResponse.ok) {
+                        const errBody = await fetchResponse.text().catch(() => 'No error body');
+                        console.warn(`⚠️ [VISION] Model ${targetModel} failed (${fetchResponse.status}):`, errBody.substring(0, 100));
+                        lastError = new Error(`Status ${fetchResponse.status}: ${errBody.substring(0, 150)}`);
                         continue;
                     }
 
-                    if (!fetchResponse.ok) {
-                        const errText = await fetchResponse.text();
-                        throw new Error(`OpenRouter Error ${fetchResponse.status}: ${errText}`);
-                    }
-
                     visionData = await fetchResponse.json();
-                    response = fetchResponse;
-                    break; // Success!
+                    if (visionData?.choices?.[0]?.message?.content) {
+                        successResponse = visionData.choices[0].message.content;
+                        break;
+                    } else {
+                        console.warn(`⚠️ [VISION] Model ${targetModel} returned empty or invalid JSON:`, JSON.stringify(visionData).substring(0, 100));
+                    }
                 } catch (err) {
                     clearTimeout(timeoutId);
                     lastError = err;
-                    const isTimeout = err.name === 'AbortError';
-                    console.warn(`⚠️ [VISION] Attempt ${attempt} failed on ${targetModel}:`, isTimeout ? 'Timeout (20s)' : err.message);
-
-                    // If it's a critical error (not 429 or timeout), maybe try next model immediately
-                    if (!isTimeout && !err.message.includes('429')) break;
+                    console.warn(`⚠️ [VISION] Error on ${targetModel}:`, err.name === 'AbortError' ? 'Timeout' : err.message);
                 }
             }
-            if (response && response.ok) break;
+            if (successResponse) break;
         }
 
-        if (!response || !response.ok || !visionData) {
-            return jsonError(lastError?.message || 'Todos los modelos de visión fallaron.', response?.status || 500);
+        if (successResponse) {
+            console.log('✅ [VISION] Success! Content length:', successResponse.length);
+            return NextResponse.json({ content: successResponse });
         }
 
-        const content = visionData.choices?.[0]?.message?.content || '';
-        return NextResponse.json({ content });
+        console.error('❌ [VISION] All models failed. Last error:', lastError?.message);
+        return jsonError(lastError?.message || 'Error en el servicio de visión artificial.', 500);
 
     } catch (error) {
-        console.error('❌ [VISION] Critical handler error:', error);
-        return jsonError(error.message || 'Internal Error', 500);
+        console.error('❌ [VISION] Global handler error:', error);
+        return jsonError('Error interno en el servidor de visión.', 500);
     }
 }
