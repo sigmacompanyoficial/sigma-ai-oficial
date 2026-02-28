@@ -88,7 +88,9 @@ export async function POST(req) {
         // Personalization Directives
         const toneDirective = tone ? `Responde con un tono **${tone}**.` : '';
         const detailDirective = detailLevel ? `Tu nivel de detalle debe ser **${detailLevel}**.` : '';
-        const languageDirective = language ? `Responde siempre en **${language}**.` : '';
+        const languageDirective = (language && language !== 'Auto')
+            ? `Responde siempre en **${language}**.`
+            : 'Responde siempre en el mismo idioma que el usuario utiliza en su mensaje.';
 
         const coderDirective = modelId.includes('coder')
             ? 'Eres un experto en programación de élite. Escribe código limpio, optimizado y documentado. Explica las decisiones técnicas cuando sea necesario.'
@@ -235,6 +237,7 @@ Hora actual: ${currentTime}
                 'Access-Control-Allow-Origin': '*',
                 'Transfer-Encoding': 'chunked',
                 'X-Accel-Buffering': 'no',
+                'Content-Encoding': 'identity',
                 'X-Request-Id': requestId,
             },
         });

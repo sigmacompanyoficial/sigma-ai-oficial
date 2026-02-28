@@ -14,6 +14,7 @@ import styles from './page.module.css';
 import { models } from '@/lib/models';
 import Link from 'next/link';
 import { uploadAndExtractFile, uploadAndVisionPDF } from '@/lib/fileParser';
+import { AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
 
 
 const guestModel = {
@@ -199,7 +200,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     // Detailed Settings States
     const [activeSettingsTab, setActiveSettingsTab] = useState('General');
     const [appearance, setAppearance] = useState('Oscuro');
-    const [language, setLanguage] = useState('Español');
+    const [language, setLanguage] = useState('Auto');
     const [botTone, setBotTone] = useState('Profesional');
     const [detailLevel, setDetailLevel] = useState('Medio');
     const [memoryEnabled, setMemoryEnabled] = useState(true);
@@ -210,6 +211,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const [imagePreviews, setImagePreviews] = useState([]);
     const [selectedDocs, setSelectedDocs] = useState([]); // [{ name, content, type }]
     const [isProcessingImage, setIsProcessingImage] = useState(false);
+    const [analyzingImages, setAnalyzingImages] = useState([]); // [{ url, progress }]
     const [isParsingFile, setIsParsingFile] = useState(false);
 
     const [savedChats, setSavedChats] = useState([]);
@@ -224,6 +226,37 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const [messageCount, setMessageCount] = useState(0);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showGuestOptionsModal, setShowGuestOptionsModal] = useState(false);
+
+    // Custom UI Components States
+    const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
+    const [customModal, setCustomModal] = useState({
+        visible: false,
+        title: '',
+        content: '',
+        confirmText: 'Aceptar',
+        cancelText: null,
+        onConfirm: null
+    });
+
+    const showToast = (message, type = 'info') => {
+        setToast({ visible: true, message, type });
+        setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 4000);
+    };
+
+    const showModal = (title, content, confirmText = 'Aceptar', onConfirm = null, cancelText = null) => {
+        setCustomModal({
+            visible: true,
+            title,
+            content,
+            confirmText,
+            cancelText,
+            onConfirm: () => {
+                if (onConfirm) onConfirm();
+                setCustomModal(prev => ({ ...prev, visible: false }));
+            }
+        });
+    };
+
     const [isDragOverInput, setIsDragOverInput] = useState(false);
     const [showCookieConsent, setShowCookieConsent] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -417,8 +450,26 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             'what\'s in', 'analyze', 'read', 'check', 'visit', 'open',
             'resumen de', 'resume', 'summary'
         ];
-
         return extractHints.some((hint) => q.includes(hint));
+    };
+
+    const onEmojiClick = (emojiData) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = input;
+        const before = text.substring(0, start);
+        const after = text.substring(end, text.length);
+
+        setInput(before + emojiData.emoji + after);
+
+        // Give focus back to textarea and move cursor after injected emoji
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + emojiData.emoji.length, start + emojiData.emoji.length);
+        }, 10);
     };
 
     useEffect(() => {
@@ -761,7 +812,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     };
 
     const reportChat = (chatId) => {
-        alert('Este chat ha sido denunciado. Revisaremos el contenido a la brevedad.');
+        showToast('Este chat ha sido denunciado. Revisaremos el contenido a la brevedad.');
         setShowMoreMenu(false);
     };
 
@@ -815,12 +866,12 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
     const handleShareChat = async () => {
         if (!currentChatId) {
-            alert('No hay un chat activo para compartir.');
+            showToast('No hay un chat activo para compartir.');
             return;
         }
 
         if (isGuest) {
-            alert('Los invitados no pueden compartir chats. Inicia sesión para guardar y compartir.');
+            showModal('Función de usuarios registrados', 'Los invitados no pueden compartir chats. Inicia sesión para guardar y compartir sus conversaciones.');
             return;
         }
 
@@ -835,10 +886,10 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
             const url = `${window.location.origin}/chat?id=${currentChatId}`;
             await navigator.clipboard.writeText(url);
-            alert('✅ Enlace público copiado al portapapeles.\n\nCualquier persona con el enlace podrá ver este chat (solo lectura).');
+            showToast('Enlace público copiado al portapapeles.', 'success');
         } catch (err) {
             console.error('Error sharing chat:', err);
-            alert('Error al compartir el chat.');
+            showToast('Error al compartir el chat.', 'error');
         }
     };
 
@@ -894,9 +945,6 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         }
 
         setInput('');
-        setSelectedImages([]);
-        setImagePreviews([]);
-        setSelectedDocs([]);
         setIsLoading(true);
         setIsStreaming(true);
         setError(null);
@@ -905,14 +953,21 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         if (currentImages.length > 0) {
             dlog(`📸 [VISION] Analizando ${currentImages.length} imágenes en paralelo...`);
             setIsProcessingImage(true);
+            setAnalyzingImages(currentImages.map(url => ({ url, progress: 5 }))); // 5% initially
             try {
                 const results = await Promise.all(currentImages.map(async (imageDataUrl, idx) => {
                     try {
+                        // Paso 1: Optimización
                         const optimizedImageDataUrl = await optimizeImageForVision(imageDataUrl);
+                        setAnalyzingImages(prev => prev.map((img, i) => i === idx ? { ...img, progress: 30 } : img));
+
                         dlog(`📸 [VISION][IMG-${idx}] Payload size:`, imageDataUrl?.length || 0, '->', optimizedImageDataUrl?.length || 0);
 
+                        // Paso 2: Llamada API
                         const vController = new AbortController();
                         const vTimeout = setTimeout(() => vController.abort(), 40000); // 40s timeout per image
+
+                        setAnalyzingImages(prev => prev.map((img, i) => i === idx ? { ...img, progress: 60 } : img));
 
                         const visionResp = await fetch('/api/vision', {
                             method: 'POST',
@@ -929,11 +984,14 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         if (!visionResp.ok) {
                             const errRaw = await visionResp.text().catch(() => '');
                             derr(`❌ [VISION][IMG-${idx}] /api/vision non-OK:`, visionResp.status, errRaw);
+                            setAnalyzingImages(prev => prev.filter((_, i) => i !== idx));
                             return null;
                         }
 
                         const vData = await visionResp.json();
                         const vDesc = (vData.content || '').trim();
+
+                        setAnalyzingImages(prev => prev.map((img, i) => i === idx ? { ...img, progress: 100 } : img));
 
                         if (vDesc) {
                             dlog(`🧠 [VISION][IMG-${idx}] Result obtained.`);
@@ -942,6 +1000,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         return null;
                     } catch (e) {
                         derr(`❌ [VISION][IMG-${idx}] Error during analysis:`, e);
+                        setAnalyzingImages(prev => prev.filter((_, i) => i !== idx));
                         return null;
                     }
                 }));
@@ -958,6 +1017,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                 derr('❌ [VISION] Parallel analysis fatal error:', vErr);
             } finally {
                 setIsProcessingImage(false);
+                setTimeout(() => setAnalyzingImages([]), 800);
             }
         }
 
@@ -1266,6 +1326,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                 return next;
             });
 
+            let lastUpdate = Date.now();
+            const updateInterval = 64; // ~15 FPS state updates is more than enough for smooth reading and light on React
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -1274,10 +1337,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                 buffer += chunk;
 
                 const lines = buffer.split('\n');
-                // Keep the last partial line in the buffer
                 buffer = lines.pop() || '';
 
-                let updated = false;
+                let updatedInThisChunk = false;
                 for (const line of lines) {
                     const trimmedLine = line.trim();
                     if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
@@ -1290,28 +1352,39 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         const delta = json.choices?.[0]?.delta?.content || '';
                         if (delta) {
                             botResponse += delta;
-                            updated = true;
+                            updatedInThisChunk = true;
                         }
                     } catch (e) {
                         dwarn('⚠️ [CHAT][SSE] Parse error:', e, trimmedLine);
                     }
                 }
 
-                if (updated) {
+                // Micro-batching state updates to keep React happy and UI buttery smooth
+                if (updatedInThisChunk && (Date.now() - lastUpdate > updateInterval)) {
                     setMessages(prev => {
-                        const last = [...prev];
-                        if (last.length > 0) {
-                            last[last.length - 1] = { ...last[last.length - 1], content: botResponse };
+                        const next = [...prev];
+                        if (next.length > 0) {
+                            next[next.length - 1] = { ...next[next.length - 1], content: botResponse };
                         }
-                        return last;
+                        return next;
                     });
+                    lastUpdate = Date.now();
 
-                    // Asegurar scroll fluido durante el stream
                     requestAnimationFrame(() => {
                         scrollToBottom("auto", true);
                     });
                 }
             }
+
+            // Ensure the final content is always set
+            setMessages(prev => {
+                const next = [...prev];
+                if (next.length > 0) {
+                    next[next.length - 1] = { ...next[next.length - 1], content: botResponse };
+                }
+                return next;
+            });
+            requestAnimationFrame(() => scrollToBottom("auto", true));
             dlog('✅ [CHAT] Response complete. Full text length:', botResponse.length);
 
             // Fallback: si por cualquier motivo no se interceptó durante stream y el modelo
@@ -1414,12 +1487,16 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     const nextReader = nextResponse.body.getReader();
                     let finalBotResponse = '';
 
+                    let fLastUpdate = Date.now();
+                    const fUpdateInterval = 64;
+
                     while (true) {
                         const { done, value } = await nextReader.read();
                         if (done) break;
                         const nextChunk = decoder.decode(value);
                         dlog('📡 [AGENTIC SEARCH FALLBACK][SSE] Raw chunk:', nextChunk);
                         const nextLines = nextChunk.split('\n');
+                        let fUpdated = false;
                         for (const nLine of nextLines) {
                             if (nLine.startsWith('data: ')) {
                                 try {
@@ -1428,24 +1505,36 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         dlog('✅ [AGENTIC SEARCH FALLBACK][SSE] DONE received');
                                         continue;
                                     }
-                                    const nJson = JSON.parse(npayload);
-                                    dlog('📡 [AGENTIC SEARCH FALLBACK][SSE] Parsed JSON line:', nJson);
-                                    const nDelta = nJson.choices?.[0]?.delta?.content || '';
-                                    if (nDelta) {
-                                        finalBotResponse += nDelta;
-                                        dlog('✍️ [AGENTIC SEARCH FALLBACK][SSE] Delta:', nDelta);
-                                        setMessages(prev => {
-                                            const last = [...prev];
-                                            if (last.length > 0) last[last.length - 1].content = finalBotResponse;
-                                            return last;
-                                        });
+                                    const fJson = JSON.parse(npayload);
+                                    const fDelta = fJson.choices?.[0]?.delta?.content || '';
+                                    if (fDelta) {
+                                        finalBotResponse += fDelta;
+                                        fUpdated = true;
                                     }
                                 } catch (e) {
                                     dwarn('⚠️ [AGENTIC SEARCH FALLBACK][SSE] Parse error:', e, nLine);
                                 }
                             }
                         }
+
+                        if (fUpdated && (Date.now() - fLastUpdate > fUpdateInterval)) {
+                            setMessages(prev => {
+                                const next = [...prev];
+                                if (next.length > 0) next[next.length - 1].content = finalBotResponse;
+                                return next;
+                            });
+                            fLastUpdate = Date.now();
+                            requestAnimationFrame(() => scrollToBottom("auto", true));
+                        }
                     }
+
+                    // Final set
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) next[next.length - 1].content = finalBotResponse;
+                        return next;
+                    });
+                    requestAnimationFrame(() => scrollToBottom("auto", true));
 
                     botResponse = finalBotResponse;
                 } catch (fallbackErr) {
@@ -1506,6 +1595,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             setIsProcessingImage(false);
             setIsLoading(false);
             setIsStreaming(false);
+            setSelectedImages([]);
+            setImagePreviews([]);
+            setSelectedDocs([]);
         }
     };
 
@@ -1523,14 +1615,14 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         const availableSlots = Math.max(0, MAX_ATTACHMENTS - currentAttachmentCount);
 
         if (availableSlots === 0) {
-            alert(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
+            showToast(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
             if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
         const filesToProcess = files.slice(0, availableSlots);
         if (files.length > availableSlots) {
-            alert(`Solo se añadirán ${availableSlots} archivo(s). Límite total: ${MAX_ATTACHMENTS}.`);
+            showToast(`Solo se añadirán ${availableSlots} archivo(s). Límite total: ${MAX_ATTACHMENTS}.`);
         }
         console.log('📎 [UPLOAD] Files to process:', filesToProcess.length, 'Available slots:', availableSlots);
 
@@ -1596,7 +1688,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     };
                 } catch (err) {
                     console.error(`❌ [UPLOAD] Extraction failed for ${file.name}:`, err);
-                    alert(`Error procesando ${file.name}: ${err.message}`);
+                    showToast(`Error procesando ${file.name}: ${err.message}`, 'error');
                     return null;
                 }
             });
@@ -1889,7 +1981,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
                                         onClick={() => loadChat(chat.id, user?.id)}
                                     >
-                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <AppleEmojiRenderer text={chat.title} size={14} />
+                                        </span>
                                         <div style={{ display: 'flex', gap: '4px' }}>
                                             <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Archivar">
                                                 <Archive size={14} />
@@ -1916,7 +2010,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
                                         onClick={() => loadChat(chat.id, user?.id)}
                                     >
-                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <AppleEmojiRenderer text={chat.title} size={14} />
+                                        </span>
                                         <div style={{ display: 'flex', gap: '4px' }}>
                                             <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id, true); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Desarchivar">
                                                 <RotateCcw size={14} />
@@ -1943,7 +2039,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 <div className={styles.profileAvatar}>{userName.substring(0, 2).toUpperCase()}</div>
                             )}
                             <div className={styles.profileDetails}>
-                                <div className={styles.profileName}>{userName}</div>
+                                <div className={styles.profileName}>
+                                    <AppleEmojiRenderer text={userName} size={16} />
+                                </div>
                                 <div className={styles.profileStatus}>{userRole}</div>
                             </div>
                             {userRole === 'Administrador' && (
@@ -1973,7 +2071,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 className={`${styles.modelSelector} ${isGuest ? styles.modelSelectorDisabled : ''}`}
                                 onClick={() => {
                                     if (isGuest) {
-                                        alert('🔒 Inicia sesión para acceder a todos los modelos de Sigma LLM.\n\nComo invitado, solo puedes usar Sigma LLM Mini. Regístrate gratis para desbloquear:\n\n✨ Sigma LLM (Estándar)\n💻 Sigma LLM Coder\n👁️ Sigma Vision');
+                                        showModal('🔒 Funciones Premium', 'Inicia sesión para acceder a todos los modelos de Sigma LLM. Como invitado, solo puedes usar Sigma LLM Mini. Regístrate gratis para desbloquear modelos como Coder, Vision y Razonamiento Avanzado.');
                                         return;
                                     }
                                     setShowModelDropdown(!showModelDropdown);
@@ -1994,7 +2092,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                             className={`${styles.modelOption} ${selectedModel.modelId === model.modelId ? styles.activeModel : ''}`}
                                             onClick={() => {
                                                 if (model.modelId === PRO_MODEL_ID && !canUsePro) {
-                                                    alert('Modelo solo para usuarios premium, habla con sigmacompanyoficial@gmail.com para que te dé ese rol.');
+                                                    showModal('Acceso Restringido', 'Modelo solo para usuarios premium. Habla con @sigmacompanyoficial para que te asigne ese rol.');
                                                     setShowModelDropdown(false);
                                                     return;
                                                 }
@@ -2146,7 +2244,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                         <span></span>
                                                     </div>
                                                     <div className={styles.loaderTextBlock}>
-                                                        <span className={styles.loaderTitle}>{botName} está pensando</span>
+                                                        <span className={styles.loaderTitle}><AppleEmojiRenderer text={botName} /> está pensando</span>
                                                         <span className={styles.loaderSubtitle}>Construyendo la mejor respuesta...</span>
                                                     </div>
                                                 </div>
@@ -2253,67 +2351,88 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                 <div className={styles.inputSection}>
                     {!isReadOnly && (
                         <>
-                            {(isProcessingImage || isParsingFile) && (
-                                <div className={styles.analyzingStatus}>
-                                    <div className={styles.analyzingScanner}>
-                                        <div className={styles.analyzingScanLine}></div>
-                                        <div className={styles.analyzingBars}>
-                                            <span></span>
-                                            <span></span>
-                                            <span></span>
-                                            <span></span>
-                                        </div>
+
+                            <form
+                                onSubmit={handleSend}
+                                className={`${styles.inputWrapper} ${isDragOverInput ? styles.inputWrapperDropActive : ''}`}
+                                onDragOver={handleDragOverInput}
+                                onDragEnter={handleDragOverInput}
+                                onDragLeave={handleDragLeaveInput}
+                                onDrop={handleDropInput}
+                            >
+                                {isDragOverInput && (
+                                    <div className={styles.dragOverlay}>
+                                        <Upload size={24} />
+                                        <span>Arrastra aquí</span>
                                     </div>
-                                    <div className={styles.loaderTextBlock}>
-                                        <span className={styles.loaderTitle}>
-                                            {isProcessingImage ? 'Analizando imagen' : 'Procesando archivos'}
-                                        </span>
-                                        <span className={styles.loaderSubtitle}>
-                                            {isProcessingImage
-                                                ? 'Gemma está analizando la imagen...'
-                                                : 'Extrayendo texto y preparando contexto...'}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-                            {(imagePreviews.length > 0 || selectedDocs.length > 0) && (
-                                <div style={{ width: '100%', marginBottom: '12px', padding: '0 10px' }}>
-                                    <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
-                                        {imagePreviews.map((preview, idx) => (
-                                            <div key={idx} style={{ position: 'relative', flexShrink: 0 }}>
-                                                <img
-                                                    src={preview}
-                                                    alt={`Preview ${idx}`}
-                                                    style={{
-                                                        width: '60px',
-                                                        height: '60px',
-                                                        objectFit: 'cover',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid rgba(255,255,255,0.1)'
-                                                    }}
-                                                />
-                                                <button
-                                                    onClick={() => removeImage(idx)}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: '-6px',
-                                                        right: '-6px',
-                                                        background: 'rgba(239, 68, 68, 0.9)',
-                                                        border: 'none',
-                                                        borderRadius: '50%',
-                                                        width: '18px',
-                                                        height: '18px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        cursor: 'pointer',
-                                                        color: 'white'
-                                                    }}
-                                                >
-                                                    <X size={10} strokeWidth={3} />
-                                                </button>
-                                            </div>
-                                        ))}
+                                )}
+
+                                {(imagePreviews.length > 0 || selectedDocs.length > 0) && (
+                                    <div className={styles.previewsContainer}>
+                                        {imagePreviews.map((preview, idx) => {
+                                            const analyzingImg = analyzingImages[idx];
+                                            const progress = analyzingImg?.progress || 0;
+
+                                            return (
+                                                <div key={idx} style={{ position: 'relative', flexShrink: 0 }}>
+                                                    <img
+                                                        src={preview}
+                                                        alt={`Preview ${idx}`}
+                                                        style={{
+                                                            width: '60px',
+                                                            height: '60px',
+                                                            objectFit: 'cover',
+                                                            borderRadius: '8px',
+                                                            border: '1px solid rgba(255,255,255,0.1)',
+                                                            filter: analyzingImg && progress < 100 ? 'brightness(0.5)' : 'none'
+                                                        }}
+                                                    />
+
+                                                    {analyzingImg && progress < 100 && (
+                                                        <div className={styles.analysisProgress} data-complete={progress === 100}>
+                                                            <svg viewBox="0 0 36 36" className={styles.circularChart}>
+                                                                <path className={styles.circleBg}
+                                                                    d="M18 2.0845
+                                                                        a 15.9155 15.9155 0 0 1 0 31.831
+                                                                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                />
+                                                                <path className={styles.circle}
+                                                                    strokeDasharray={`${progress}, 100`}
+                                                                    d="M18 2.0845
+                                                                        a 15.9155 15.9155 0 0 1 0 31.831
+                                                                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                />
+                                                                <text x="18" y="20.35" className={styles.percentageText}>{progress}%</text>
+                                                            </svg>
+                                                        </div>
+                                                    )}
+
+                                                    {(progress === 0 || progress === 100) && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
+                                                            style={{
+                                                                position: 'absolute',
+                                                                top: '-6px',
+                                                                right: '-6px',
+                                                                background: 'rgba(239, 68, 68, 0.9)',
+                                                                border: 'none',
+                                                                borderRadius: '50%',
+                                                                width: '18px',
+                                                                height: '18px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                cursor: 'pointer',
+                                                                color: 'white',
+                                                                zIndex: 10
+                                                            }}
+                                                        >
+                                                            <X size={10} strokeWidth={3} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
 
                                         {selectedDocs
                                             .map((doc, idx) => ({ doc, idx }))
@@ -2366,87 +2485,47 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                 </div>
                                             ))}
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            <form
-                                onSubmit={handleSend}
-                                className={`${styles.inputWrapper} ${isDragOverInput ? styles.inputWrapperDropActive : ''}`}
-                                onDragOver={handleDragOverInput}
-                                onDragEnter={handleDragOverInput}
-                                onDragLeave={handleDragLeaveInput}
-                                onDrop={handleDropInput}
-                            >
-                                <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.csv,.json,.html,.htm,.js,.jsx,.ts,.tsx,.py,.md,.xml,.yaml,.yml,.env" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+                                <div className={styles.inputControlsRow}>
+                                    <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.csv,.json,.html,.htm,.js,.jsx,.ts,.tsx,.py,.md,.xml,.yaml,.yml,.env" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
 
-                                <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
-                                    <button
-                                        type="button"
-                                        className={`${styles.attachButton} ${showAttachMenu ? styles.attachActive : ''}`}
-                                        onClick={() => {
-                                            setShowAttachMenu(!showAttachMenu);
-                                        }}
+                                    <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
+                                        <button
+                                            type="button"
+                                            className={styles.attachButton}
+                                            onClick={() => {
+                                                fileInputRef.current?.click();
+                                            }}
+                                            disabled={isLoading}
+                                            title={"Añadir fotos y archivos"}
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    </div>
+
+                                    <textarea
+                                        ref={textareaRef}
+                                        className={styles.textarea}
+                                        placeholder={`${t('message_placeholder')} ${botName}...`}
+                                        rows={1}
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onPaste={handlePaste}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
                                         disabled={isLoading}
-                                        title={"Más opciones"}
-                                    >
-                                        <Plus size={20} className={showAttachMenu ? styles.rotatePlus : ''} />
-                                    </button>
+                                    />
 
-                                    {showAttachMenu && (
-                                        <div className={styles.attachMenu}>
-                                            <button
-                                                type="button"
-                                                className={styles.attachItem}
-                                                onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}
-                                            >
-                                                <ImageIcon size={18} />
-                                                <span>Añadir fotos y archivos</span>
-                                            </button>
-
-                                            <div className={styles.attachDivider} />
-
-                                            <button
-                                                type="button"
-                                                className={`${styles.attachItem} ${useReasoning ? styles.activeOption : ''}`}
-                                                onClick={() => { setUseReasoning(!useReasoning); setShowAttachMenu(false); }}
-                                            >
-                                                <Brain size={18} />
-                                                <span>Razonamiento</span>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                className={`${styles.attachItem} ${useWebSearch ? styles.activeOption : ''}`}
-                                                onClick={() => { setUseWebSearch(!useWebSearch); setShowAttachMenu(false); }}
-                                            >
-                                                <Search size={18} />
-                                                <span>Búsqueda en Internet</span>
-                                            </button>
-                                        </div>
+                                    {isLoading || isStreaming ? (
+                                        <button type="button" className={styles.stopBtnInline} onClick={stopStreaming}>
+                                            <Square size={16} fill="white" />
+                                        </button>
+                                    ) : (
+                                        <button type="submit" className={styles.sendBtn} disabled={!canSend}>
+                                            <Send size={16} />
+                                        </button>
                                     )}
                                 </div>
-
-                                <textarea
-                                    ref={textareaRef}
-                                    className={styles.textarea}
-                                    placeholder={`${t('message_placeholder')} ${botName}...`}
-                                    rows={1}
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onPaste={handlePaste}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
-                                    disabled={isLoading}
-                                />
-
-                                {isLoading || isStreaming ? (
-                                    <button type="button" className={styles.stopBtnInline} onClick={stopStreaming}>
-                                        <Square size={16} fill="white" />
-                                    </button>
-                                ) : (
-                                    <button type="submit" className={styles.sendBtn} disabled={!canSend}>
-                                        <Send size={16} />
-                                    </button>
-                                )}
                             </form>
                         </>
                     )}
@@ -2556,6 +2635,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                             <div className={styles.settingGroup}>
                                                 <label>{t('language')}</label>
                                                 <select className={styles.select} value={language} onChange={(e) => setLanguage(e.target.value)}>
+                                                    <option value="Auto">Detectar automáticamente</option>
                                                     <option>Español</option>
                                                     <option>English</option>
                                                     <option>Français</option>
@@ -2652,7 +2732,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         <div className={styles.settingsSection}>
                                             <div className={styles.bannerMFA}>
                                                 <div className={styles.bannerContent}>
-                                                    <strong>🔒 Protege tu cuenta</strong>
+                                                    <strong><AppleEmojiRenderer text="🔒" /> Protege tu cuenta</strong>
                                                     <p>Activa la autenticación multifactor para mayor seguridad.</p>
                                                 </div>
                                                 <button className={styles.bannerBtn}>Configurar MFA</button>
@@ -2707,11 +2787,22 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                         <span>Eliminar todo el historial</span>
                                                         <p>Esta acción no se puede deshacer.</p>
                                                     </div>
-                                                    <button className={styles.dangerBtn} onClick={async () => {
-                                                        if (confirm('¿Seguro que quieres borrar todo el historial?')) {
-                                                            const { error } = await supabase.from('chats').delete().eq('user_id', user.id);
-                                                            if (!error) fetchChats(user.id);
-                                                        }
+                                                    <button className={styles.dangerBtn} onClick={() => {
+                                                        showModal(
+                                                            '¿Borrar todo el historial?',
+                                                            'Esta acción eliminará permanentemente todos tus chats. Esta acción no se puede deshacer.',
+                                                            'Borrar todo',
+                                                            async () => {
+                                                                const { error } = await supabase.from('chats').delete().eq('user_id', user.id);
+                                                                if (!error) {
+                                                                    fetchChats(user.id);
+                                                                    showToast('Historial eliminado correctamente.', 'success');
+                                                                } else {
+                                                                    showToast('Error al eliminar el historial.', 'error');
+                                                                }
+                                                            },
+                                                            'Cancelar'
+                                                        );
                                                     }}>Borrar todo</button>
                                                 </div>
                                                 <div className={styles.dangerItem}>
@@ -2780,6 +2871,38 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     </div>
                 )
             }
+
+            {/* Toast Notification */}
+            {toast.visible && (
+                <div className={`${styles.toast} ${styles['toast' + toast.type.charAt(0).toUpperCase() + toast.type.slice(1)]}`}>
+                    {toast.type === 'success' ? <Check size={18} /> : toast.type === 'error' ? <AlertCircle size={18} /> : <Sparkles size={18} />}
+                    <span>{toast.message}</span>
+                </div>
+            )}
+
+            {/* Custom Modal */}
+            {customModal.visible && (
+                <div className={styles.modalOverlay} onClick={() => setCustomModal(prev => ({ ...prev, visible: false }))}>
+                    <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                        <div className={styles.modalIcon}>
+                            <Sparkles size={32} />
+                        </div>
+                        <h2 className={styles.modalTitle}>{customModal.title}</h2>
+                        <p>{customModal.content}</p>
+                        <div className={styles.modalActions}>
+                            <button className={styles.modalLoginBtn} onClick={customModal.onConfirm}>
+                                {customModal.confirmText}
+                            </button>
+                            {customModal.cancelText && (
+                                <button className={styles.modalCloseBtn} onClick={() => setCustomModal(prev => ({ ...prev, visible: false }))}>
+                                    {customModal.cancelText}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div >
     );
 }

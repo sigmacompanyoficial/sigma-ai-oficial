@@ -808,21 +808,59 @@
     border-radius: 20px;
     padding: 0.75rem 1rem;
     display: flex;
-    align-items: flex-end;
-    gap: 0.75rem;
+    flex-direction: column;
+    gap: 0.5rem;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    position: relative;
 }
 
-.inputWrapper:focus-within {
-    border-color: rgba(99, 102, 241, 0.5);
-    background: #222;
-    box-shadow: 0 10px 40px rgba(99, 102, 241, 0.15);
+.inputControlsRow {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.previewsContainer {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .inputWrapperDropActive {
     border-color: rgba(99, 102, 241, 0.85) !important;
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25), 0 12px 34px rgba(99, 102, 241, 0.22) !important;
+}
+
+.dragOverlay {
+    position: absolute;
+    inset: 4px;
+    background: rgba(99, 102, 241, 0.12);
+    backdrop-filter: blur(4px);
+    border: 2px dashed rgba(99, 102, 241, 0.5);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6366F1;
+    font-weight: 700;
+    font-size: 1.1rem;
+    pointer-events: none;
+    z-index: 10;
+    animation: fadeIn 0.2s ease-out;
+    gap: 10px;
+}
+
+.dragOverlay span {
+    background: #6366F1;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
 }
 
 .textarea {
@@ -870,6 +908,54 @@
 .attachActive {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
+}
+
+.emojiWrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.emojiTrigger {
+    padding: 0.6rem;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.emojiTrigger:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.emojiPickerContainer {
+    position: absolute;
+    bottom: 100%;
+    left: -10px;
+    margin-bottom: 15px;
+    z-index: 1000;
+    filter: drop-shadow(0 10px 40px rgba(0, 0, 0, 0.6));
+    border-radius: 20px;
+    overflow: hidden;
+    animation: slideUpFade 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .rotatePlus {
@@ -3059,8 +3145,126 @@
         transform: translateY(-10px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
+    }
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 10000;
+    background: rgba(30, 30, 35, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 14px 24px;
+    border-radius: 16px;
+    color: #fff;
+    font-size: 0.92rem;
+    font-weight: 500;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    animation: toastIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: 400px;
+}
+
+.toastInfo {
+    border-left: 4px solid #6366F1;
+}
+
+.toastSuccess {
+    border-left: 4px solid #10B981;
+}
+
+.toastError {
+    border-left: 4px solid #EF4444;
+}
+
+@keyframes toastIn {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Circular Progress for Image Analysis */
+.analysisProgress {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    z-index: 5;
+    backdrop-filter: blur(2px);
+    animation: progressFadeIn 0.3s ease-out;
+}
+
+.analysisProgress[data-complete="true"] {
+    display: none;
+}
+
+.circularChart {
+    display: block;
+    margin: 10px auto;
+    max-width: 80%;
+    max-height: 250px;
+}
+
+.circleBg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.1);
+    stroke-width: 3.8;
+}
+
+.circle {
+    fill: none;
+    stroke-width: 2.8;
+    stroke-linecap: round;
+    stroke: #6366F1;
+    transition: stroke-dasharray 0.3s ease;
+}
+
+.percentageText {
+    fill: #fff;
+    font-family: sans-serif;
+    font-size: 0.5em;
+    text-anchor: middle;
+    font-weight: bold;
+}
+
+@keyframes progressFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
     }
 }
