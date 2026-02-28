@@ -88,12 +88,14 @@ export async function POST(req) {
         // Personalization Directives
         const toneDirective = tone ? `Responde con un tono **${tone}**.` : '';
         const detailDirective = detailLevel ? `Tu nivel de detalle debe ser **${detailLevel}**.` : '';
-        const languageDirective = language ? `Responde siempre en **${language}**.` : '';
+        const languageDirective = (language && language !== 'Auto')
+            ? `Responde siempre en **${language}**.`
+            : 'Responde siempre en el mismo idioma que el usuario utiliza en su mensaje.';
 
         const coderDirective = modelId.includes('coder')
             ? 'Eres un experto en programación de élite. Escribe código limpio, optimizado y documentado. Explica las decisiones técnicas cuando sea necesario.'
             : '';
-        const reasoningDirective = modelId.includes('nemotron')
+        const reasoningDirective = (modelId.includes('nemotron') || modelId.includes('deepseek') || modelId.includes('r1'))
             ? 'Cuando realices razonamiento, escribe tu pensamiento en tiempo real entre etiquetas <think>...</think> y, al terminar, da la respuesta final fuera de esas etiquetas.'
             : '';
 
@@ -112,7 +114,7 @@ Hora actual: ${currentTime}
 - Usas ejemplos cuando ayudan
 - Humor ligero apropiado
 - Emojis por defecto (desactiva si el usuario lo pide)
-- Responde de forma breve por defecto (3-8 líneas), salvo que el usuario pida explícitamente más detalle
+- Responde de forma detallada y completa por defecto, asegurándote de cubrir todos los puntos importantes.✨
 
 **Formato de Respuesta:**
 - Usa Markdown: títulos (##), listas (-), **negritas**, \`código\`
@@ -154,8 +156,8 @@ Hora actual: ${currentTime}
         let delay = 1000;
 
         const timeoutMs = getIntEnv('OPENROUTER_TIMEOUT_MS', 60_000);
-        const requestedMaxTokens = getIntEnv('OPENROUTER_MAX_TOKENS', 900);
-        const maxTokens = Math.min(requestedMaxTokens, 1200);
+        const requestedMaxTokens = getIntEnv('OPENROUTER_MAX_TOKENS', 4000);
+        const maxTokens = Math.min(requestedMaxTokens, 8192);
         const wantStream = stream !== false;
 
         while (retries >= 0) {
@@ -235,6 +237,7 @@ Hora actual: ${currentTime}
                 'Access-Control-Allow-Origin': '*',
                 'Transfer-Encoding': 'chunked',
                 'X-Accel-Buffering': 'no',
+                'Content-Encoding': 'identity',
                 'X-Request-Id': requestId,
             },
         });

@@ -1,16 +1,16 @@
 export const models = [
     {
-        modelId: "arcee-ai/trinity-large-preview:free",
-        modelName: "Sigma LLM 1",
+        modelId: "openai/gpt-oss-120b:free",
+        modelName: "Sigma LLM",
         provider: "openrouter",
-        hostedId: "arcee-ai/trinity-large-preview:free",
+        hostedId: "openai/gpt-oss-120b:free",
         platformLink: "https://openrouter.ai",
         imageInput: false,
-        maxContext: 32768
+        maxContext: 128000
     },
     {
         modelId: "qwen/qwen3-coder:free",
-        modelName: "Sigma LLM 1 Coder",
+        modelName: "Sigma LLM Coder",
         provider: "openrouter",
         hostedId: "qwen/qwen3-coder:free",
         platformLink: "https://openrouter.ai",
@@ -18,21 +18,21 @@ export const models = [
         maxContext: 32768
     },
     {
-        modelId: "stepfun/step-3.5-flash:free",
-        modelName: "Sigma LLM 1 PRO",
-        provider: "openrouter",
-        hostedId: "stepfun/step-3.5-flash:free",
-        platformLink: "https://openrouter.ai",
-        imageInput: false,
-        maxContext: 32768
-    },
-    {
         modelId: "nvidia/nemotron-nano-12b-v2-vl:free",
-        modelName: "Sigma Vision (Nemotron)",
+        modelName: "Sigma Vision",
         provider: "openrouter",
         hostedId: "nvidia/nemotron-nano-12b-v2-vl:free",
         platformLink: "https://openrouter.ai",
         imageInput: true,
         maxContext: 32768
+    },
+    {
+        modelId: "openai/gpt-oss-120b:free",
+        modelName: "Sigma LLM Mini",
+        provider: "openrouter",
+        hostedId: "openai/gpt-oss-120b:free",
+        platformLink: "https://openrouter.ai",
+        imageInput: false,
+        maxContext: 128000
     }
 ];

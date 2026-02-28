@@ -9,11 +9,15 @@ import rehypeKatex from 'rehype-katex';
 import { Copy, Check, Info, AlertTriangle, XCircle, Zap, Terminal } from 'lucide-react';
 
 // Stylings
+import { Emoji } from 'emoji-picker-react';
 import '@/app/sigmaMD.css';
 import 'highlight.js/styles/github-dark-dimmed.css'; // Better dark theme for code
 import 'katex/dist/katex.min.css';
 
+import { withAppleEmojis, AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
+
 const SigmaMarkdown = ({ content, className = '', ...props }) => {
+
 
     const components = {
         // Table wrapper for horizontal scrolling on mobile
@@ -109,13 +113,13 @@ const SigmaMarkdown = ({ content, className = '', ...props }) => {
                         </div>
                         <div className="sigma-alert-content">
                             <div className="sigma-alert-title">{alertType.toUpperCase()}</div>
-                            {children}
+                            {withAppleEmojis(children)}
                         </div>
                     </div>
                 );
             }
 
-            return <blockquote className="sigma-blockquote" {...props}>{children}</blockquote>;
+            return <blockquote className="sigma-blockquote" {...props}>{withAppleEmojis(children)}</blockquote>;
         },
 
         // Images
@@ -127,18 +131,18 @@ const SigmaMarkdown = ({ content, className = '', ...props }) => {
         ),
 
         // Headings
-        h1: ({ node, ...props }) => <h1 className="sigma-h1" {...props} />,
-        h2: ({ node, ...props }) => <h2 className="sigma-h2" {...props} />,
-        h3: ({ node, ...props }) => <h3 className="sigma-h3" {...props} />,
-        h4: ({ node, ...props }) => <h4 className="sigma-h4" {...props} />,
+        h1: ({ node, children, ...props }) => <h1 className="sigma-h1" {...props}>{withAppleEmojis(children)}</h1>,
+        h2: ({ node, children, ...props }) => <h2 className="sigma-h2" {...props}>{withAppleEmojis(children)}</h2>,
+        h3: ({ node, children, ...props }) => <h3 className="sigma-h3" {...props}>{withAppleEmojis(children)}</h3>,
+        h4: ({ node, children, ...props }) => <h4 className="sigma-h4" {...props}>{withAppleEmojis(children)}</h4>,
 
         // Paragraphs
-        p: ({ node, ...props }) => <p className="sigma-p" {...props} />,
+        p: ({ node, children, ...props }) => <p className="sigma-p" {...props}>{withAppleEmojis(children)}</p>,
 
         // Lists
-        ul: ({ node, ...props }) => <ul className="sigma-ul" {...props} />,
-        ol: ({ node, ...props }) => <ol className="sigma-ol" {...props} />,
-        li: ({ node, ...props }) => <li className="sigma-li" {...props} />,
+        ul: ({ node, children, ...props }) => <ul className="sigma-ul" {...props}>{children}</ul>,
+        ol: ({ node, children, ...props }) => <ol className="sigma-ol" {...props}>{children}</ol>,
+        li: ({ node, children, ...props }) => <li className="sigma-li" {...props}>{withAppleEmojis(children)}</li>,
 
         // Horizontal Rule
         hr: ({ node, ...props }) => <hr className="sigma-hr" {...props} />,

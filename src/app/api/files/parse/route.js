@@ -7,7 +7,7 @@ import { load as cheerioLoad } from 'cheerio';
 import Tesseract from 'tesseract.js';
 
 export const runtime = 'nodejs';
-const MAX_EXTRACTED_CHARS = 40000;
+const MAX_EXTRACTED_CHARS = 100000;
 
 /**
  * Extrae el texto de un archivo de forma modular
@@ -19,9 +19,39 @@ async function extractFileText(filePath) {
   try {
     switch (ext) {
       case '.pdf': {
-        const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-        const data = await pdfParse(buffer);
-        return data.text;
+        // Intento 1: pdf-parse (rápido)
+        try {
+          const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
+          const data = await pdfParse(buffer);
+          if (data.text && data.text.trim().length > 100) {
+            return data.text;
+          }
+        } catch (e) {
+          console.warn('pdf-parse failed, checking alternatives...', e.message);
+        }
+
+        // Intento 2: pdfjs-dist (más robusto)
+        try {
+          const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+          const loadingTask = pdfjs.getDocument({
+            data: new Uint8Array(buffer),
+            useSystemFonts: true,
+            disableFontFace: true
+          });
+          const pdf = await loadingTask.promise;
+          let fullText = '';
+          const maxPages = Math.min(pdf.numPages, 100);
+          for (let i = 1; i <= maxPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            fullText += content.items.map(item => item.str).join(' ') + '\n';
+          }
+          if (fullText.trim().length > 10) return fullText;
+        } catch (e) {
+          console.error('pdfjs-dist failed:', e.message);
+        }
+
+        return "No se pudo extraer texto claro de este PDF. El archivo podría estar protegido o ser una imagen escaneada.";
       }
 
       case '.docx': {
@@ -40,9 +70,29 @@ async function extractFileText(filePath) {
         return text;
       }
 
+      case '.zip': {
+        const { default: AdmZip } = await import('adm-zip');
+        const zip = new AdmZip(filePath);
+        const zipEntries = zip.getEntries();
+        let zipText = `--- Contenido del ZIP (${zipEntries.length} archivos) ---\n`;
+
+        // Solo extraemos texto de los primeros 15 archivos para no saturar
+        const entriesToProcess = zipEntries.slice(0, 15);
+        for (const entry of entriesToProcess) {
+          if (!entry.isDirectory) {
+            const entryName = entry.entryName;
+            const entryText = entry.getData().toString('utf8');
+            zipText += `\n[Archivo: ${entryName}]\n${entryText.slice(0, 5000)}${entryText.length > 5000 ? '...(truncado)' : ''}\n`;
+          }
+        }
+        return zipText;
+      }
+
       case '.html':
       case '.htm': {
         const $ = cheerioLoad(buffer.toString('utf8'));
+        // Eliminar scripts y estilos para obtener solo texto limpio
+        $('script, style').remove();
         return $('body').text() || $.text();
       }
 
@@ -59,6 +109,12 @@ async function extractFileText(filePath) {
       case '.yml':
       case '.xml':
       case '.env':
+      case '.sql':
+      case '.c':
+      case '.cpp':
+      case '.java':
+      case '.go':
+      case '.rs':
         return buffer.toString('utf8');
 
       // Imágenes (OCR como fallback o por petición explícita)
@@ -72,6 +128,13 @@ async function extractFileText(filePath) {
       }
 
       default:
+        // Intentar leer como texto si es una extensión desconocida pero parece texto
+        try {
+          const content = buffer.toString('utf8');
+          if (!content.includes('\ufffd')) { // Si no tiene caracteres nulos/binarios obvios
+            return content;
+          }
+        } catch { }
         throw new Error(`Extensión ${ext} no soportada`);
     }
   } catch (error) {
@@ -100,23 +163,27 @@ export async function POST(req) {
       'application/msword',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
+      'application/zip', 'application/x-zip-compressed',
       'text/plain', 'text/html', 'application/json', 'text/csv'
     ];
 
     const isImage = file.type && allowedImageTypes.includes(file.type.toLowerCase());
     const isDoc = file.type && allowedDocTypes.includes(file.type.toLowerCase());
     const ext = path.extname(file.name || '').toLowerCase();
+
+    // Lista ampliada de extensiones permitidas
     const allowedExt = [
       '.jpg', '.jpeg', '.png', '.webp', '.bmp',
-      '.pdf', '.docx', '.xlsx', '.xls',
+      '.pdf', '.docx', '.xlsx', '.xls', '.zip',
       '.txt', '.csv', '.json', '.html', '.htm',
       '.js', '.jsx', '.ts', '.tsx', '.py', '.md',
-      '.xml', '.yaml', '.yml', '.env'
+      '.xml', '.yaml', '.yml', '.env', '.sql',
+      '.c', '.cpp', '.java', '.go', '.rs'
     ];
 
     if (!isImage && !isDoc && !allowedExt.includes(ext)) {
       console.warn('⚠️ [PARSE_API] Unsupported format:', { name: file.name, type: file.type, ext });
-      return NextResponse.json({ error: 'Formato de archivo no soportado' }, { status: 400 });
+      return NextResponse.json({ error: `Formato ${ext} no soportado` }, { status: 400 });
     }
 
     // Crear directorio tmp si no existe

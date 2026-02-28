@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 // Launch date: 2 March 2026 at 08:00 CET (UTC+1) = 07:00 UTC
 const LAUNCH_DATE = new Date('2026-03-02T07:00:00.000Z');
@@ -22,6 +23,7 @@ export default function ComingSoon() {
     const [timeLeft, setTimeLeft] = useState(getTimeLeft());
     const [launched, setLaunched] = useState(false);
     const [particles, setParticles] = useState([]);
+    const router = useRouter();
 
     useEffect(() => {
         // Generate random particles only on client
@@ -34,16 +36,37 @@ export default function ComingSoon() {
             delay: Math.random() * 6,
         })));
 
+        // Easter egg: type 'sigma' in console to launch
+        if (typeof window !== 'undefined') {
+            try {
+                Object.defineProperty(window, 'sigma', {
+                    get: () => {
+                        setLaunched(true);
+                        return '🚀 Acceso concedido. Bienvenido a Sigma LLM.';
+                    },
+                    configurable: true
+                });
+                // Mensaje para confirmar que el comando está activo
+                console.log("🔒 [SISTEMA] Escribe 'sigma' y pulsa Enter para acceder.");
+            } catch (e) { console.error(e); }
+        }
+
         const interval = setInterval(() => {
             const t = getTimeLeft();
             if (!t) {
                 setLaunched(true);
                 clearInterval(interval);
+                router.push('/chat');
             } else {
                 setTimeLeft(t);
             }
         }, 1000);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            if (typeof window !== 'undefined') {
+                try { delete window.sigma; } catch (e) { }
+            }
+        };
     }, []);
 
     const pad = (n) => String(n).padStart(2, '0');
@@ -101,6 +124,10 @@ export default function ComingSoon() {
                     <img src="/logo-fondo-negro.png" alt="Sigma LLM" className="cs-logo-img" />
                     <span className="cs-logo-text">Sigma LLM</span>
                 </div>
+
+                <Link href="/" className="cs-back-link">
+                    ← Volver a Sigma Company
+                </Link>
 
                 {/* Badge */}
                 <div className="cs-badge">
@@ -245,6 +272,14 @@ export default function ComingSoon() {
                     -webkit-background-clip: text; background-clip: text;
                     -webkit-text-fill-color: transparent; letter-spacing: -0.02em;
                 }
+
+                .cs-back-link {
+                    margin-top: -1rem;
+                    font-size: 0.9rem; color: rgba(255,255,255,0.6);
+                    text-decoration: none; transition: color 0.2s;
+                    z-index: 10;
+                }
+                .cs-back-link:hover { color: #fff; }
 
                 /* Badge */
                 .cs-badge {

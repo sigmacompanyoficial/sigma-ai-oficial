@@ -6,8 +6,8 @@ export async function POST(req) {
     try {
         const { chatId, role, content, image } = await req.json();
 
-        if (!chatId || !role || !content) {
-            return NextResponse.json({ error: 'chatId, role, and content are required' }, { status: 400 });
+        if (!chatId || !role || (!content && !image)) {
+            return NextResponse.json({ error: 'chatId, role, and either content or image are required' }, { status: 400 });
         }
 
         const id = uuidv4();

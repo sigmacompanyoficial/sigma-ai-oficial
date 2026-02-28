@@ -14,10 +14,19 @@ import styles from './page.module.css';
 import { models } from '@/lib/models';
 import Link from 'next/link';
 import { uploadAndExtractFile, uploadAndVisionPDF } from '@/lib/fileParser';
+import { AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
 
 
-const guestModel = { modelId: 'arcee-ai/trinity-large-preview:free', modelName: 'Sigma LLM 1 Mini', provider: 'openrouter', hostedId: 'arcee-ai/trinity-large-preview:free', platformLink: 'https://openrouter.ai', imageInput: false, maxContext: 32768 };
-const PRO_MODEL_ID = 'stepfun/step-3.5-flash:free';
+const guestModel = {
+    modelId: "openai/gpt-oss-120b:free",
+    modelName: "Sigma LLM Mini",
+    provider: "openrouter",
+    hostedId: "openai/gpt-oss-120b:free",
+    platformLink: "https://openrouter.ai",
+    imageInput: false,
+    maxContext: 128000
+};
+const PRO_MODEL_ID = 'openai/gpt-oss-120b:free'; // Sigma LLM is now the pro/standard one
 
 const translations = {
     'Español': {
@@ -107,12 +116,13 @@ export default function ChatPage() {
     const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [error, setError] = useState(null);
+    const [showSourcesMap, setShowSourcesMap] = useState({});
 
     // User Profile States
     const [userName, setUserName] = useState('Sigma User');
     const [userRole, setUserRole] = useState('Usuario Sigma');
     const [rawRole, setRawRole] = useState('normal'); // 'normal', 'premium', 'admin'
-    const [botName, setBotName] = useState('Sigma LLM 1');
+    const [botName, setBotName] = useState('Sigma LLM');
     const [profilePic, setProfilePic] = useState('');
     const [systemInstructions, setSystemInstructions] = useState(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
@@ -190,7 +200,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     // Detailed Settings States
     const [activeSettingsTab, setActiveSettingsTab] = useState('General');
     const [appearance, setAppearance] = useState('Oscuro');
-    const [language, setLanguage] = useState('Español');
+    const [language, setLanguage] = useState('Auto');
     const [botTone, setBotTone] = useState('Profesional');
     const [detailLevel, setDetailLevel] = useState('Medio');
     const [memoryEnabled, setMemoryEnabled] = useState(true);
@@ -201,6 +211,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const [imagePreviews, setImagePreviews] = useState([]);
     const [selectedDocs, setSelectedDocs] = useState([]); // [{ name, content, type }]
     const [isProcessingImage, setIsProcessingImage] = useState(false);
+    const [analyzingImages, setAnalyzingImages] = useState([]); // [{ url, progress }]
     const [isParsingFile, setIsParsingFile] = useState(false);
 
     const [savedChats, setSavedChats] = useState([]);
@@ -215,6 +226,37 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const [messageCount, setMessageCount] = useState(0);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showGuestOptionsModal, setShowGuestOptionsModal] = useState(false);
+
+    // Custom UI Components States
+    const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
+    const [customModal, setCustomModal] = useState({
+        visible: false,
+        title: '',
+        content: '',
+        confirmText: 'Aceptar',
+        cancelText: null,
+        onConfirm: null
+    });
+
+    const showToast = (message, type = 'info') => {
+        setToast({ visible: true, message, type });
+        setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 4000);
+    };
+
+    const showModal = (title, content, confirmText = 'Aceptar', onConfirm = null, cancelText = null) => {
+        setCustomModal({
+            visible: true,
+            title,
+            content,
+            confirmText,
+            cancelText,
+            onConfirm: () => {
+                if (onConfirm) onConfirm();
+                setCustomModal(prev => ({ ...prev, visible: false }));
+            }
+        });
+    };
+
     const [isDragOverInput, setIsDragOverInput] = useState(false);
     const [showCookieConsent, setShowCookieConsent] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -235,9 +277,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const RATE_LIMIT = 1000; // 1 segundo entre mensajes
     const MAX_RETRIES = 3;
     const INITIAL_RETRY_DELAY = 2000; // 2 segundos
-    const MAX_ATTACHMENTS = 50;
-    const MAX_DOC_CHARS_PER_FILE = 8000;
-    const MAX_DOC_CONTEXT_CHARS = 120000;
+    const MAX_ATTACHMENTS = 20;
+    const MAX_DOC_CHARS_PER_FILE = 40000;
+    const MAX_DOC_CONTEXT_CHARS = 80000; // Lowered for better model compatibility. Caps at ~20k tokens.
     const MAX_VISION_IMAGE_DIM = 1280;
     const MAX_VISION_DATA_URL_LEN = 1_200_000;
     const DEBUG_ALL_LOGS = false;
@@ -408,8 +450,26 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             'what\'s in', 'analyze', 'read', 'check', 'visit', 'open',
             'resumen de', 'resume', 'summary'
         ];
-
         return extractHints.some((hint) => q.includes(hint));
+    };
+
+    const onEmojiClick = (emojiData) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = input;
+        const before = text.substring(0, start);
+        const after = text.substring(end, text.length);
+
+        setInput(before + emojiData.emoji + after);
+
+        // Give focus back to textarea and move cursor after injected emoji
+        setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + emojiData.emoji.length, start + emojiData.emoji.length);
+        }, 10);
     };
 
     useEffect(() => {
@@ -460,7 +520,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     useEffect(() => {
         if (!canUsePro && selectedModel.modelId === PRO_MODEL_ID) {
             setSelectedModel(models[0]);
-            setBotName('Sigma LLM 1');
+            setBotName('Sigma LLM');
         }
     }, [canUsePro, selectedModel.modelId]);
 
@@ -550,7 +610,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     await loadChat(chatIdFromUrl, null);
                 } else {
                     setSelectedModel(guestModel);
-                    setBotName('Sigma LLM 1 Mini');
+                    setBotName('Sigma LLM Mini');
                     setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
 IDENTIDAD Y CREADOR:
@@ -752,7 +812,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     };
 
     const reportChat = (chatId) => {
-        alert('Este chat ha sido denunciado. Revisaremos el contenido a la brevedad.');
+        showToast('Este chat ha sido denunciado. Revisaremos el contenido a la brevedad.');
         setShowMoreMenu(false);
     };
 
@@ -806,12 +866,12 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
     const handleShareChat = async () => {
         if (!currentChatId) {
-            alert('No hay un chat activo para compartir.');
+            showToast('No hay un chat activo para compartir.');
             return;
         }
 
         if (isGuest) {
-            alert('Los invitados no pueden compartir chats. Inicia sesión para guardar y compartir.');
+            showModal('Función de usuarios registrados', 'Los invitados no pueden compartir chats. Inicia sesión para guardar y compartir sus conversaciones.');
             return;
         }
 
@@ -826,10 +886,10 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
             const url = `${window.location.origin}/chat?id=${currentChatId}`;
             await navigator.clipboard.writeText(url);
-            alert('✅ Enlace público copiado al portapapeles.\n\nCualquier persona con el enlace podrá ver este chat (solo lectura).');
+            showToast('Enlace público copiado al portapapeles.', 'success');
         } catch (err) {
             console.error('Error sharing chat:', err);
-            alert('Error al compartir el chat.');
+            showToast('Error al compartir el chat.', 'error');
         }
     };
 
@@ -885,79 +945,79 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         }
 
         setInput('');
-        setSelectedImages([]);
-        setImagePreviews([]);
-        setSelectedDocs([]);
         setIsLoading(true);
         setIsStreaming(true);
         setError(null);
 
         let visionContext = "";
         if (currentImages.length > 0) {
-            dlog('📸 [VISION] Analizando imágenes con Nemotron...');
+            dlog(`📸 [VISION] Analizando ${currentImages.length} imágenes en paralelo...`);
             setIsProcessingImage(true);
+            setAnalyzingImages(currentImages.map(url => ({ url, progress: 5 }))); // 5% initially
             try {
-                const analysisResults = [];
-                for (const imageDataUrl of currentImages) {
-                    const optimizedImageDataUrl = await optimizeImageForVision(imageDataUrl);
-                    dlog('📸 [VISION] Payload size (original -> optimized):', imageDataUrl?.length || 0, '->', optimizedImageDataUrl?.length || 0);
+                const results = await Promise.all(currentImages.map(async (imageDataUrl, idx) => {
+                    try {
+                        // Paso 1: Optimización
+                        const optimizedImageDataUrl = await optimizeImageForVision(imageDataUrl);
+                        setAnalyzingImages(prev => prev.map((img, i) => i === idx ? { ...img, progress: 30 } : img));
 
-                    const visionResp = await fetch('/api/vision', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            imageDataUrl: optimizedImageDataUrl,
-                            imageUrl: optimizedImageDataUrl,
-                            prompt: currentInput || 'Describe la imagen'
-                        })
-                    });
+                        dlog(`📸 [VISION][IMG-${idx}] Payload size:`, imageDataUrl?.length || 0, '->', optimizedImageDataUrl?.length || 0);
 
-                    if (!visionResp.ok) {
-                        const errRaw = await visionResp.text().catch(() => '');
-                        derr('❌ [VISION] /api/vision non-OK:', visionResp.status, errRaw);
-                        continue;
-                    }
+                        // Paso 2: Llamada API
+                        const vController = new AbortController();
+                        const vTimeout = setTimeout(() => vController.abort(), 40000); // 40s timeout per image
 
-                    const vReader = visionResp.body.getReader();
-                    const vDecoder = new TextDecoder();
-                    let vDesc = '';
-                    while (true) {
-                        const { done, value } = await vReader.read();
-                        if (done) break;
-                        const chunk = vDecoder.decode(value);
-                        const lines = chunk.split('\n');
-                        for (const line of lines) {
-                            if (!line.startsWith('data: ')) continue;
-                            try {
-                                const payload = line.replace('data: ', '').trim();
-                                if (payload === '[DONE]' || payload.includes('[DONE]')) continue;
-                                const json = JSON.parse(payload);
-                                const delta = json.choices?.[0]?.delta?.content || '';
-                                if (delta) vDesc += delta;
-                            } catch (e) {
-                                dwarn('⚠️ [VISION] SSE parse error:', e, line);
-                            }
+                        setAnalyzingImages(prev => prev.map((img, i) => i === idx ? { ...img, progress: 60 } : img));
+
+                        const visionResp = await fetch('/api/vision', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                imageDataUrl: optimizedImageDataUrl,
+                                imageUrl: optimizedImageDataUrl,
+                                prompt: currentInput || 'Describe la imagen'
+                            }),
+                            signal: vController.signal
+                        });
+                        clearTimeout(vTimeout);
+
+                        if (!visionResp.ok) {
+                            const errRaw = await visionResp.text().catch(() => '');
+                            derr(`❌ [VISION][IMG-${idx}] /api/vision non-OK:`, visionResp.status, errRaw);
+                            setAnalyzingImages(prev => prev.filter((_, i) => i !== idx));
+                            return null;
                         }
-                    }
-                    vDesc = vDesc.trim();
-                    if (vDesc) {
-                        analysisResults.push(vDesc);
-                        dlog('🧠 [VISION] Nemotron result:', vDesc);
-                    }
-                }
 
+                        const vData = await visionResp.json();
+                        const vDesc = (vData.content || '').trim();
+
+                        setAnalyzingImages(prev => prev.map((img, i) => i === idx ? { ...img, progress: 100 } : img));
+
+                        if (vDesc) {
+                            dlog(`🧠 [VISION][IMG-${idx}] Result obtained.`);
+                            return vDesc;
+                        }
+                        return null;
+                    } catch (e) {
+                        derr(`❌ [VISION][IMG-${idx}] Error during analysis:`, e);
+                        setAnalyzingImages(prev => prev.filter((_, i) => i !== idx));
+                        return null;
+                    }
+                }));
+
+                const analysisResults = results.filter(Boolean);
                 if (analysisResults.length > 0) {
-                    visionContext = `\n\n[ANÁLISIS DE IMAGEN (Nemotron)]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nUsa este análisis como contexto interno para responder.`;
+                    visionContext = `\n\n[ANÁLISIS DE IMAGEN]:\n${analysisResults.join('\n--- Next Image ---\n')}\n\nUsa este análisis como contexto interno para responder.`;
                     dlog('✅ [VISION] visionContext ready:', {
                         imagesAnalyzed: analysisResults.length,
-                        contextLength: visionContext.length,
-                        preview: visionContext.slice(0, 500)
+                        contextLength: visionContext.length
                     });
                 }
             } catch (vErr) {
-                derr('❌ [VISION] Error analyzing image:', vErr);
+                derr('❌ [VISION] Parallel analysis fatal error:', vErr);
             } finally {
                 setIsProcessingImage(false);
+                setTimeout(() => setAnalyzingImages([]), 800);
             }
         }
 
@@ -1041,36 +1101,60 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         setCurrentChatId(chatId);
                         fetchChats(user.id);
                     }
-                }
 
-                if (chatId) {
-                    // Guardar en MySQL
-                    try {
-                        const mResp = await fetch('/api/mysql/messages', {
+                    // Almacenamos los IDs específicos para los inserts de mensajes
+                    const currentMySQLChatId = myChatId;
+                    const currentSupabaseChatId = sbChatId;
+
+                    if (currentMySQLChatId) {
+                        try {
+                            await fetch('/api/mysql/messages', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    chatId: currentMySQLChatId,
+                                    role: 'user',
+                                    content: userMsg.content,
+                                    image: currentImages[0] || null
+                                })
+                            });
+                        } catch (e) { derr('❌ [DB][MYSQL] Mensaje error:', e.message); }
+                    }
+
+                    if (currentSupabaseChatId) {
+                        try {
+                            await supabase.from('messages').insert({
+                                chat_id: currentSupabaseChatId,
+                                role: 'user',
+                                content: userMsg.content,
+                                image: currentImages[0] || null,
+                                created_at: new Date().toISOString()
+                            });
+                        } catch (e) { derr('❌ [DB][SUPABASE] Mensaje error:', e.message); }
+                    }
+                } else {
+                    // Si ya tenemos un chatId (chat existente), intentamos guardar en ambos si es posible
+                    // Para simplificar, si el ID es un UUID, intentamos en ambos
+                    if (chatId) {
+                        fetch('/api/mysql/messages', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 chatId,
                                 role: 'user',
-                                content: currentInput,
+                                content: userMsg.content,
                                 image: currentImages[0] || null
                             })
-                        });
-                        if (mResp.ok) dlog('✅ [DB][MYSQL] Mensaje guardado');
-                    } catch (e) { derr('❌ [DB][MYSQL] Mensaje error:', e.message); }
+                        }).catch(e => derr('❌ [DB][MYSQL] Sync error:', e.message));
 
-                    // Guardar en Supabase
-                    try {
-                        const { error: sbMErr } = await supabase.from('messages').insert({
+                        supabase.from('messages').insert({
                             chat_id: chatId,
                             role: 'user',
-                            content: currentInput,
+                            content: userMsg.content,
                             image: currentImages[0] || null,
                             created_at: new Date().toISOString()
-                        });
-                        if (sbMErr) throw sbMErr;
-                        dlog('✅ [DB][SUPABASE] Mensaje guardado');
-                    } catch (e) { derr('❌ [DB][SUPABASE] Mensaje error:', e.message); }
+                        }).catch(e => derr('❌ [DB][SUPABASE] Sync error:', e.message));
+                    }
                 }
             } catch (err) { dwarn('⚠️ [DB] General save error:', err); }
         }
@@ -1086,14 +1170,14 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         streamAbortRef.current = controller;
 
         try {
-            let modelToUse = (isGuest || !user) ? guestModel.modelId : (useReasoning ? 'nvidia/nemotron-3-nano-30b-a3b:free' : selectedModel.modelId);
+            let modelToUse = (isGuest || !user) ? guestModel.modelId : (useReasoning ? 'deepseek/deepseek-r1:free' : selectedModel.modelId);
             if (!canUsePro && modelToUse === PRO_MODEL_ID) {
-                modelToUse = models[0].modelId;
-                setSelectedModel(models[0]);
-                setBotName('Sigma LLM 1');
+                // If it's the main Sigma LLM but they are guest/free, we let them use it if it's in the list, 
+                // but usually Sigma LLM Mini is for guests.
             }
             let searchContext = "";
             let searchSource = "";
+            let searchResultRaw = "";
             let extractContext = "";
 
             // URL Content Extraction
@@ -1163,6 +1247,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         if (searchData.success) {
                             searchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${searchData.result}`;
                             searchSource = searchData.source || 'Tavily';
+                            searchResultRaw = searchData.result;
                             dlog(`✅ [SEARCH][${isGuest ? 'GUEST' : 'USER'}] Search results acquired.`);
                         }
                     } else {
@@ -1226,6 +1311,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let botResponse = '';
+            let buffer = '';
 
             setMessages(prev => {
                 const next = [...prev];
@@ -1233,43 +1319,72 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     role: 'assistant',
                     content: '',
                     timestamp: new Date().toISOString(),
-                    source: searchSource
+                    source: searchSource,
+                    searchResults: searchResultRaw,
+                    isSearching: false
                 };
                 return next;
             });
 
+            let lastUpdate = Date.now();
+            const updateInterval = 64; // ~15 FPS state updates is more than enough for smooth reading and light on React
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                const chunk = decoder.decode(value);
-                dlog('📡 [CHAT][SSE] Raw chunk:', chunk);
-                const linesChunk = chunk.split('\n');
-                for (const line of linesChunk) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const payload = line.replace('data: ', '').trim();
-                            if (payload === '[DONE]' || payload.includes('[DONE]')) {
-                                dlog('✅ [CHAT][SSE] DONE received');
-                                continue;
-                            }
-                            const json = JSON.parse(payload);
-                            dlog('📡 [CHAT][SSE] Parsed JSON line:', json);
-                            const delta = json.choices?.[0]?.delta?.content || '';
-                            if (delta) {
-                                botResponse += delta;
-                                dlog('✍️ [CHAT][SSE] Delta received:', delta);
-                            }
-                            setMessages(prev => {
-                                const last = [...prev];
-                                last[last.length - 1] = { ...last[last.length - 1], content: botResponse };
-                                return last;
-                            });
-                        } catch (e) {
-                            dwarn('⚠️ [CHAT][SSE] Parse error:', e, line);
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                let updatedInThisChunk = false;
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+
+                    const payload = trimmedLine.replace('data: ', '').trim();
+                    if (payload === '[DONE]') continue;
+
+                    try {
+                        const json = JSON.parse(payload);
+                        const delta = json.choices?.[0]?.delta?.content || '';
+                        if (delta) {
+                            botResponse += delta;
+                            updatedInThisChunk = true;
                         }
+                    } catch (e) {
+                        dwarn('⚠️ [CHAT][SSE] Parse error:', e, trimmedLine);
                     }
                 }
+
+                // Micro-batching state updates to keep React happy and UI buttery smooth
+                if (updatedInThisChunk && (Date.now() - lastUpdate > updateInterval)) {
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) {
+                            next[next.length - 1] = { ...next[next.length - 1], content: botResponse };
+                        }
+                        return next;
+                    });
+                    lastUpdate = Date.now();
+
+                    requestAnimationFrame(() => {
+                        scrollToBottom("auto", true);
+                    });
+                }
             }
+
+            // Ensure the final content is always set
+            setMessages(prev => {
+                const next = [...prev];
+                if (next.length > 0) {
+                    next[next.length - 1] = { ...next[next.length - 1], content: botResponse };
+                }
+                return next;
+            });
+            requestAnimationFrame(() => scrollToBottom("auto", true));
             dlog('✅ [CHAT] Response complete. Full text length:', botResponse.length);
 
             // Fallback: si por cualquier motivo no se interceptó durante stream y el modelo
@@ -1296,11 +1411,13 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
                     let autoSearchContext = "";
                     let autoSearchSource = "";
+                    let autoSearchResultRaw = "";
                     if (aSearchResp.ok) {
                         const aSearchData = await aSearchResp.json();
                         if (aSearchData.success) {
                             autoSearchContext = `\n\n[CONTEXTO DE BÚSQUEDA WEB]:\n${aSearchData.result}`;
                             autoSearchSource = aSearchData.source || 'Tavily';
+                            autoSearchResultRaw = aSearchData.result;
                             dlog('✅ [AGENTIC SEARCH FALLBACK] Results received');
                         }
                     }
@@ -1338,7 +1455,8 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 content: '',
                                 timestamp: new Date().toISOString(),
                                 isSearching: false,
-                                source: autoSearchSource
+                                source: autoSearchSource,
+                                searchResults: autoSearchResultRaw
                             };
                         }
                         return next;
@@ -1369,12 +1487,16 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     const nextReader = nextResponse.body.getReader();
                     let finalBotResponse = '';
 
+                    let fLastUpdate = Date.now();
+                    const fUpdateInterval = 64;
+
                     while (true) {
                         const { done, value } = await nextReader.read();
                         if (done) break;
                         const nextChunk = decoder.decode(value);
                         dlog('📡 [AGENTIC SEARCH FALLBACK][SSE] Raw chunk:', nextChunk);
                         const nextLines = nextChunk.split('\n');
+                        let fUpdated = false;
                         for (const nLine of nextLines) {
                             if (nLine.startsWith('data: ')) {
                                 try {
@@ -1383,24 +1505,36 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         dlog('✅ [AGENTIC SEARCH FALLBACK][SSE] DONE received');
                                         continue;
                                     }
-                                    const nJson = JSON.parse(npayload);
-                                    dlog('📡 [AGENTIC SEARCH FALLBACK][SSE] Parsed JSON line:', nJson);
-                                    const nDelta = nJson.choices?.[0]?.delta?.content || '';
-                                    if (nDelta) {
-                                        finalBotResponse += nDelta;
-                                        dlog('✍️ [AGENTIC SEARCH FALLBACK][SSE] Delta:', nDelta);
-                                        setMessages(prev => {
-                                            const last = [...prev];
-                                            if (last.length > 0) last[last.length - 1].content = finalBotResponse;
-                                            return last;
-                                        });
+                                    const fJson = JSON.parse(npayload);
+                                    const fDelta = fJson.choices?.[0]?.delta?.content || '';
+                                    if (fDelta) {
+                                        finalBotResponse += fDelta;
+                                        fUpdated = true;
                                     }
                                 } catch (e) {
                                     dwarn('⚠️ [AGENTIC SEARCH FALLBACK][SSE] Parse error:', e, nLine);
                                 }
                             }
                         }
+
+                        if (fUpdated && (Date.now() - fLastUpdate > fUpdateInterval)) {
+                            setMessages(prev => {
+                                const next = [...prev];
+                                if (next.length > 0) next[next.length - 1].content = finalBotResponse;
+                                return next;
+                            });
+                            fLastUpdate = Date.now();
+                            requestAnimationFrame(() => scrollToBottom("auto", true));
+                        }
                     }
+
+                    // Final set
+                    setMessages(prev => {
+                        const next = [...prev];
+                        if (next.length > 0) next[next.length - 1].content = finalBotResponse;
+                        return next;
+                    });
+                    requestAnimationFrame(() => scrollToBottom("auto", true));
 
                     botResponse = finalBotResponse;
                 } catch (fallbackErr) {
@@ -1446,22 +1580,29 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         } catch (err) {
             if (err.name === 'AbortError') return;
             derr('❌ [SEND] Final flow error:', err);
-            setError('Error al obtener respuesta.');
+            const errMsg = err.message || 'Error al obtener respuesta.';
+            setError(errMsg);
+
+            // Revert last messages if it was just the placeholder
+            setMessages(prev => {
+                const last = prev[prev.length - 1];
+                if (last && last.role === 'assistant' && last.content === '...') {
+                    return prev.slice(0, -1);
+                }
+                return prev;
+            });
         } finally {
             setIsProcessingImage(false);
             setIsLoading(false);
             setIsStreaming(false);
+            setSelectedImages([]);
+            setImagePreviews([]);
+            setSelectedDocs([]);
         }
     };
 
     const processSelectedFiles = async (incomingFiles, source = 'picker') => {
         console.log(`📎 [UPLOAD] Processing files from: ${source}`);
-        if (isGuest || !user) {
-            alert('Debes iniciar sesión para subir fotos y archivos.');
-            if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
-            setShowGuestOptionsModal(true);
-            return;
-        }
         const files = Array.from(incomingFiles || []);
         console.log('📎 [UPLOAD] Selected files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
         if (files.length === 0) return;
@@ -1474,14 +1615,14 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         const availableSlots = Math.max(0, MAX_ATTACHMENTS - currentAttachmentCount);
 
         if (availableSlots === 0) {
-            alert(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
+            showToast(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
             if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
         const filesToProcess = files.slice(0, availableSlots);
         if (files.length > availableSlots) {
-            alert(`Solo se añadirán ${availableSlots} archivo(s). Límite total: ${MAX_ATTACHMENTS}.`);
+            showToast(`Solo se añadirán ${availableSlots} archivo(s). Límite total: ${MAX_ATTACHMENTS}.`);
         }
         console.log('📎 [UPLOAD] Files to process:', filesToProcess.length, 'Available slots:', availableSlots);
 
@@ -1542,12 +1683,12 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
                     return {
                         name: file.name,
-                        content: textContent,
+                        content: textContent.substring(0, MAX_DOC_CHARS_PER_FILE),
                         type: file.type
                     };
                 } catch (err) {
                     console.error(`❌ [UPLOAD] Extraction failed for ${file.name}:`, err);
-                    alert(`Error procesando ${file.name}: ${err.message}`);
+                    showToast(`Error procesando ${file.name}: ${err.message}`, 'error');
                     return null;
                 }
             });
@@ -1840,7 +1981,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
                                         onClick={() => loadChat(chat.id, user?.id)}
                                     >
-                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <AppleEmojiRenderer text={chat.title} size={14} />
+                                        </span>
                                         <div style={{ display: 'flex', gap: '4px' }}>
                                             <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Archivar">
                                                 <Archive size={14} />
@@ -1867,7 +2010,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         className={`${styles.sidebarLink} ${currentChatId === chat.id ? styles.activeLink : ''}`}
                                         onClick={() => loadChat(chat.id, user?.id)}
                                     >
-                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{chat.title}</span>
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <AppleEmojiRenderer text={chat.title} size={14} />
+                                        </span>
                                         <div style={{ display: 'flex', gap: '4px' }}>
                                             <button onClick={(e) => { e.stopPropagation(); archiveChat(chat.id, true); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '4px' }} title="Desarchivar">
                                                 <RotateCcw size={14} />
@@ -1894,7 +2039,9 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 <div className={styles.profileAvatar}>{userName.substring(0, 2).toUpperCase()}</div>
                             )}
                             <div className={styles.profileDetails}>
-                                <div className={styles.profileName}>{userName}</div>
+                                <div className={styles.profileName}>
+                                    <AppleEmojiRenderer text={userName} size={16} />
+                                </div>
                                 <div className={styles.profileStatus}>{userRole}</div>
                             </div>
                             {userRole === 'Administrador' && (
@@ -1924,7 +2071,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 className={`${styles.modelSelector} ${isGuest ? styles.modelSelectorDisabled : ''}`}
                                 onClick={() => {
                                     if (isGuest) {
-                                        alert('🔒 Inicia sesión para acceder a todos los modelos de Sigma LLM.\n\nComo invitado, solo puedes usar Sigma LLM 1 Mini. Regístrate gratis para desbloquear:\n\n✨ Sigma LLM 1 (Estándar)\n💻 Sigma LLM 1 Coder\n🧠 Sigma LLM 1 Reasoning\n⚡ Sigma LLM 1 PRO');
+                                        showModal('🔒 Funciones Premium', 'Inicia sesión para acceder a todos los modelos de Sigma LLM. Como invitado, solo puedes usar Sigma LLM Mini. Regístrate gratis para desbloquear modelos como Coder, Vision y Razonamiento Avanzado.');
                                         return;
                                     }
                                     setShowModelDropdown(!showModelDropdown);
@@ -1932,83 +2079,42 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 title={isGuest ? 'Inicia sesión para cambiar de modelo' : 'Seleccionar modelo'}
                             >
 
-                                <span>{useReasoning ? 'Sigma LLM 1 Reasoning' : selectedModel.modelName}</span>
+                                <span>{selectedModel.modelName}</span>
                                 {!isGuest && <ChevronDown size={16} className={styles.chevronIcon} />}
                                 {isGuest && <Lock size={14} style={{ opacity: 0.5 }} />}
                             </div>
 
                             {showModelDropdown && !isGuest && (
                                 <div className={styles.modelDropdown}>
-                                    <div
-                                        className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[0].modelId ? styles.activeModel : ''}`}
-                                        onClick={() => {
-                                            setUseReasoning(false);
-                                            setSelectedModel(models[0]);
-                                            setShowModelDropdown(false);
-                                            setBotName('Sigma LLM 1');
-                                        }}
-                                    >
-                                        <div className={styles.modelOptionHeader}>
-                                            <Sparkles size={16} />
-                                            <span>Sigma LLM 1</span>
-                                        </div>
-                                        <p className={styles.modelDescription}>Nuestro modelo estándar, rápido y eficiente.</p>
-                                    </div>
-                                    <div
-                                        className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[1].modelId ? styles.activeModel : ''}`}
-                                        onClick={() => {
-                                            setUseReasoning(false);
-                                            setSelectedModel(models[1]);
-                                            setShowModelDropdown(false);
-                                            setBotName('Sigma LLM 1 Coder');
-                                        }}
-                                    >
-                                        <div className={styles.modelOptionHeader}>
-                                            <ImageIcon size={16} />
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <Zap size={14} style={{ color: '#fbbf24' }} />
-                                                Sigma LLM 1 Coder
-                                            </span>
-                                        </div>
-                                        <p className={styles.modelDescription}>Especializado en programación y creación de apps.</p>
-                                    </div>
-                                    <div
-                                        className={`${styles.modelOption} ${!useReasoning && selectedModel.modelId === models[2].modelId ? styles.activeModel : ''}`}
-                                        onClick={() => {
-                                            if (!canUsePro) {
-                                                alert('Modelo solo para usuarios premium, habla con sigmacompanyoficial@gmail.com para que te dé ese rol.');
+                                    {models.map((model) => (
+                                        <div
+                                            key={model.modelId}
+                                            className={`${styles.modelOption} ${selectedModel.modelId === model.modelId ? styles.activeModel : ''}`}
+                                            onClick={() => {
+                                                if (model.modelId === PRO_MODEL_ID && !canUsePro) {
+                                                    showModal('Acceso Restringido', 'Modelo solo para usuarios premium. Habla con @sigmacompanyoficial para que te asigne ese rol.');
+                                                    setShowModelDropdown(false);
+                                                    return;
+                                                }
+                                                setUseReasoning(false);
+                                                setSelectedModel(model);
                                                 setShowModelDropdown(false);
-                                                return;
-                                            }
-                                            setUseReasoning(false);
-                                            setSelectedModel(models[2]);
-                                            setShowModelDropdown(false);
-                                            setBotName('Sigma LLM 1 PRO');
-                                        }}
-                                    >
-                                        <div className={styles.modelOptionHeader}>
-                                            <Sparkles size={16} />
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <Zap size={14} style={{ color: '#8b5cf6' }} />
-                                                Sigma LLM 1 PRO {!canUsePro && <span style={{ color: '#22c55e', fontWeight: 700 }}>$</span>}
-                                            </span>
+                                                setBotName(model.modelName);
+                                            }}
+                                        >
+                                            <div className={styles.modelOptionHeader}>
+                                                {model.imageInput ? <ImageIcon size={16} /> : (model.modelName.includes('Coder') ? <Zap size={16} /> : <Sparkles size={16} />)}
+                                                <span>{model.modelName}</span>
+                                                {model.modelId === PRO_MODEL_ID && !canUsePro && <span style={{ color: '#22c55e', fontWeight: 700, marginLeft: 'auto' }}>$</span>}
+                                            </div>
+                                            <p className={styles.modelDescription}>
+                                                {model.modelName === "Sigma LLM Coder" ? 'Especializado en programación y creación de apps.' :
+                                                    model.modelName === "Sigma Vision" ? 'Analiza imágenes y documentos visuales.' :
+                                                        model.modelName === "Sigma LLM Mini" ? 'Ultra rápido para tareas sencillas.' :
+                                                            'El modelo más potente y completo de Sigma.'}
+                                            </p>
                                         </div>
-                                        <p className={styles.modelDescription}>El modelo más potente y con razonamiento extendido.</p>
-                                    </div>
-                                    <div
-                                        className={`${styles.modelOption} ${useReasoning ? styles.activeModel : ''}`}
-                                        onClick={() => {
-                                            setUseReasoning(true);
-                                            setShowModelDropdown(false);
-                                            setBotName('Sigma LLM 1 Reasoning');
-                                        }}
-                                    >
-                                        <div className={styles.modelOptionHeader}>
-                                            <Brain size={16} />
-                                            <span>Sigma LLM 1 Reasoning</span>
-                                        </div>
-                                        <p className={styles.modelDescription}>Pensamiento avanzado para tareas complejas.</p>
-                                    </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -2065,7 +2171,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                             </>
                         )}
                     </div>
-                </header>
+                </header >
 
                 <div className={styles.chatContainer} ref={chatContainerRef} onScroll={handleScroll}>
                     {messages.length === 0 ? (
@@ -2078,6 +2184,17 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         </div>
                     ) : (
                         <div className={styles.messagesList}>
+                            {error && (
+                                <div className={styles.errorBanner}>
+                                    <div className={styles.errorBannerContent}>
+                                        <AlertCircle size={18} />
+                                        <span>{error}</span>
+                                    </div>
+                                    <button onClick={() => setError(null)} className={styles.errorClose}>
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            )}
                             {messages.map((msg, idx) => (
                                 <div key={msg.id || idx} className={`${styles.message} ${msg.role === 'user' ? styles.user : ''}`}>
                                     <div className={`${styles.messageAvatar} ${msg.role === 'user' ? styles.userAvatar : styles.botAvatar}`}>
@@ -2116,7 +2233,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                     <div className={styles.analyzingPulse}></div>
                                                     <div className={styles.loaderTextBlock}>
                                                         <span className={styles.loaderTitle}>Analizando imagen</span>
-                                                        <span className={styles.loaderSubtitle}>Nemotron está examinando el contenido...</span>
+                                                        <span className={styles.loaderSubtitle}>Gemma está examinando el contenido...</span>
                                                     </div>
                                                 </div>
                                             ) : msg.content === '...' && !msg.isSearching ? (
@@ -2127,7 +2244,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                         <span></span>
                                                     </div>
                                                     <div className={styles.loaderTextBlock}>
-                                                        <span className={styles.loaderTitle}>{botName} está pensando</span>
+                                                        <span className={styles.loaderTitle}><AppleEmojiRenderer text={botName} /> está pensando</span>
                                                         <span className={styles.loaderSubtitle}>Construyendo la mejor respuesta...</span>
                                                     </div>
                                                 </div>
@@ -2135,8 +2252,29 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                 <>
                                                     {renderMessage(msg.content, idx)}
                                                     {msg.source && (
-                                                        <div style={{ marginTop: '8px', fontSize: '0.75rem', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            <Search size={12} /> Fuente: {msg.source}
+                                                        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setShowSourcesMap(prev => ({ ...prev, [idx]: !prev[idx] }))
+                                                                }}
+                                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                                                onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                                style={{
+                                                                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                                                                    borderRadius: '8px', padding: '6px 12px', color: 'white',
+                                                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                                                                    fontSize: '0.8rem', width: 'fit-content', transition: 'all 0.2s', marginTop: '4px'
+                                                                }}
+                                                            >
+                                                                <Search size={14} />
+                                                                {showSourcesMap[idx] ? 'Ocultar Fuentes' : 'Fuentes'}
+                                                                <span style={{ opacity: 0.6, fontSize: '0.7rem' }}>({msg.source})</span>
+                                                            </button>
+                                                            {showSourcesMap[idx] && msg.searchResults && (
+                                                                <div style={{ background: 'var(--bg-secondary, rgba(0,0,0,0.2))', padding: '16px', borderRadius: '12px', fontSize: '0.85rem', width: '100%', border: '1px solid rgba(255,255,255,0.05)', marginTop: '4px', overflowX: 'auto' }}>
+                                                                    <SigmaMarkdown content={msg.searchResults} theme={theme} />
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </>
@@ -2167,109 +2305,134 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                 </div>
 
                 {/* Guest Registration Modal */}
-                {isGuest && showRegisterModal && (
-                    <div className={styles.modalOverlay}>
-                        <div className={styles.modalContent}>
-                            <div className={styles.modalIcon}><Sparkles size={32} /></div>
-                            <h2>Desbloquea todo el potencial</h2>
-                            <p>Únete a Sigma LLM para acceder al <b>Razonamiento Avanzado</b>, mayor velocidad y poder <b>subir archivos e imágenes</b>.</p>
-                            <div className={styles.modalActions}>
-                                <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
-                                <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
+                {
+                    isGuest && showRegisterModal && (
+                        <div className={styles.modalOverlay}>
+                            <div className={styles.modalContent}>
+                                <div className={styles.modalIcon}><Sparkles size={32} /></div>
+                                <h2>Desbloquea todo el potencial</h2>
+                                <p>Únete a Sigma LLM para acceder al <b>Razonamiento Avanzado</b>, mayor velocidad y poder <b>subir archivos e imágenes</b>.</p>
+                                <div className={styles.modalActions}>
+                                    <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
+                                    <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
-                {isGuest && showGuestOptionsModal && (
-                    <div className={styles.modalOverlay} onClick={() => setShowGuestOptionsModal(false)}>
-                        <div className={styles.guestPromptModal} onClick={(e) => e.stopPropagation()}>
-                            <div className={styles.guestPromptIcon}>
-                                <AlertCircle size={30} />
-                            </div>
-                            <h2 className={styles.guestPromptTitle}>Inicia sesión para continuar</h2>
-                            <p className={styles.guestPromptText}>
-                                Esta opción está disponible para cuentas registradas. Accede para desbloquear herramientas avanzadas.
-                            </p>
-                            <div className={styles.guestPromptActions}>
-                                <button className={styles.guestPromptPrimary} onClick={() => window.location.href = '/login'}>
-                                    Iniciar sesión
-                                </button>
-                                <button className={styles.guestPromptSecondary} onClick={() => window.location.href = '/login?mode=signup'}>
-                                    Crear cuenta
-                                </button>
-                                <button onClick={() => setShowGuestOptionsModal(false)} className={styles.modalCloseBtn}>
-                                    Cerrar
-                                </button>
+                {
+                    isGuest && showGuestOptionsModal && (
+                        <div className={styles.modalOverlay} onClick={() => setShowGuestOptionsModal(false)}>
+                            <div className={styles.guestPromptModal} onClick={(e) => e.stopPropagation()}>
+                                <div className={styles.guestPromptIcon}>
+                                    <AlertCircle size={30} />
+                                </div>
+                                <h2 className={styles.guestPromptTitle}>Inicia sesión para continuar</h2>
+                                <p className={styles.guestPromptText}>
+                                    Esta opción está disponible para cuentas registradas. Accede para desbloquear herramientas avanzadas.
+                                </p>
+                                <div className={styles.guestPromptActions}>
+                                    <button className={styles.guestPromptPrimary} onClick={() => window.location.href = '/login'}>
+                                        Iniciar sesión
+                                    </button>
+                                    <button className={styles.guestPromptSecondary} onClick={() => window.location.href = '/login?mode=signup'}>
+                                        Crear cuenta
+                                    </button>
+                                    <button onClick={() => setShowGuestOptionsModal(false)} className={styles.modalCloseBtn}>
+                                        Cerrar
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 <div className={styles.inputSection}>
                     {!isReadOnly && (
                         <>
-                            {(isProcessingImage || isParsingFile) && (
-                                <div className={styles.analyzingStatus}>
-                                    <div className={styles.analyzingScanner}>
-                                        <div className={styles.analyzingScanLine}></div>
-                                        <div className={styles.analyzingBars}>
-                                            <span></span>
-                                            <span></span>
-                                            <span></span>
-                                            <span></span>
-                                        </div>
+
+                            <form
+                                onSubmit={handleSend}
+                                className={`${styles.inputWrapper} ${isDragOverInput ? styles.inputWrapperDropActive : ''}`}
+                                onDragOver={handleDragOverInput}
+                                onDragEnter={handleDragOverInput}
+                                onDragLeave={handleDragLeaveInput}
+                                onDrop={handleDropInput}
+                            >
+                                {isDragOverInput && (
+                                    <div className={styles.dragOverlay}>
+                                        <Upload size={24} />
+                                        <span>Arrastra aquí</span>
                                     </div>
-                                    <div className={styles.loaderTextBlock}>
-                                        <span className={styles.loaderTitle}>
-                                            {isProcessingImage ? 'Analizando imagen' : 'Procesando archivos'}
-                                        </span>
-                                        <span className={styles.loaderSubtitle}>
-                                            {isProcessingImage
-                                                ? 'Gemma está analizando la imagen...'
-                                                : 'Extrayendo texto y preparando contexto...'}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-                            {(imagePreviews.length > 0 || selectedDocs.length > 0) && (
-                                <div style={{ width: '100%', marginBottom: '12px', padding: '0 10px' }}>
-                                    <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
-                                        {imagePreviews.map((preview, idx) => (
-                                            <div key={idx} style={{ position: 'relative', flexShrink: 0 }}>
-                                                <img
-                                                    src={preview}
-                                                    alt={`Preview ${idx}`}
-                                                    style={{
-                                                        width: '60px',
-                                                        height: '60px',
-                                                        objectFit: 'cover',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid rgba(255,255,255,0.1)'
-                                                    }}
-                                                />
-                                                <button
-                                                    onClick={() => removeImage(idx)}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: '-6px',
-                                                        right: '-6px',
-                                                        background: 'rgba(239, 68, 68, 0.9)',
-                                                        border: 'none',
-                                                        borderRadius: '50%',
-                                                        width: '18px',
-                                                        height: '18px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        cursor: 'pointer',
-                                                        color: 'white'
-                                                    }}
-                                                >
-                                                    <X size={10} strokeWidth={3} />
-                                                </button>
-                                            </div>
-                                        ))}
+                                )}
+
+                                {(imagePreviews.length > 0 || selectedDocs.length > 0) && (
+                                    <div className={styles.previewsContainer}>
+                                        {imagePreviews.map((preview, idx) => {
+                                            const analyzingImg = analyzingImages[idx];
+                                            const progress = analyzingImg?.progress || 0;
+
+                                            return (
+                                                <div key={idx} style={{ position: 'relative', flexShrink: 0 }}>
+                                                    <img
+                                                        src={preview}
+                                                        alt={`Preview ${idx}`}
+                                                        style={{
+                                                            width: '60px',
+                                                            height: '60px',
+                                                            objectFit: 'cover',
+                                                            borderRadius: '8px',
+                                                            border: '1px solid rgba(255,255,255,0.1)',
+                                                            filter: analyzingImg && progress < 100 ? 'brightness(0.5)' : 'none'
+                                                        }}
+                                                    />
+
+                                                    {analyzingImg && progress < 100 && (
+                                                        <div className={styles.analysisProgress} data-complete={progress === 100}>
+                                                            <svg viewBox="0 0 36 36" className={styles.circularChart}>
+                                                                <path className={styles.circleBg}
+                                                                    d="M18 2.0845
+                                                                        a 15.9155 15.9155 0 0 1 0 31.831
+                                                                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                />
+                                                                <path className={styles.circle}
+                                                                    strokeDasharray={`${progress}, 100`}
+                                                                    d="M18 2.0845
+                                                                        a 15.9155 15.9155 0 0 1 0 31.831
+                                                                        a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                />
+                                                                <text x="18" y="20.35" className={styles.percentageText}>{progress}%</text>
+                                                            </svg>
+                                                        </div>
+                                                    )}
+
+                                                    {(progress === 0 || progress === 100) && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); removeImage(idx); }}
+                                                            style={{
+                                                                position: 'absolute',
+                                                                top: '-6px',
+                                                                right: '-6px',
+                                                                background: 'rgba(239, 68, 68, 0.9)',
+                                                                border: 'none',
+                                                                borderRadius: '50%',
+                                                                width: '18px',
+                                                                height: '18px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                cursor: 'pointer',
+                                                                color: 'white',
+                                                                zIndex: 10
+                                                            }}
+                                                        >
+                                                            <X size={10} strokeWidth={3} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
 
                                         {selectedDocs
                                             .map((doc, idx) => ({ doc, idx }))
@@ -2322,92 +2485,47 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                                 </div>
                                             ))}
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            <form
-                                onSubmit={handleSend}
-                                className={`${styles.inputWrapper} ${isDragOverInput ? styles.inputWrapperDropActive : ''}`}
-                                onDragOver={handleDragOverInput}
-                                onDragEnter={handleDragOverInput}
-                                onDragLeave={handleDragLeaveInput}
-                                onDrop={handleDropInput}
-                            >
-                                <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.csv,.json,.html,.htm,.js,.jsx,.ts,.tsx,.py,.md,.xml,.yaml,.yml,.env" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
+                                <div className={styles.inputControlsRow}>
+                                    <input ref={fileInputRef} type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.txt,.csv,.json,.html,.htm,.js,.jsx,.ts,.tsx,.py,.md,.xml,.yaml,.yml,.env" multiple onChange={handleFileSelect} style={{ display: 'none' }} />
 
-                                <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
-                                    <button
-                                        type="button"
-                                        className={`${styles.attachButton} ${showAttachMenu ? styles.attachActive : ''}`}
-                                        onClick={() => {
-                                            if (isGuest) {
-                                                setShowGuestOptionsModal(true);
-                                                setShowAttachMenu(false);
-                                                return;
-                                            }
-                                            setShowAttachMenu(!showAttachMenu);
-                                        }}
+                                    <div style={{ display: 'flex', alignItems: 'center' }} className={styles.attachWrapper} ref={attachMenuRef}>
+                                        <button
+                                            type="button"
+                                            className={styles.attachButton}
+                                            onClick={() => {
+                                                fileInputRef.current?.click();
+                                            }}
+                                            disabled={isLoading}
+                                            title={"Añadir fotos y archivos"}
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    </div>
+
+                                    <textarea
+                                        ref={textareaRef}
+                                        className={styles.textarea}
+                                        placeholder={`${t('message_placeholder')} ${botName}...`}
+                                        rows={1}
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onPaste={handlePaste}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
                                         disabled={isLoading}
-                                        title={"Más opciones"}
-                                    >
-                                        <Plus size={20} className={showAttachMenu ? styles.rotatePlus : ''} />
-                                    </button>
+                                    />
 
-                                    {showAttachMenu && (
-                                        <div className={styles.attachMenu}>
-                                            <button
-                                                type="button"
-                                                className={styles.attachItem}
-                                                onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}
-                                            >
-                                                <ImageIcon size={18} />
-                                                <span>Añadir fotos y archivos</span>
-                                            </button>
-
-                                            <div className={styles.attachDivider} />
-
-                                            <button
-                                                type="button"
-                                                className={`${styles.attachItem} ${useReasoning ? styles.activeOption : ''}`}
-                                                onClick={() => { setUseReasoning(!useReasoning); setShowAttachMenu(false); }}
-                                            >
-                                                <Brain size={18} />
-                                                <span>Razonamiento</span>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                className={`${styles.attachItem} ${useWebSearch ? styles.activeOption : ''}`}
-                                                onClick={() => { setUseWebSearch(!useWebSearch); setShowAttachMenu(false); }}
-                                            >
-                                                <Search size={18} />
-                                                <span>Búsqueda en Internet</span>
-                                            </button>
-                                        </div>
+                                    {isLoading || isStreaming ? (
+                                        <button type="button" className={styles.stopBtnInline} onClick={stopStreaming}>
+                                            <Square size={16} fill="white" />
+                                        </button>
+                                    ) : (
+                                        <button type="submit" className={styles.sendBtn} disabled={!canSend}>
+                                            <Send size={16} />
+                                        </button>
                                     )}
                                 </div>
-
-                                <textarea
-                                    ref={textareaRef}
-                                    className={styles.textarea}
-                                    placeholder={`${t('message_placeholder')} ${botName}...`}
-                                    rows={1}
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onPaste={handlePaste}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
-                                    disabled={isLoading}
-                                />
-
-                                {isLoading || isStreaming ? (
-                                    <button type="button" className={styles.stopBtnInline} onClick={stopStreaming}>
-                                        <Square size={16} fill="white" />
-                                    </button>
-                                ) : (
-                                    <button type="submit" className={styles.sendBtn} disabled={!canSend}>
-                                        <Send size={16} />
-                                    </button>
-                                )}
                             </form>
                         </>
                     )}
@@ -2430,7 +2548,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         <p className={styles.footer}>Sigma LLM puede cometer errores. Verifica la información importante</p>
                     )}
                 </div>
-            </main>
+            </main >
 
             {showCookieConsent && (
                 <div className={styles.cookieBanner}>
@@ -2445,299 +2563,346 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         <button className={styles.cookieBannerBtn} onClick={acceptCookies}>Aceptar</button>
                     </div>
                 </div>
-            )}
+            )
+            }
 
-            {showSettings && (
-                <div className={styles.modalOverlay} onClick={() => setShowSettings(false)}>
-                    <div className={styles.settingsModal} onClick={(e) => e.stopPropagation()}>
-                        {/* Settings Sidebar */}
-                        <div className={styles.settingsSidebar}>
-                            <h2 className={styles.settingsTitle}>Ajustes</h2>
-                            <div className={styles.settingsNav}>
-                                {settingsTabs.map(tab => (
-                                    <button
-                                        key={tab}
-                                        className={`${styles.settingsTab} ${activeSettingsTab === tab ? styles.activeSettingsTab : ''}`}
-                                        onClick={() => setActiveSettingsTab(tab)}
-                                    >
-                                        {tab === 'General' && <Settings size={16} />}
-                                        {tab === 'Estadísticas' && <BarChart3 size={16} />}
-                                        {tab === 'Notificaciones' && <AlertCircle size={16} />}
-                                        {tab === 'Personalización' && <Sparkles size={16} />}
-                                        {tab === 'Aplicaciones' && <Plus size={16} />}
-                                        {tab === 'Datos' && <Trash2 size={16} />}
-                                        {tab === 'Seguridad' && <Check size={16} />}
-                                        {tab === 'Cuenta' && <User size={16} />}
-                                        {tab === 'Legal' && <ShieldCheck size={16} />}
-                                        {tab}
-                                    </button>
-                                ))}
+            {
+                showSettings && (
+                    <div className={styles.modalOverlay} onClick={() => setShowSettings(false)}>
+                        <div className={styles.settingsModal} onClick={(e) => e.stopPropagation()}>
+                            {/* Settings Sidebar */}
+                            <div className={styles.settingsSidebar}>
+                                <h2 className={styles.settingsTitle}>Ajustes</h2>
+                                <div className={styles.settingsNav}>
+                                    {settingsTabs.map(tab => (
+                                        <button
+                                            key={tab}
+                                            className={`${styles.settingsTab} ${activeSettingsTab === tab ? styles.activeSettingsTab : ''}`}
+                                            onClick={() => setActiveSettingsTab(tab)}
+                                        >
+                                            {tab === 'General' && <Settings size={16} />}
+                                            {tab === 'Estadísticas' && <BarChart3 size={16} />}
+                                            {tab === 'Notificaciones' && <AlertCircle size={16} />}
+                                            {tab === 'Personalización' && <Sparkles size={16} />}
+                                            {tab === 'Aplicaciones' && <Plus size={16} />}
+                                            {tab === 'Datos' && <Trash2 size={16} />}
+                                            {tab === 'Seguridad' && <Check size={16} />}
+                                            {tab === 'Cuenta' && <User size={16} />}
+                                            {tab === 'Legal' && <ShieldCheck size={16} />}
+                                            {tab}
+                                        </button>
+                                    ))}
+                                </div>
+                                {!isGuest && (
+                                    <div className={styles.settingsSidebarFooter}>
+                                        <button className={styles.logoutBtn} onClick={handleLogout}>
+                                            <LogOut size={16} /> Cerrar sesión
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                            {!isGuest && (
-                                <div className={styles.settingsSidebarFooter}>
-                                    <button className={styles.logoutBtn} onClick={handleLogout}>
-                                        <LogOut size={16} /> Cerrar sesión
+
+                            {/* Settings Content */}
+                            <div className={styles.settingsContent}>
+                                <div className={styles.settingsContentHeader}>
+                                    <h3>{activeSettingsTab}</h3>
+                                    <X className={styles.closeBtn} onClick={() => setShowSettings(false)} />
+                                </div>
+
+                                <div className={styles.settingsScrollArea}>
+                                    {activeSettingsTab === 'General' && (
+                                        <div className={styles.settingsSection}>
+                                            {!isGuest && (
+                                                <div className={styles.settingGroup}>
+                                                    <label>{t('username')}</label>
+                                                    <input className={styles.inputField} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder={t('username')} />
+                                                </div>
+                                            )}
+                                            <div className={styles.settingGroup}>
+                                                <label>{t('appearance')}</label>
+                                                <div className={styles.radioGroup}>
+                                                    {['Claro', 'Oscuro', 'Sistema'].map(mode => (
+                                                        <button
+                                                            key={mode}
+                                                            className={`${styles.radioBtn} ${appearance === mode ? styles.activeRadio : ''}`}
+                                                            onClick={() => setAppearance(mode)}
+                                                        >
+                                                            {mode === 'Claro' ? 'Light' : mode === 'Oscuro' ? 'Dark' : 'System'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className={styles.settingGroup}>
+                                                <label>{t('language')}</label>
+                                                <select className={styles.select} value={language} onChange={(e) => setLanguage(e.target.value)}>
+                                                    <option value="Auto">Detectar automáticamente</option>
+                                                    <option>Español</option>
+                                                    <option>English</option>
+                                                    <option>Français</option>
+                                                    <option>Deutsch</option>
+                                                    <option>Italiano</option>
+                                                    <option>Português</option>
+                                                    <option>中文</option>
+                                                    <option>日本語</option>
+                                                    <option>한국어</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Estadísticas' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.statsGrid}>
+                                                <div className={styles.statCard}>
+                                                    <div className={styles.statIcon} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
+                                                        <MessageSquare size={20} />
+                                                    </div>
+                                                    <div className={styles.statInfo}>
+                                                        <span className={styles.statLabel}>{t('messages_sent') || 'Mensajes enviados'}</span>
+                                                        <span className={styles.statValue}>{totalMessages}</span>
+                                                    </div>
+                                                </div>
+                                                <div className={styles.statCard}>
+                                                    <div className={styles.statIcon} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
+                                                        <Zap size={20} />
+                                                    </div>
+                                                    <div className={styles.statInfo}>
+                                                        <span className={styles.statLabel}>{t('tokens_used') || 'Tokens utilizados'}</span>
+                                                        <span className={styles.statValue}>{totalTokens.toLocaleString()}</span>
+                                                    </div>
+                                                </div>
+                                                <div className={styles.statCard}>
+                                                    <div className={styles.statIcon} style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                                                        <Check size={20} />
+                                                    </div>
+                                                    <div className={styles.statInfo}>
+                                                        <span className={styles.statLabel}>Chats creados</span>
+                                                        <span className={styles.statValue}>{savedChats.length}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className={styles.usageChartPlaceholder}>
+                                                <div className={styles.placeholderIcon}><BarChart3 size={32} /></div>
+                                                <p>El historial detallado de uso estará disponible próximamente.</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Personalización' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.settingGroup}>
+                                                <label>Nombre del Bot</label>
+                                                <input className={styles.inputField} value={botName} onChange={(e) => setBotName(e.target.value)} />
+                                            </div>
+                                            <div className={styles.settingGroup}>
+                                                <label>Instrucciones del Sistema</label>
+                                                <textarea className={styles.textareaField} value={systemInstructions} onChange={(e) => setSystemInstructions(e.target.value)} rows={4} />
+                                            </div>
+                                            <div className={styles.settingGroup}>
+                                                <label>Tonalidad de Respuesta</label>
+                                                <div className={styles.radioGroup}>
+                                                    {['Formal', 'Casual', 'Profesional', 'Divertido'].map(tone => (
+                                                        <button
+                                                            key={tone}
+                                                            className={`${styles.radioBtn} ${botTone === tone ? styles.activeRadio : ''}`}
+                                                            onClick={() => setBotTone(tone)}
+                                                        >
+                                                            {tone}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className={styles.settingToggle}>
+                                                <span>Uso de Emojis</span>
+                                                <input type="checkbox" checked={useEmojis} onChange={(e) => setUseEmojis(e.target.checked)} />
+                                            </div>
+                                            <div className={styles.settingToggle}>
+                                                <span>Búsqueda Web (Tavily)</span>
+                                                <input type="checkbox" checked={useWebSearch} onChange={(e) => setUseWebSearch(e.target.checked)} />
+                                            </div>
+                                            <div className={styles.settingToggle}>
+                                                <span>Razonamiento (DeepSeek R1)</span>
+                                                <input type="checkbox" checked={useReasoning} onChange={(e) => setUseReasoning(e.target.checked)} />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Seguridad' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.bannerMFA}>
+                                                <div className={styles.bannerContent}>
+                                                    <strong><AppleEmojiRenderer text="🔒" /> Protege tu cuenta</strong>
+                                                    <p>Activa la autenticación multifactor para mayor seguridad.</p>
+                                                </div>
+                                                <button className={styles.bannerBtn}>Configurar MFA</button>
+                                            </div>
+                                            <div className={styles.settingGroup}>
+                                                <label>Correo Electrónico</label>
+                                                <input className={styles.inputField} value={user?.email || ''} readOnly />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Notificaciones' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.settingToggle}>
+                                                <div className={styles.toggleLabel}>
+                                                    <span>Notificaciones por email</span>
+                                                    <small>Recibe avisos de seguridad y resúmenes</small>
+                                                </div>
+                                                <input type="checkbox" defaultChecked />
+                                            </div>
+                                            <div className={styles.settingToggle}>
+                                                <div className={styles.toggleLabel}>
+                                                    <span>Avisos en el navegador</span>
+                                                    <small>Notificaciones push en tiempo real</small>
+                                                </div>
+                                                <input type="checkbox" defaultChecked />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Aplicaciones' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.bannerMFA} style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.05)' }}>
+                                                <div className={styles.bannerContent}>
+                                                    <strong>🔌 Sigma API</strong>
+                                                    <p>Conecta Sigma LLM con tus propias aplicaciones.</p>
+                                                </div>
+                                                <button className={styles.bannerBtn} style={{ background: '#333' }}>Próximamente</button>
+                                            </div>
+                                            <div className={styles.settingGroup}>
+                                                <label>Claves de API</label>
+                                                <div className={styles.apiKeysPlaceholder}>No hay claves activas</div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Datos' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.dangerZone}>
+                                                <div className={styles.dangerItem}>
+                                                    <div className={styles.dangerText}>
+                                                        <span>Eliminar todo el historial</span>
+                                                        <p>Esta acción no se puede deshacer.</p>
+                                                    </div>
+                                                    <button className={styles.dangerBtn} onClick={() => {
+                                                        showModal(
+                                                            '¿Borrar todo el historial?',
+                                                            'Esta acción eliminará permanentemente todos tus chats. Esta acción no se puede deshacer.',
+                                                            'Borrar todo',
+                                                            async () => {
+                                                                const { error } = await supabase.from('chats').delete().eq('user_id', user.id);
+                                                                if (!error) {
+                                                                    fetchChats(user.id);
+                                                                    showToast('Historial eliminado correctamente.', 'success');
+                                                                } else {
+                                                                    showToast('Error al eliminar el historial.', 'error');
+                                                                }
+                                                            },
+                                                            'Cancelar'
+                                                        );
+                                                    }}>Borrar todo</button>
+                                                </div>
+                                                <div className={styles.dangerItem}>
+                                                    <div className={styles.dangerText}>
+                                                        <span>Descargar mis datos</span>
+                                                        <p>Obtén un archivo JSON con todos tus chats.</p>
+                                                    </div>
+                                                    <button className={styles.secondaryBtn} onClick={() => handleShare(JSON.stringify(savedChats, null, 2))}>Descargar</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Cuenta' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.profileEditHeader}>
+                                                <div className={styles.profileAvatarLarge}>
+                                                    {profilePic ? <img src={profilePic} alt="Avatar" /> : userName.substring(0, 2).toUpperCase()}
+                                                </div>
+                                                <button className={styles.secondaryBtn}>Cambiar foto</button>
+                                            </div>
+                                            <div className={styles.settingGroup}>
+                                                <label>Estado de la cuenta</label>
+                                                <div className={styles.accountBadge}>Verificada ✓</div>
+                                            </div>
+                                            <div className={styles.settingGroup}>
+                                                <label>Rol</label>
+                                                <input className={styles.inputField} value={userRole} readOnly />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {activeSettingsTab === 'Legal' && (
+                                        <div className={styles.settingsSection}>
+                                            <div className={styles.settingGroup}>
+                                                <label>Políticas y Condiciones</label>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+                                                    <Link href="/terms" className={styles.legalLinkItem}>
+                                                        <FileText size={16} /> Términos y Condiciones
+                                                    </Link>
+                                                    <Link href="/privacy" className={styles.legalLinkItem}>
+                                                        <Shield size={16} /> Política de Privacidad
+                                                    </Link>
+                                                    <Link href="/cookies" className={styles.legalLinkItem}>
+                                                        <Cookie size={16} /> Configuración de Cookies
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                            <div className={styles.settingGroup} style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
+                                                <p style={{ fontSize: '0.85rem', color: '#666', margin: 0 }}>
+                                                    Sigma LLM es una plataforma desarrollada por <b>Sigma Company</b>.
+                                                    Autor: <b>Ayoub Louah</b>. Versión 0.9 Beta.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className={styles.settingsFooter}>
+                                    <button className={styles.saveSettingsBtn} onClick={saveSettings}>
+                                        <Check size={16} /> {isGuest ? 'Aplicar cambios' : 'Guardar cambios'}
                                     </button>
                                 </div>
-                            )}
+                            </div>
                         </div>
+                    </div>
+                )
+            }
 
-                        {/* Settings Content */}
-                        <div className={styles.settingsContent}>
-                            <div className={styles.settingsContentHeader}>
-                                <h3>{activeSettingsTab}</h3>
-                                <X className={styles.closeBtn} onClick={() => setShowSettings(false)} />
-                            </div>
+            {/* Toast Notification */}
+            {toast.visible && (
+                <div className={`${styles.toast} ${styles['toast' + toast.type.charAt(0).toUpperCase() + toast.type.slice(1)]}`}>
+                    {toast.type === 'success' ? <Check size={18} /> : toast.type === 'error' ? <AlertCircle size={18} /> : <Sparkles size={18} />}
+                    <span>{toast.message}</span>
+                </div>
+            )}
 
-                            <div className={styles.settingsScrollArea}>
-                                {activeSettingsTab === 'General' && (
-                                    <div className={styles.settingsSection}>
-                                        {!isGuest && (
-                                            <div className={styles.settingGroup}>
-                                                <label>{t('username')}</label>
-                                                <input className={styles.inputField} value={userName} onChange={(e) => setUserName(e.target.value)} placeholder={t('username')} />
-                                            </div>
-                                        )}
-                                        <div className={styles.settingGroup}>
-                                            <label>{t('appearance')}</label>
-                                            <div className={styles.radioGroup}>
-                                                {['Claro', 'Oscuro', 'Sistema'].map(mode => (
-                                                    <button
-                                                        key={mode}
-                                                        className={`${styles.radioBtn} ${appearance === mode ? styles.activeRadio : ''}`}
-                                                        onClick={() => setAppearance(mode)}
-                                                    >
-                                                        {mode === 'Claro' ? 'Light' : mode === 'Oscuro' ? 'Dark' : 'System'}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className={styles.settingGroup}>
-                                            <label>{t('language')}</label>
-                                            <select className={styles.select} value={language} onChange={(e) => setLanguage(e.target.value)}>
-                                                <option>Español</option>
-                                                <option>English</option>
-                                                <option>Français</option>
-                                                <option>Deutsch</option>
-                                                <option>Italiano</option>
-                                                <option>Português</option>
-                                                <option>中文</option>
-                                                <option>日本語</option>
-                                                <option>한국어</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Estadísticas' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.statsGrid}>
-                                            <div className={styles.statCard}>
-                                                <div className={styles.statIcon} style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>
-                                                    <MessageSquare size={20} />
-                                                </div>
-                                                <div className={styles.statInfo}>
-                                                    <span className={styles.statLabel}>{t('messages_sent') || 'Mensajes enviados'}</span>
-                                                    <span className={styles.statValue}>{totalMessages}</span>
-                                                </div>
-                                            </div>
-                                            <div className={styles.statCard}>
-                                                <div className={styles.statIcon} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
-                                                    <Zap size={20} />
-                                                </div>
-                                                <div className={styles.statInfo}>
-                                                    <span className={styles.statLabel}>{t('tokens_used') || 'Tokens utilizados'}</span>
-                                                    <span className={styles.statValue}>{totalTokens.toLocaleString()}</span>
-                                                </div>
-                                            </div>
-                                            <div className={styles.statCard}>
-                                                <div className={styles.statIcon} style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-                                                    <Check size={20} />
-                                                </div>
-                                                <div className={styles.statInfo}>
-                                                    <span className={styles.statLabel}>Chats creados</span>
-                                                    <span className={styles.statValue}>{savedChats.length}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className={styles.usageChartPlaceholder}>
-                                            <div className={styles.placeholderIcon}><BarChart3 size={32} /></div>
-                                            <p>El historial detallado de uso estará disponible próximamente.</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Personalización' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.settingGroup}>
-                                            <label>Nombre del Bot</label>
-                                            <input className={styles.inputField} value={botName} onChange={(e) => setBotName(e.target.value)} />
-                                        </div>
-                                        <div className={styles.settingGroup}>
-                                            <label>Instrucciones del Sistema</label>
-                                            <textarea className={styles.textareaField} value={systemInstructions} onChange={(e) => setSystemInstructions(e.target.value)} rows={4} />
-                                        </div>
-                                        <div className={styles.settingGroup}>
-                                            <label>Tonalidad de Respuesta</label>
-                                            <div className={styles.radioGroup}>
-                                                {['Formal', 'Casual', 'Profesional', 'Divertido'].map(tone => (
-                                                    <button
-                                                        key={tone}
-                                                        className={`${styles.radioBtn} ${botTone === tone ? styles.activeRadio : ''}`}
-                                                        onClick={() => setBotTone(tone)}
-                                                    >
-                                                        {tone}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className={styles.settingToggle}>
-                                            <span>Uso de Emojis</span>
-                                            <input type="checkbox" checked={useEmojis} onChange={(e) => setUseEmojis(e.target.checked)} />
-                                        </div>
-                                        <div className={styles.settingToggle}>
-                                            <span>Búsqueda Web (Tavily)</span>
-                                            <input type="checkbox" checked={useWebSearch} onChange={(e) => setUseWebSearch(e.target.checked)} />
-                                        </div>
-                                        <div className={styles.settingToggle}>
-                                            <span>Razonamiento (Nemotron)</span>
-                                            <input type="checkbox" checked={useReasoning} onChange={(e) => setUseReasoning(e.target.checked)} />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Seguridad' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.bannerMFA}>
-                                            <div className={styles.bannerContent}>
-                                                <strong>🔒 Protege tu cuenta</strong>
-                                                <p>Activa la autenticación multifactor para mayor seguridad.</p>
-                                            </div>
-                                            <button className={styles.bannerBtn}>Configurar MFA</button>
-                                        </div>
-                                        <div className={styles.settingGroup}>
-                                            <label>Correo Electrónico</label>
-                                            <input className={styles.inputField} value={user?.email || ''} readOnly />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Notificaciones' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.settingToggle}>
-                                            <div className={styles.toggleLabel}>
-                                                <span>Notificaciones por email</span>
-                                                <small>Recibe avisos de seguridad y resúmenes</small>
-                                            </div>
-                                            <input type="checkbox" defaultChecked />
-                                        </div>
-                                        <div className={styles.settingToggle}>
-                                            <div className={styles.toggleLabel}>
-                                                <span>Avisos en el navegador</span>
-                                                <small>Notificaciones push en tiempo real</small>
-                                            </div>
-                                            <input type="checkbox" defaultChecked />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Aplicaciones' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.bannerMFA} style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.05)' }}>
-                                            <div className={styles.bannerContent}>
-                                                <strong>🔌 Sigma API</strong>
-                                                <p>Conecta Sigma LLM con tus propias aplicaciones.</p>
-                                            </div>
-                                            <button className={styles.bannerBtn} style={{ background: '#333' }}>Próximamente</button>
-                                        </div>
-                                        <div className={styles.settingGroup}>
-                                            <label>Claves de API</label>
-                                            <div className={styles.apiKeysPlaceholder}>No hay claves activas</div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Datos' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.dangerZone}>
-                                            <div className={styles.dangerItem}>
-                                                <div className={styles.dangerText}>
-                                                    <span>Eliminar todo el historial</span>
-                                                    <p>Esta acción no se puede deshacer.</p>
-                                                </div>
-                                                <button className={styles.dangerBtn} onClick={async () => {
-                                                    if (confirm('¿Seguro que quieres borrar todo el historial?')) {
-                                                        const { error } = await supabase.from('chats').delete().eq('user_id', user.id);
-                                                        if (!error) fetchChats(user.id);
-                                                    }
-                                                }}>Borrar todo</button>
-                                            </div>
-                                            <div className={styles.dangerItem}>
-                                                <div className={styles.dangerText}>
-                                                    <span>Descargar mis datos</span>
-                                                    <p>Obtén un archivo JSON con todos tus chats.</p>
-                                                </div>
-                                                <button className={styles.secondaryBtn} onClick={() => handleShare(JSON.stringify(savedChats, null, 2))}>Descargar</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Cuenta' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.profileEditHeader}>
-                                            <div className={styles.profileAvatarLarge}>
-                                                {profilePic ? <img src={profilePic} alt="Avatar" /> : userName.substring(0, 2).toUpperCase()}
-                                            </div>
-                                            <button className={styles.secondaryBtn}>Cambiar foto</button>
-                                        </div>
-                                        <div className={styles.settingGroup}>
-                                            <label>Estado de la cuenta</label>
-                                            <div className={styles.accountBadge}>Verificada ✓</div>
-                                        </div>
-                                        <div className={styles.settingGroup}>
-                                            <label>Rol</label>
-                                            <input className={styles.inputField} value={userRole} readOnly />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeSettingsTab === 'Legal' && (
-                                    <div className={styles.settingsSection}>
-                                        <div className={styles.settingGroup}>
-                                            <label>Políticas y Condiciones</label>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
-                                                <Link href="/terms" className={styles.legalLinkItem}>
-                                                    <FileText size={16} /> Términos y Condiciones
-                                                </Link>
-                                                <Link href="/privacy" className={styles.legalLinkItem}>
-                                                    <Shield size={16} /> Política de Privacidad
-                                                </Link>
-                                                <Link href="/cookies" className={styles.legalLinkItem}>
-                                                    <Cookie size={16} /> Configuración de Cookies
-                                                </Link>
-                                            </div>
-                                        </div>
-                                        <div className={styles.settingGroup} style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px' }}>
-                                            <p style={{ fontSize: '0.85rem', color: '#666', margin: 0 }}>
-                                                Sigma LLM es una plataforma desarrollada por <b>Sigma Company</b>.
-                                                Autor: <b>Ayoub Louah</b>. Versión 0.9 Beta.
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className={styles.settingsFooter}>
-                                <button className={styles.saveSettingsBtn} onClick={saveSettings}>
-                                    <Check size={16} /> {isGuest ? 'Aplicar cambios' : 'Guardar cambios'}
+            {/* Custom Modal */}
+            {customModal.visible && (
+                <div className={styles.modalOverlay} onClick={() => setCustomModal(prev => ({ ...prev, visible: false }))}>
+                    <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+                        <div className={styles.modalIcon}>
+                            <Sparkles size={32} />
+                        </div>
+                        <h2 className={styles.modalTitle}>{customModal.title}</h2>
+                        <p>{customModal.content}</p>
+                        <div className={styles.modalActions}>
+                            <button className={styles.modalLoginBtn} onClick={customModal.onConfirm}>
+                                {customModal.confirmText}
+                            </button>
+                            {customModal.cancelText && (
+                                <button className={styles.modalCloseBtn} onClick={() => setCustomModal(prev => ({ ...prev, visible: false }))}>
+                                    {customModal.cancelText}
                                 </button>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
-        </div>
+
+        </div >
     );
 }
