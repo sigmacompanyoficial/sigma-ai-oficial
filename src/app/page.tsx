@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import Link from 'next/link';
 import { ArrowRight, Brain, Zap, Shield, Globe, Code, Sparkles, Cpu, MessageSquare, CheckCircle2, Play } from 'lucide-react';

@@ -1,10 +1,18 @@
-// @ts-nocheck
 import { NextResponse } from 'next/server';
 import pool from '@/lib/mysql';
 
-export async function POST(req) {
+type ProfilePayload = {
+    id?: string;
+    full_name?: string | null;
+    email?: string | null;
+    avatar_url?: string | null;
+    role?: string | null;
+    username?: string | null;
+};
+
+export async function POST(req: Request) {
     try {
-        const profile = await req.json();
+        const profile = await req.json() as ProfilePayload;
         const { id, full_name, email, avatar_url, role, username } = profile;
 
         if (!id) {
@@ -24,7 +32,7 @@ export async function POST(req) {
         `, [id, full_name, email, avatar_url, role, username]);
 
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('MySQL Profile Sync Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

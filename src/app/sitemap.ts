@@ -1,4 +1,3 @@
-// @ts-nocheck
 export default function sitemap() {
     const baseUrl = 'https://sigma-ai-oficial.vercel.app';
     const now = new Date();

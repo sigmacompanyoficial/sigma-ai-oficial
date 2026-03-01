@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import Link from 'next/link';
 import { FileText, ChevronLeft, Scale } from 'lucide-react';

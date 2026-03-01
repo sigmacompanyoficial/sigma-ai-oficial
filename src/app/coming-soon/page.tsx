@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -6,10 +5,18 @@ import { useRouter } from 'next/navigation';
 
 // Launch date: 2 March 2026 at 08:00 CET (UTC+1) = 07:00 UTC
 const LAUNCH_DATE = new Date('2026-03-02T07:00:00.000Z');
+type TimeLeft = { days: number; hours: number; minutes: number; seconds: number; total: number };
+type Particle = { id: number; x: number; y: number; size: number; dur: number; delay: number };
 
-function getTimeLeft() {
+declare global {
+    interface Window {
+        sigma?: string;
+    }
+}
+
+function getTimeLeft(): TimeLeft | null {
     const now = new Date();
-    const diff = LAUNCH_DATE - now;
+    const diff = LAUNCH_DATE.getTime() - now.getTime();
     if (diff <= 0) return null;
     return {
         days: Math.floor(diff / (1000 * 60 * 60 * 24)),
@@ -23,7 +30,7 @@ function getTimeLeft() {
 export default function ComingSoon() {
     const [timeLeft, setTimeLeft] = useState(getTimeLeft());
     const [launched, setLaunched] = useState(false);
-    const [particles, setParticles] = useState([]);
+    const [particles, setParticles] = useState<Particle[]>([]);
     const router = useRouter();
 
     useEffect(() => {
@@ -70,10 +77,10 @@ export default function ComingSoon() {
         };
     }, []);
 
-    const pad = (n) => String(n).padStart(2, '0');
+    const pad = (n: number) => String(n).padStart(2, '0');
 
     // Percentage of time remaining (based on ~9 days from now)
-    const totalMs = LAUNCH_DATE - new Date('2026-02-21T22:07:00.000Z');
+    const totalMs = LAUNCH_DATE.getTime() - new Date('2026-02-21T22:07:00.000Z').getTime();
     const progressPct = timeLeft
         ? Math.max(0, Math.min(100, ((totalMs - timeLeft.total) / totalMs) * 100))
         : 100;

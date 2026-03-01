@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import { useState, useRef, useEffect, useMemo } from 'react';
 import {
@@ -16,6 +15,7 @@ import { models } from '@/lib/models';
 import Link from 'next/link';
 import { uploadAndExtractFile, uploadAndVisionPDF } from '@/lib/fileParser';
 import { AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
+import type { ChangeEvent, ClipboardEvent, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 
 
 const guestModel = {
@@ -108,6 +108,18 @@ const translations = {
 };
 
 export default function ChatPage() {
+    type SelectedDoc = {
+        id?: string;
+        name: string;
+        type?: string;
+        content?: string;
+        isHidden?: boolean;
+        isParsing?: boolean;
+        progress?: number;
+        _file?: File;
+    };
+
+    type AnalyzingImage = { url: string; progress: number };
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [selectedModel, setSelectedModel] = useState(models[0]);
@@ -208,11 +220,11 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const [totalMessages, setTotalMessages] = useState(0);
     const [totalTokens, setTotalTokens] = useState(0);
 
-    const [selectedImages, setSelectedImages] = useState([]);
-    const [imagePreviews, setImagePreviews] = useState([]);
-    const [selectedDocs, setSelectedDocs] = useState([]); // [{ name, content, type }]
+    const [selectedImages, setSelectedImages] = useState<File[]>([]);
+    const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+    const [selectedDocs, setSelectedDocs] = useState<SelectedDoc[]>([]); // [{ name, content, type }]
     const [isProcessingImage, setIsProcessingImage] = useState(false);
-    const [analyzingImages, setAnalyzingImages] = useState([]); // [{ url, progress }]
+    const [analyzingImages, setAnalyzingImages] = useState<AnalyzingImage[]>([]); // [{ url, progress }]
     const [isParsingFile, setIsParsingFile] = useState(false);
 
     const [savedChats, setSavedChats] = useState([]);
@@ -297,21 +309,21 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const MAX_VISION_DATA_URL_LEN = 1_200_000;
     const DEBUG_ALL_LOGS = false;
 
-    const dlog = (...args) => {
+    const dlog = (...args: unknown[]) => {
         if (DEBUG_ALL_LOGS) console.log(...args);
     };
 
-    const dwarn = (...args) => {
+    const dwarn = (...args: unknown[]) => {
         if (DEBUG_ALL_LOGS) console.warn(...args);
     };
 
-    const derr = (...args) => {
+    const derr = (...args: unknown[]) => {
         if (DEBUG_ALL_LOGS) console.error(...args);
     };
 
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-    const optimizeImageForVision = (dataUrl) => new Promise((resolve) => {
+    const optimizeImageForVision = (dataUrl: string): Promise<string> => new Promise((resolve) => {
         if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
             resolve(dataUrl);
             return;
@@ -364,7 +376,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         img.src = dataUrl;
     });
 
-    const fetchWithRetry = async (url, options, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY) => {
+    const fetchWithRetry = async (url: string, options: RequestInit, retries = MAX_RETRIES, delay = INITIAL_RETRY_DELAY): Promise<Response> => {
         try {
             dlog('🌍 [HTTP] Request =>', {
                 url,
@@ -390,8 +402,8 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             }
 
             return response;
-        } catch (err) {
-            if (retries > 0 && err.message.includes('Failed to fetch')) {
+        } catch (err: unknown) {
+            if (retries > 0 && (err as { message?: string })?.message?.includes('Failed to fetch')) {
                 dwarn(`🔄 Error de conexión. Reintentando en ${delay / 1000}s...`);
                 await sleep(delay);
                 return fetchWithRetry(url, options, retries - 1, delay * 1.5);
@@ -408,7 +420,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         return true;
     };
 
-    const extractAgenticSearchQuery = (text) => {
+    const extractAgenticSearchQuery = (text: string): string | null => {
         if (!text || typeof text !== 'string') return null;
 
         const patterns = [
@@ -435,7 +447,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         return null;
     };
 
-    const shouldForceRealtimeSearch = (text) => {
+    const shouldForceRealtimeSearch = (text: string): boolean => {
         const q = (text || '').toLowerCase();
         if (!q.trim()) return false;
         const realtimeHints = [
@@ -446,13 +458,13 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         return realtimeHints.some((k) => q.includes(k));
     };
 
-    const extractURLs = (text) => {
+    const extractURLs = (text: string): string[] => {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
         const matches = text.match(urlRegex);
         return matches || [];
     };
 
-    const shouldExtractURLContent = (text) => {
+    const shouldExtractURLContent = (text: string): boolean => {
         const urls = extractURLs(text);
         if (urls.length === 0) return false;
 
@@ -822,7 +834,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         setIsSidebarOpen(false); // Close sidebar on mobile
     };
 
-    const archiveChat = async (chatId, undo = false) => {
+    const archiveChat = async (chatId: string, undo = false) => {
         try {
             const resp = await fetch(`/api/mysql/chats/${chatId}`, {
                 method: 'PATCH',
@@ -845,12 +857,13 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         }
     };
 
-    const reportChat = (chatId) => {
+    const reportChat = (chatId: string) => {
+        void chatId;
         showToast('Este chat ha sido denunciado. Revisaremos el contenido a la brevedad.');
         setShowMoreMenu(false);
     };
 
-    const deleteChat = async (chatId, e) => {
+    const deleteChat = async (chatId: string, e?: ReactMouseEvent | Event) => {
         if (e) e.stopPropagation();
         try {
             const resp = await fetch(`/api/mysql/chats/${chatId}`, {
@@ -1181,13 +1194,16 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                             })
                         }).catch(e => derr('❌ [DB][MYSQL] Sync error:', e.message));
 
-                        supabase.from('messages').insert({
-                            chat_id: chatId,
-                            role: 'user',
-                            content: userMsg.content,
-                            image: currentImages[0] || null,
-                            created_at: new Date().toISOString()
-                        }).catch(e => derr('❌ [DB][SUPABASE] Sync error:', e.message));
+                        void (async () => {
+                            const { error: sbSyncErr } = await supabase.from('messages').insert({
+                                chat_id: chatId,
+                                role: 'user',
+                                content: userMsg.content,
+                                image: currentImages[0] || null,
+                                created_at: new Date().toISOString()
+                            });
+                            if (sbSyncErr) derr('❌ [DB][SUPABASE] Sync error:', sbSyncErr.message);
+                        })();
                     }
                 }
             } catch (err) { dwarn('⚠️ [DB] General save error:', err); }
@@ -1635,8 +1651,11 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         }
     };
 
-    const processSelectedFiles = async (items, source = 'picker') => {
-        const files = Array.from(items || []);
+    const processSelectedFiles = async (
+        items: FileList | File[] | null | undefined,
+        source: 'picker' | 'paste' | 'drop' = 'picker'
+    ) => {
+        const files: File[] = Array.from(items || []);
         if (files.length === 0) return;
 
         // Cleanup legacy docs
@@ -1675,14 +1694,14 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
         // 1. Start Image Previews (async but separate)
         if (imageFiles.length > 0) {
-            const previewPromises = imageFiles.map(file => new Promise(resolve => {
+            const previewPromises = imageFiles.map(file => new Promise<{ file: File; preview: string | null }>((resolve) => {
                 const reader = new FileReader();
-                reader.onloadend = () => resolve({ file, preview: reader.result });
+                reader.onloadend = () => resolve({ file, preview: typeof reader.result === 'string' ? reader.result : null });
                 reader.readAsDataURL(file);
             }));
 
             Promise.all(previewPromises).then(results => {
-                const valid = results.filter(r => r.preview);
+                const valid = results.filter((r): r is { file: File; preview: string } => Boolean(r.preview));
                 setSelectedImages(prev => [...prev, ...valid.map(r => r.file)]);
                 setImagePreviews(prev => [...prev, ...valid.map(r => r.preview)]);
             });
@@ -1742,17 +1761,17 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const handleFileSelect = async (e) => {
+    const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
         console.log('📎 [UPLOAD] File picker changed');
         await processSelectedFiles(e.target.files, 'picker');
     };
 
-    const handlePaste = async (e) => {
+    const handlePaste = async (e: ClipboardEvent<HTMLTextAreaElement>) => {
         const items = Array.from(e.clipboardData?.items || []);
         const pastedImages = items
             .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
             .map(item => item.getAsFile())
-            .filter(Boolean);
+            .filter((file): file is File => Boolean(file));
 
         if (pastedImages.length > 0) {
             console.log('📋 [UPLOAD] Pasted images detected:', pastedImages.length);
@@ -1761,17 +1780,17 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         }
     };
 
-    const handleDragOverInput = (e) => {
+    const handleDragOverInput = (e: DragEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!isDragOverInput) setIsDragOverInput(true);
     };
 
-    const handleDragLeaveInput = (e) => {
+    const handleDragLeaveInput = (e: DragEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsDragOverInput(false);
     };
 
-    const handleDropInput = async (e) => {
+    const handleDropInput = async (e: DragEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsDragOverInput(false);
         const droppedFiles = Array.from(e.dataTransfer?.files || []);

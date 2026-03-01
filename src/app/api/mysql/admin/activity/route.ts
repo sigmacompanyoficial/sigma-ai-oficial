@@ -1,8 +1,8 @@
-// @ts-nocheck
 import { NextResponse } from 'next/server';
 import pool from '@/lib/mysql';
 
-export async function GET(req) {
+export async function GET(req: Request) {
+    void req;
     try {
         // Query to get chats and ideally owner info. 
         // Since profiles are in Supabase, we might have to fetch them separately or if mirrored in MySQL, join them.

@@ -1,4 +1,3 @@
-// @ts-nocheck
 export function getCoreIdentity(activeBotName, toneDirective, detailDirective, languageDirective, coderDirective, reasoningDirective) {
     return `You are ${activeBotName}, a large language model created by SigmaCompany and Ayoub Louah.
 Knowledge cutoff: 2024-06

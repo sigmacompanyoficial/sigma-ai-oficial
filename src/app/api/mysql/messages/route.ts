@@ -1,11 +1,17 @@
-// @ts-nocheck
 import { NextResponse } from 'next/server';
 import pool from '@/lib/mysql';
 import { v4 as uuidv4 } from 'uuid';
 
-export async function POST(req) {
+type CreateMessageBody = {
+    chatId?: string;
+    role?: string;
+    content?: string;
+    image?: string | null;
+};
+
+export async function POST(req: Request) {
     try {
-        const { chatId, role, content, image } = await req.json();
+        const { chatId, role, content, image } = await req.json() as CreateMessageBody;
 
         if (!chatId || !role || (!content && !image)) {
             return NextResponse.json({ error: 'chatId, role, and either content or image are required' }, { status: 400 });
@@ -18,7 +24,7 @@ export async function POST(req) {
         );
 
         return NextResponse.json({ id, chatId, role, content, image });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('MySQL Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

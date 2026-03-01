@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -7,21 +6,29 @@ import {
 import Link from 'next/link';
 import SigmaMarkdown from './SigmaMarkdown';
 import styles from './GuestChat.module.css';
+import type { FormEvent } from 'react';
+
+type GuestMessage = {
+    role: string;
+    content: string;
+    isSearching?: boolean;
+    source?: string;
+};
 
 export default function GuestChat() {
-    const [messages, setMessages] = useState([]);
+    const [messages, setMessages] = useState<GuestMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [useWebSearch, setUseWebSearch] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const [showRegisterMsg, setShowRegisterMsg] = useState(false);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showHelp, setShowHelp] = useState(false);
     const [messageCount, setMessageCount] = useState(0);
     const [showCookies, setShowCookies] = useState(true);
     const [theme, setTheme] = useState('dark');
-    const textareaRef = useRef(null);
-    const messagesEndRef = useRef(null);
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
     const modelId = "arcee-ai/trinity-large-preview:free";
     const systemInstructions = `Eres Sigma LLM 1 Mini, un asistente de IA de vanguardia. Fecha actual: ${new Date().toLocaleDateString('es-ES')}. Tienes acceso a una herramienta de búsqueda en tiempo real. Si el usuario te pregunta por algo actual (como el tiempo, noticias o eventos recientes), DEBES usar el comando SEARCH: 'consulta' para obtener datos reales antes de responder. Ejemplo: Si preguntan por el clima en Madrid, responde primero solo con SEARCH: clima en Madrid. Tu tono debe ser profesional y eficiente.`;
@@ -57,7 +64,7 @@ export default function GuestChat() {
         scrollToBottom();
     }, [messages]);
 
-    const handleSend = async (e) => {
+    const handleSend = async (e?: { preventDefault: () => void }) => {
         e?.preventDefault();
         if (!input.trim() || isLoading) return;
 
@@ -93,7 +100,8 @@ export default function GuestChat() {
 
             if (!response.ok) throw new Error('Error en la respuesta del servidor');
 
-            const reader = response.body.getReader();
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error('No stream reader available');
             const decoder = new TextDecoder();
             let assistantContent = '';
 
@@ -187,7 +195,8 @@ export default function GuestChat() {
 
                                         if (!nextResp.ok) throw new Error('Error en re-búsqueda');
 
-                                        const nextReader = nextResp.body.getReader();
+                                        const nextReader = nextResp.body?.getReader();
+                                        if (!nextReader) throw new Error('No stream reader available');
                                         let finalContent = '';
 
                                         setMessages(prev => {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import Link from 'next/link';
 import { Shield, ChevronLeft, Lock } from 'lucide-react';

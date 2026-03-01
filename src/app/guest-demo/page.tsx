@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { Send, ChevronDown, Sparkles, User, Image as ImageIcon, X, Trophy, ExternalLink, Code } from 'lucide-react';

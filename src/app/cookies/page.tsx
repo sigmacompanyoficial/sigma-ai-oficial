@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 import Link from 'next/link';
 import { Cookie, ChevronLeft, Settings2 } from 'lucide-react';

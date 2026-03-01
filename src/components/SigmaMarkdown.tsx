@@ -1,7 +1,7 @@
-// @ts-nocheck
 'use client';
 
 import React, { useState } from 'react';
+import type { ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -17,7 +17,13 @@ import 'katex/dist/katex.min.css';
 
 import { withAppleEmojis, AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
 
-const SigmaMarkdown = ({ content, className = '', ...props }) => {
+type SigmaMarkdownProps = {
+    content: string;
+    className?: string;
+    [key: string]: unknown;
+};
+
+const SigmaMarkdown = ({ content, className = '', ...props }: SigmaMarkdownProps) => {
 
 
     const components = {
@@ -42,18 +48,21 @@ const SigmaMarkdown = ({ content, className = '', ...props }) => {
         pre: ({ node, children, ...props }) => {
             // Extract language from the code element if possible
             const codeElement = React.Children.toArray(children)[0];
-            const className = codeElement?.props?.className || '';
+            const codeEl = React.isValidElement<{ className?: string; children?: ReactNode }>(codeElement) ? codeElement : null;
+            const className = codeEl?.props?.className || '';
             const match = /language-(\w+)/.exec(className || '');
             const language = match ? match[1] : 'text';
 
             // Extract raw text for copying
-            const extractText = (children) => {
-                if (typeof children === 'string') return children;
-                if (Array.isArray(children)) return children.map(extractText).join('');
-                if (children?.props?.children) return extractText(children.props.children);
+            const extractText = (childrenNode: ReactNode): string => {
+                if (typeof childrenNode === 'string') return childrenNode;
+                if (Array.isArray(childrenNode)) return childrenNode.map(extractText).join('');
+                if (React.isValidElement<{ children?: ReactNode }>(childrenNode) && childrenNode.props?.children) {
+                    return extractText(childrenNode.props.children);
+                }
                 return '';
             };
-            const codeText = extractText(codeElement?.props?.children);
+            const codeText = extractText(codeEl?.props?.children || '');
 
             return (
                 <div className="sigma-code-block-wrapper">
@@ -88,8 +97,9 @@ const SigmaMarkdown = ({ content, className = '', ...props }) => {
 
             let alertType = null;
 
-            if (firstChild && firstChild.type === 'p') {
-                const textContent = firstChild.props.children[0];
+            if (React.isValidElement<{ children?: ReactNode }>(firstChild) && firstChild.type === 'p') {
+                const childNodes = React.Children.toArray(firstChild.props.children);
+                const textContent = childNodes[0];
                 if (typeof textContent === 'string') {
                     if (textContent.startsWith('[!NOTE]')) alertType = 'note';
                     else if (textContent.startsWith('[!TXP]')) alertType = 'tip';
@@ -164,7 +174,7 @@ const SigmaMarkdown = ({ content, className = '', ...props }) => {
 };
 
 // Extracted Copy Button Component
-const CopyButton = ({ text }) => {
+const CopyButton = ({ text }: { text: string }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = () => {

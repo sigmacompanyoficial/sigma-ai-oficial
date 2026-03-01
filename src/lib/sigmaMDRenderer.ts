@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Markdown renderer library removed */
-const SigmaMarkdownRenderer = {};
+const SigmaMarkdownRenderer: Record<string, never> = {};
 export default SigmaMarkdownRenderer;

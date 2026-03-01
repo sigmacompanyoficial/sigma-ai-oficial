@@ -1,5 +1,14 @@
-// @ts-nocheck
-export const models = [
+export type SigmaModel = {
+    modelId: string;
+    modelName: string;
+    provider: string;
+    hostedId: string;
+    platformLink: string;
+    imageInput: boolean;
+    maxContext: number;
+};
+
+export const models: SigmaModel[] = [
     {
         modelId: "openai/gpt-oss-120b:free",
         modelName: "Sigma LLM",

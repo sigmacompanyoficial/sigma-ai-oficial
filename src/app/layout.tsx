@@ -1,4 +1,3 @@
-// @ts-nocheck
 import './globals.css';
 import './globals-theme.css';
 import 'katex/dist/katex.min.css';

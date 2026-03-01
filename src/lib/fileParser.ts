@@ -1,8 +1,19 @@
-// @ts-nocheck
 /**
  * Cliente: Envía archivo al servidor para extracción de texto
  */
-export async function uploadAndExtractFile(file) {
+type ParseResponse = {
+  text?: string;
+  error?: string;
+};
+
+type PdfVisionResponse = {
+  result?: string;
+  method?: string;
+  pages?: number;
+  error?: string;
+};
+
+export async function uploadAndExtractFile(file: File): Promise<string> {
   console.log('[FILE_PARSER] Starting extraction:', {
     name: file?.name,
     type: file?.type,
@@ -22,14 +33,14 @@ export async function uploadAndExtractFile(file) {
   if (!response.ok) {
     let errorMsg = 'Error al procesar el archivo';
     try {
-      const error = await response.json();
+      const error = (await response.json()) as ParseResponse;
       errorMsg = error.error || errorMsg;
     } catch { }
     console.error('[FILE_PARSER] Parse failed:', errorMsg);
     throw new Error(errorMsg);
   }
 
-  const result = await response.json();
+  const result = (await response.json()) as ParseResponse;
   console.log('[FILE_PARSER] Extraction completed:', {
     name: file?.name,
     extractedChars: result?.text?.length || 0,
@@ -40,7 +51,7 @@ export async function uploadAndExtractFile(file) {
 /**
  * PDF: Convierte páginas a imágenes y envía a visión (Gemma/fallback)
  */
-export async function uploadAndVisionPDF(file, prompt = "Resume este documento detalladamente y extrae los puntos clave.") {
+export async function uploadAndVisionPDF(file: File, prompt = "Resume este documento detalladamente y extrae los puntos clave."): Promise<string> {
   console.log('[FILE_PARSER] Starting PDF analysis:', {
     name: file?.name,
     type: file?.type,
@@ -72,14 +83,14 @@ export async function uploadAndVisionPDF(file, prompt = "Resume este documento d
     if (!response.ok) {
       let errorMsg = 'Error al analizar el PDF';
       try {
-        const error = await response.json();
+        const error = (await response.json()) as PdfVisionResponse;
         errorMsg = error.error || errorMsg;
       } catch { }
       console.error('[FILE_PARSER] PDF analysis failed:', errorMsg);
       throw new Error(errorMsg);
     }
 
-    const result = await response.json();
+    const result = (await response.json()) as PdfVisionResponse;
     const method = result.method || 'unknown';
     const pages = result.pages ? ` (${result.pages} páginas)` : '';
     console.log(`[FILE_PARSER] PDF analysis completed via ${method}${pages}`);
@@ -90,9 +101,9 @@ export async function uploadAndVisionPDF(file, prompt = "Resume este documento d
       : '[ANÁLISIS DEL PDF]';
 
     return `${methodLabel}:\n${result.result}`;
-  } catch (err) {
+  } catch (err: unknown) {
     clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
+    if ((err as { name?: string })?.name === 'AbortError') {
       throw new Error('El análisis del PDF tardó demasiado. Intenta con un PDF más pequeño.');
     }
     throw err;

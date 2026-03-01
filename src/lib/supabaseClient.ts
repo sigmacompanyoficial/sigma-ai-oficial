@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 /*
@@ -24,4 +23,3 @@ export const supabase = createBrowserClient(
 );
 
 export default supabase;
-

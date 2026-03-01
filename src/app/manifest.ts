@@ -1,4 +1,3 @@
-// @ts-nocheck
 export default function manifest() {
     return {
         name: 'Sigma LLM',
