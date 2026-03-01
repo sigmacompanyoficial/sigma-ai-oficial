@@ -1601,142 +1601,111 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         }
     };
 
-    const processSelectedFiles = async (incomingFiles, source = 'picker') => {
-        console.log(`📎 [UPLOAD] Processing files from: ${source}`);
-        const files = Array.from(incomingFiles || []);
-        console.log('📎 [UPLOAD] Selected files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
+    const processSelectedFiles = async (items, source = 'picker') => {
+        const files = Array.from(items || []);
         if (files.length === 0) return;
 
-        // Cleanup legacy hidden OCR docs from older behavior.
+        // Cleanup legacy docs
         setSelectedDocs(prev => prev.filter(d => !d?.isHidden));
 
-        const visibleDocCount = selectedDocs.filter(d => !d.isHidden).length;
-        const currentAttachmentCount = selectedImages.length + visibleDocCount;
-        const availableSlots = Math.max(0, MAX_ATTACHMENTS - currentAttachmentCount);
+        // Slot calculation using current state (standard approach)
+        const visibleDocs = selectedDocs.filter(d => !d.isHidden);
+        const currentTotal = selectedImages.length + visibleDocs.length;
+        const available = Math.max(0, MAX_ATTACHMENTS - currentTotal);
 
-        if (availableSlots === 0) {
-            showToast(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
+        if (available === 0) {
+            showToast(`Máximo ${MAX_ATTACHMENTS} archivos totales.`);
             if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 
-        const filesToProcess = files.slice(0, availableSlots);
-        if (files.length > availableSlots) {
-            showToast(`Solo se añadirán ${availableSlots} archivo(s). Límite total: ${MAX_ATTACHMENTS}.`);
+        // Duplicate check
+        const existingNames = new Set([
+            ...selectedDocs.map(d => d.name),
+            ...selectedImages.map(img => img.name)
+        ]);
+
+        const uniqueFiles = files.filter(f => !existingNames.has(f.name));
+        if (uniqueFiles.length === 0) {
+            console.log('📎 [UPLOAD] No new unique files');
+            return;
         }
-        console.log('📎 [UPLOAD] Files to process:', filesToProcess.length, 'Available slots:', availableSlots);
 
-        const imageFiles = filesToProcess.filter(file => file.type.startsWith('image/'));
-        const docFiles = filesToProcess.filter(file => !file.type.startsWith('image/'));
-        const newDocPlaceholders = docFiles.map((file, idx) => ({
-            id: `doc-${Date.now()}-${idx}-${Math.random().toString(36).substring(7)}`,
-            name: file.name,
-            type: file.type,
-            content: "",
-            isParsing: true,
-            progress: 15
-        }));
+        const toProcess = uniqueFiles.slice(0, available);
+        if (uniqueFiles.length > available) {
+            showToast(`Solo se añadirán ${available} archivo(s). Límite: ${MAX_ATTACHMENTS}.`);
+        }
 
+        const imageFiles = toProcess.filter(f => f.type.startsWith('image/'));
+        const docFiles = toProcess.filter(f => !f.type.startsWith('image/'));
+
+        // 1. Start Image Previews (async but separate)
+        if (imageFiles.length > 0) {
+            const previewPromises = imageFiles.map(file => new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve({ file, preview: reader.result });
+                reader.readAsDataURL(file);
+            }));
+
+            Promise.all(previewPromises).then(results => {
+                const valid = results.filter(r => r.preview);
+                setSelectedImages(prev => [...prev, ...valid.map(r => r.file)]);
+                setImagePreviews(prev => [...prev, ...valid.map(r => r.preview)]);
+            });
+        }
+
+        // 2. Start Doc Extraction with placeholders
         if (docFiles.length > 0) {
             setIsParsingFile(true);
-            setSelectedDocs(prev => [...prev, ...newDocPlaceholders]);
-        }
+            const placeholders = docFiles.map((file, idx) => ({
+                id: `d-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 5)}`,
+                name: file.name,
+                type: file.type,
+                content: "",
+                isParsing: true,
+                progress: 15,
+                _file: file
+            }));
 
-        try {
-            console.log('🖼️ [UPLOAD] Images:', imageFiles.length, '| Docs:', docFiles.length);
+            setSelectedDocs(prev => [...prev, ...placeholders]);
 
-            // 1) Mostrar imágenes inmediatamente.
-            // Importante: las imágenes NO pasan por OCR; solo se analizarán con Gemma al enviar.
-            if (imageFiles.length > 0) {
-                const previewPromises = imageFiles.map((file) => new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.onerror = (err) => reject(err);
-                    reader.readAsDataURL(file);
-                }));
-
-                const previewResults = await Promise.allSettled(previewPromises);
-                const readyPreviews = [];
-
-                previewResults.forEach((result, idx) => {
-                    if (result.status === 'fulfilled' && result.value) {
-                        readyPreviews.push(result.value);
-                    } else {
-                        console.error(`❌ [UPLOAD] Preview failed for ${imageFiles[idx]?.name}`, result);
-                    }
-                });
-
-                setSelectedImages(prev => [...prev, ...imageFiles.slice(0, readyPreviews.length)]);
-                setImagePreviews(prev => [...prev, ...readyPreviews]);
-                console.log('✅ [UPLOAD] Image previews ready:', readyPreviews.length);
-            }
-
-            // Si solo hay imágenes, terminamos aquí sin extracción de texto.
-            if (docFiles.length === 0) {
-                console.log('📄 [UPLOAD] No hay documentos de texto para parsear. Fin del procesamiento.');
-                return;
-            }
-
-            // 2) Extraer texto en background SOLO para documentos no-imagen.
-            const extractionTasks = docFiles.map(async (file, idx) => {
-                const tempId = newDocPlaceholders[idx]?.id;
+            // Background extraction Loop
+            placeholders.forEach(async (p) => {
+                const f = p._file;
+                const tid = p.id;
                 try {
-                    console.log('🧠 [UPLOAD] Processing:', file.name, 'Type:', file.type, 'tempId:', tempId);
+                    // Update progress initial
+                    setSelectedDocs(curr => curr.map(d => d.id === tid ? { ...d, progress: 35 } : d));
 
-                    // Simular un poco de progreso inicial
-                    if (tempId) {
-                        setSelectedDocs(prev => prev.map(d => d.id === tempId ? { ...d, progress: 35 } : d));
-                    }
+                    const text = (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'))
+                        ? await uploadAndVisionPDF(f)
+                        : await uploadAndExtractFile(f);
 
-                    let textContent = "";
-                    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-                        textContent = await uploadAndVisionPDF(file);
+                    if (!text || !text.trim()) {
+                        setSelectedDocs(curr => curr.filter(d => d.id !== tid));
                     } else {
-                        textContent = await uploadAndExtractFile(file);
+                        setSelectedDocs(curr => curr.map(d => d.id === tid ? {
+                            ...d,
+                            content: text.substring(0, MAX_DOC_CHARS_PER_FILE),
+                            isParsing: false,
+                            progress: 100
+                        } : d));
                     }
-
-                    if (tempId) {
-                        setSelectedDocs(prev => prev.map(d => d.id === tempId ? { ...d, progress: 80 } : d));
-                    }
-
-                    if (!textContent || !textContent.trim()) {
-                        console.warn('⚠️ [UPLOAD] Empty content for:', file.name);
-                        if (tempId) {
-                            setSelectedDocs(prev => prev.filter(d => d.id !== tempId));
-                        }
-                        return null;
-                    }
-
-                    const finalDoc = {
-                        id: tempId,
-                        name: file.name,
-                        content: textContent.substring(0, MAX_DOC_CHARS_PER_FILE),
-                        type: file.type,
-                        isParsing: false,
-                        progress: 100
-                    };
-
-                    if (tempId) {
-                        setSelectedDocs(prev => prev.map(d => d.id === tempId ? finalDoc : d));
-                    }
-                    return finalDoc;
                 } catch (err) {
-                    console.error(`❌ [UPLOAD] Extraction failed for ${file.name}:`, err);
-                    showToast(`Error procesando ${file.name}: ${err.message}`, 'error');
-                    if (tempId) {
-                        setSelectedDocs(prev => prev.filter(d => d.id !== tempId));
-                    }
-                    return null;
+                    console.error('❌ Extraction error:', err);
+                    setSelectedDocs(curr => curr.filter(d => d.id !== tid));
+                } finally {
+                    // Turn off parsing once last doc completes
+                    setSelectedDocs(latest => {
+                        const parsing = latest.some(d => d.isParsing);
+                        if (!parsing) setIsParsingFile(false);
+                        return latest;
+                    });
                 }
             });
-
-            await Promise.allSettled(extractionTasks);
-            console.log('✅ [UPLOAD] Background extraction completed.');
-        } finally {
-            if (docFiles.length > 0) setIsParsingFile(false);
-            if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
-            console.log('📎 [UPLOAD] File processing finished');
         }
+
+        if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleFileSelect = async (e) => {
@@ -2958,7 +2927,6 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     </div>
                 </div>
             )}
-
-        </div >
+        </div>
     );
 }

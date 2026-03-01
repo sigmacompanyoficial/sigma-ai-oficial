@@ -3211,28 +3211,25 @@
 }
 
 /* Circular Progress for Image Analysis */
-.analysisProgress {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    z-index: 5;
-    backdrop-filter: blur(2px);
-    animation: progressFadeIn 0.3s ease-out;
-}
-
-.analysisProgress[data-complete="true"] {
-    display: none;
-}
-
 .circularChart {
     display: block;
     margin: 10px auto;
     max-width: 80%;
     max-height: 250px;
+}
+
+.circularChartMini {
+    width: 28px;
+    height: 28px;
+    margin: 0;
+}
+
+.percentageText {
+    fill: #fff;
+    font-family: sans-serif;
+    font-size: 0.5em;
+    text-anchor: middle;
+    font-weight: bold;
 }
 
 .circleBg {
@@ -3249,12 +3246,22 @@
     transition: stroke-dasharray 0.3s ease;
 }
 
-.percentageText {
-    fill: #fff;
-    font-family: sans-serif;
-    font-size: 0.5em;
-    text-anchor: middle;
-    font-weight: bold;
+.analysisProgress {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+    /* inherit from parent (12px or 8px) */
+    z-index: 5;
+    backdrop-filter: blur(2px);
+    animation: progressFadeIn 0.3s ease-out;
+}
+
+.analysisProgress[data-complete="true"] {
+    display: none;
 }
 
 @keyframes progressFadeIn {
