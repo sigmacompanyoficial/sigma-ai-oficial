@@ -1,0 +1,58 @@
+================================================================================
+                    SIGMA AI - GUÍA INFORMATIVA Y TÉCNICA
+================================================================================
+
+¿QUÉ ES SIGMA AI?
+Sigma AI es un ecosistema de inteligencia artificial de última generación 
+desarrollado por Sigma Company, bajo la dirección y autoría de Ayoub Louah (@sigmacompanyoficial). 
+
+El proyecto nace con la misión de democratizar el acceso a herramientas de IA
+avanzadas, ofreciendo una interfaz premium, rápida y capaz de resolver tareas
+complejas de forma gratuita o accesible para todos.
+
+--------------------------------------------------------------------------------
+¿CÓMO FUNCIONA?
+Sigma AI utiliza una arquitectura híbrida moderna basada en la nube para 
+proporcionar respuestas inteligentes en tiempo real:
+
+1. MOTOR DE INTELIGENCIA:
+   Se conecta a los modelos más potentes del mundo a través de OpenRouter,
+   permitiendo al usuario elegir entre diferentes "cerebros" según su necesidad:
+   - Sigma LLM (Estándar): El modelo equilibrado para uso general (Stepfun 3.5).
+   - Sigma LLM Mini: Rápido y eficiente para invitados y tareas simples.
+   - Sigma LLM Coder: Especializado en programación de élite.
+   - Sigma Vision: Optimizado para analizar imágenes y PDFs complejos.
+
+2. RAZONAMIENTO AVANZADO (DeepSeek R1):
+   Integra capacidades de razonamiento paso a paso, permitiendo al modelo 
+   "pensar" antes de responder, ideal para matemáticas, lógica y programación.
+
+3. CONECTIVIDAD WEB (Search):
+   Gracias a la integración con Tavily y Brave Search, Sigma AI puede buscar
+   información en internet en tiempo real para responder sobre eventos actuales.
+
+4. VISIÓN MULTIMODAL:
+   Utiliza modelos como Gemma 3 (4B) y Gemini Flash para "ver" y analizar fotos,
+   capturas de pantalla y documentos técnicos de forma instantánea.
+
+--------------------------------------------------------------------------------
+CARACTERÍSTICAS PRINCIPALES:
+- Análisis de Documentos: Sube PDFs, archivos Excel, Word o código fuente.
+- Generación de Código: Programación profesional en múltiples lenguajes.
+- Memoria de Chat: El sistema recuerda el contexto de la conversación.
+- Interfaz Premium: Diseño oscuro, minimalista con animaciones y UX fluida.
+- Seguridad: Almacenamiento seguro de chats mediante Supabase y MySQL.
+
+--------------------------------------------------------------------------------
+SOBRE EL CREADOR:
+Sigma Company es una iniciativa dedicada a la innovación responsable. 
+Puedes encontrar más sobre nosotros en nuestras redes oficiales:
+TikTok/Instagram/YouTube: @sigmacompanyoficial
+GitHub: sigmacompanyoficial
+
+Autor Principal: Ayoub Louah.
+
+--------------------------------------------------------------------------------
+Sigma AI - "Potenciando el futuro de la inteligencia colaborativa."
+Versión: 0.9.5 Beta
+=================================================================================
