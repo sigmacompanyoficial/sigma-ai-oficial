@@ -1,308 +1,219 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import fs from "fs";
-import path from "path";
 import os from "os";
+import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { getRequiredEnv } from "@/lib/env";
 
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
-/**
- * Extrae texto de un PDF usando pdf-parse con fallback a pdfjs-dist
- */
-async function extractTextFromPDF(pdfPath) {
-    const buffer = fs.readFileSync(pdfPath);
+const execFileAsync = promisify(execFile);
+const MAX_PDF_SIZE = 20 * 1024 * 1024;
+const MAX_PAGES_FOR_VISION = 4;
+const CONVERT_DPI = 130;
+const DEFAULT_VISION_MODEL = "google/gemma-3-4b-it:free";
+const FALLBACK_VISION_MODELS = [
+  "google/gemini-2.0-flash:free",
+  "mistralai/pixtral-12b:free",
+];
 
-    // Intento 1: pdf-parse (rápido)
-    try {
-        const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-        const data = await pdfParse(buffer);
-        const text = (data.text || '').replace(/\u0000/g, '').replace(/\r\n/g, '\n').trim();
-
-        if (text.length > 100) {
-            console.log(`📄 [PDF] pdf-parse success: ${text.length} chars, ${data.numpages} pages`);
-            return { text, pages: data.numpages, method: 'pdf-parse' };
-        }
-    } catch (err) {
-        console.warn('⚠️ [PDF] pdf-parse failed:', err.message);
-    }
-
-    // Intento 2: pdfjs-dist (más robusto)
-    try {
-        console.log('📄 [PDF] Trying pdfjs-dist fallback...');
-        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-
-        // Disable worker for simpler usage in Node.js
-        const loadingTask = pdfjs.getDocument({
-            data: new Uint8Array(buffer),
-            useSystemFonts: true,
-            disableFontFace: true
-        });
-
-        const pdf = await loadingTask.promise;
-        let fullText = '';
-        const numPages = pdf.numPages;
-
-        // Extraer texto de todas las páginas (o hasta un límite)
-        const maxPagesToParse = Math.min(numPages, 50);
-        for (let i = 1; i <= maxPagesToParse; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            const pageText = content.items.map(item => item.str).join(' ');
-            fullText += pageText + '\n';
-        }
-
-        const cleanedText = fullText.replace(/\u0000/g, '').trim();
-        if (cleanedText.length > 20) {
-            console.log(`📄 [PDF] pdfjs-dist success: ${cleanedText.length} chars, ${numPages} pages`);
-            return { text: cleanedText, pages: numPages, method: 'pdfjs-dist' };
-        }
-    } catch (err) {
-        console.error('❌ [PDF] pdfjs-dist fallback failed:', err.message);
-    }
-
-    return null;
+function sortByPageNumber(fileA, fileB) {
+  const pageA = Number((fileA.match(/-(\d+)\.(?:jpg|jpeg|png)$/i) || [])[1] || 0);
+  const pageB = Number((fileB.match(/-(\d+)\.(?:jpg|jpeg|png)$/i) || [])[1] || 0);
+  return pageA - pageB;
 }
 
-/**
- * Convierte PDF a imagen usando pdftocairo (método visual, opcional)
- */
-async function convertPdfToImage(pdfPath, outPrefix, tempDir) {
-    const { execSync } = await import('child_process');
-    // Intenta primero -jpeg (más compatible)
-    const commands = [
-        `pdftocairo -jpeg -singlefile -r 200 -f 1 -l 1 "${pdfPath}" "${path.join(tempDir, outPrefix)}"`,
-        `pdftocairo -png -singlefile -r 200 -f 1 -l 1 "${pdfPath}" "${path.join(tempDir, outPrefix)}"`,
-    ];
+async function convertPdfToImages(pdfPath, tempDir, suffix) {
+  const prefix = path.join(tempDir, `sigma-page-${suffix}`);
 
-    for (const command of commands) {
-        try {
-            execSync(command, { timeout: 30000 });
-            const files = fs.readdirSync(tempDir);
-            const match = files.find(f => f.startsWith(outPrefix) && (f.endsWith('.jpg') || f.endsWith('.png')));
-            if (match) {
-                const ext = path.extname(match);
-                return { path: path.join(tempDir, match), mimeType: ext === '.png' ? 'image/png' : 'image/jpeg' };
-            }
-        } catch (err) {
-            console.warn(`⚠️ [PDF-VISION] Command failed: ${command.split(' ')[0]}... - ${err.message}`);
-        }
-    }
-    throw new Error("No se pudo convertir el PDF a imagen (pdftocairo no disponible)");
+  // Convertimos en lote para reducir latencia total frente a convertir página a página.
+  await execFileAsync(
+    "pdftocairo",
+    [
+      "-jpeg",
+      "-r", String(CONVERT_DPI),
+      "-f", "1",
+      "-l", String(MAX_PAGES_FOR_VISION),
+      pdfPath,
+      prefix,
+    ],
+    { timeout: 25_000 }
+  );
+
+  const files = fs.readdirSync(tempDir)
+    .filter((name) => name.startsWith(`sigma-page-${suffix}-`) && /\.(jpg|jpeg|png)$/i.test(name))
+    .sort(sortByPageNumber);
+
+  return files.map((name) => ({
+    path: path.join(tempDir, name),
+    mimeType: /\.png$/i.test(name) ? "image/png" : "image/jpeg",
+  }));
 }
 
-/**
- * Analiza un PDF con visión IA usando fetch directo y reintentos para 429
- */
-async function analyzeWithVision(images, prompt, model) {
-    const apiKey = getRequiredEnv('OPENROUTER_API_KEY');
+async function requestVisionWithOpenRouter({ images, prompt, requestedModel }) {
+  const apiKey = getRequiredEnv("OPENROUTER_API_KEY");
 
-    // Nemotron Nano a veces falla con demasiadas imágenes en el tier free.
-    // Limitamos a las primeras 5 páginas para un análisis equilibrado.
-    const activeImages = images.slice(0, 5);
+  const content = [
+    {
+      type: "text",
+      text: `Extrae el contenido de este documento de forma MUY rápida y precisa.
 
-    const content = [
-        {
-            type: "text",
-            text: `Actúa como un experto en visión artificial, OCR y análisis de documentos. 
-Instrucciones críticas para estas ${activeImages.length} páginas:
-1. Resume el contenido visual y textual de forma directa y concisa.
-2. Extrae datos clave sin transcripciones excesivas.
-3. Respuesta rápida: ${prompt || 'Analiza el documento'}`
-        }
-    ];
+Objetivo:
+1) OCR fiel del texto clave (titulos, datos, tablas, cifras).
+2) Si hay dibujos, diagramas, esquemas o graficos, describelos claramente.
+3) Resume lo esencial para que otro modelo de texto responda al usuario.
 
-    for (const img of activeImages) {
-        const base64 = fs.readFileSync(img.path, { encoding: "base64" });
-        content.push({
-            type: "image_url",
-            image_url: { url: `data:${img.mimeType};base64,${base64}` }
-        });
+Formato de salida:
+[OCR CLAVE]\n...\n\n[DIBUJOS Y ELEMENTOS VISUALES]\n...\n\n[RESUMEN PARA RESPUESTA]\n...
+
+Peticion del usuario: ${prompt || "Analiza este documento"}`,
+    },
+  ];
+
+  for (const image of images) {
+    const base64 = fs.readFileSync(image.path, { encoding: "base64" });
+    content.push({
+      type: "image_url",
+      image_url: { url: `data:${image.mimeType};base64,${base64}` },
+    });
+  }
+
+  const models = [requestedModel, ...FALLBACK_VISION_MODELS].filter(Boolean);
+  let lastError = null;
+
+  for (const model of models) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 40_000);
+
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://sigmacompany.ai",
+          "X-Title": "Sigma LLM",
+        },
+        body: JSON.stringify({
+          model,
+          stream: false,
+          temperature: 0.1,
+          max_tokens: 1800,
+          messages: [{ role: "user", content }],
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        throw new Error(`OpenRouter ${response.status}: ${body.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const output = data?.choices?.[0]?.message?.content?.trim();
+      if (output) {
+        return { output, modelUsed: model };
+      }
+
+      throw new Error(`Modelo ${model} devolvio respuesta vacia`);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      lastError = error;
+      console.warn(`⚠️ [PDF-VISION] Fallo en ${model}:`, error.message);
     }
+  }
 
-    const visionModels = [model, "google/gemini-2.0-flash:free", "mistralai/pixtral-12b:free"];
-    let lastError = null;
-
-    for (const targetModel of visionModels) {
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                if (attempt > 0) {
-                    console.log(`🔄 [PDF-VISION] Retry attempt ${attempt} for ${targetModel}...`);
-                    await new Promise(r => setTimeout(r, 2000));
-                }
-
-                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json',
-                        'HTTP-Referer': 'https://sigmacompany.ai',
-                        'X-Title': 'Sigma LLM'
-                    },
-                    body: JSON.stringify({
-                        model: targetModel,
-                        messages: [{ role: 'user', content }],
-                        temperature: 0.1,
-                        max_tokens: 3000
-                    })
-                });
-
-                if (response.status === 429) {
-                    lastError = new Error('429 Rate Limit/Provider Overloaded');
-                    console.warn(`⚠️ [PDF-VISION] 429 on ${targetModel}`);
-                    continue;
-                }
-
-                if (!response.ok) {
-                    const errText = await response.text();
-                    throw new Error(`OpenRouter Error ${response.status}: ${errText}`);
-                }
-
-                const data = await response.json();
-                return data.choices[0].message.content;
-
-            } catch (err) {
-                console.error(`❌ [PDF-VISION] Attempt ${attempt} failed on ${targetModel}:`, err.message);
-                lastError = err;
-                if (!err.message.includes('429')) break;
-            }
-        }
-        if (!lastError || !lastError.message.includes('429')) break;
-    }
-    throw lastError || new Error('Todos los modelos de visión fallaron.');
+  throw lastError || new Error("No se pudo analizar el documento con vision");
 }
 
 export async function POST(req) {
-    let pdfPath = null;
-    let imagePath = null;
+  let pdfPath = null;
+  let uniqueSuffix = null;
 
-    try {
-        const formData = await req.formData();
-        const file = formData.get("file");
-        const prompt = formData.get("prompt") || "Resume este documento y extrae los puntos clave de forma detallada.";
-        const model = formData.get("model") || "google/gemma-3-4b-it:free";
-        const forceVision = formData.get("forceVision") === "true";
+  try {
+    const formData = await req.formData();
+    const file = formData.get("file");
+    const prompt = String(formData.get("prompt") || "Analiza este documento y extrae lo importante.");
+    const model = String(formData.get("model") || DEFAULT_VISION_MODEL);
 
-        if (!file) {
-            return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
-        }
-
-        const isPDF = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
-        if (!isPDF) {
-            return NextResponse.json({ error: "Solo se aceptan archivos PDF" }, { status: 400 });
-        }
-
-        if (file.size > 20 * 1024 * 1024) { // 20MB limit
-            return NextResponse.json({ error: "El PDF es demasiado grande (máximo 20MB)" }, { status: 413 });
-        }
-
-        // Guardar archivo temporal
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-        const tempDir = os.tmpdir();
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-        pdfPath = path.join(tempDir, `sigma-pdf-${uniqueSuffix}.pdf`);
-        fs.writeFileSync(pdfPath, buffer);
-
-        console.log(`📄 [PDF] Processing: ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
-
-        // === MÉTODO HÍBRIDO: Texto + Visión (para dibujos) ===
-        let textPart = "";
-        let visionPart = "";
-
-        // 1. Extraer texto del PDF (método rápido)
-        try {
-            const textResult = await extractTextFromPDF(pdfPath);
-            if (textResult && textResult.text) {
-                textPart = textResult.text.slice(0, 50000);
-            }
-        } catch (e) {
-            console.warn('⚠️ [PDF] Text extraction failed:', e.message);
-        }
-
-        // 2. Análisis Visual (Múltiples páginas para encontrar dibujos/texto/esquemas)
-        const images = [];
-        try {
-            const { execSync } = await import('child_process');
-            const maxPages = 5; // Analizamos hasta las primeras 5 páginas de forma visual
-
-            for (let i = 1; i <= maxPages; i++) {
-                const pagePrefix = `sigma-p${i}-${uniqueSuffix}`;
-                const pageImgPath = path.join(tempDir, `${pagePrefix}.jpg`);
-
-                try {
-                    // Intentamos convertir la página i
-                    const cmd = `pdftocairo -jpeg -singlefile -r 150 -f ${i} -l ${i} "${pdfPath}" "${path.join(tempDir, pagePrefix)}"`;
-                    execSync(cmd, { timeout: 15000 });
-
-                    if (fs.existsSync(pageImgPath)) {
-                        images.push({
-                            path: pageImgPath,
-                            mimeType: 'image/jpeg'
-                        });
-                        console.log(`🎨 [PDF-VISION] Page ${i} converted to image.`);
-                    } else {
-                        // Si no existe, es que llegamos al final de las páginas
-                        break;
-                    }
-                } catch (pErr) {
-                    console.warn(`⚠️ [PDF-VISION] Could not convert page ${i}:`, pErr.message);
-                    break;
-                }
-            }
-
-            if (images.length > 0) {
-                console.log(`👁️ [PDF-VISION] Sending ${images.length} pages to ${model}...`);
-                const visionPrompt = `Analiza estas páginas. Extrae los datos relevantes y explica los elementos visuales de forma concisa.`;
-
-                visionPart = await analyzeWithVision(images, visionPrompt, model);
-            }
-        } catch (vErr) {
-            console.error('⚠️ [PDF-VISION] Visual analysis flow failed:', vErr.message);
-        }
-
-        // 3. Devolución Directa (Sin unificación intermedia para mayor velocidad y contexto real)
-        let finalContext = "";
-        if (textPart && textPart.length > 200) {
-            finalContext += `[TEXTO DIGITAL EXTRAÍDO]: \n${textPart} \n\n`;
-        }
-
-        if (visionPart) {
-            finalContext += `[ANÁLISIS VISUAL Y OCR(VISION MODEL)]: \n${visionPart} `;
-        } else if (!textPart) {
-            finalContext = "No se pudo extraer contenido legible del documento.";
-        }
-
-        return NextResponse.json({
-            result: finalContext,
-            method: 'hybrid-vision-ocr'
-        });
-
-    } catch (error) {
-        console.error('❌ [PDF] Critical error:', error);
-        return NextResponse.json({
-            error: "Error al procesar el PDF: " + (error.message || 'Error desconocido')
-        }, { status: 500 });
-    } finally {
-        // Cleanup temp files
-        const filesToCleanup = [pdfPath];
-        if (pdfPath) {
-            const dir = path.dirname(pdfPath);
-            const prefix = path.basename(pdfPath).replace('.pdf', '');
-            try {
-                const allFiles = fs.readdirSync(dir);
-                const relatedFiles = allFiles.filter(f => f.includes(uniqueSuffix)).map(f => path.join(dir, f));
-                filesToCleanup.push(...relatedFiles);
-            } catch (err) {
-                console.warn('Cleanup directory read failed:', err.message);
-            }
-        }
-
-        const uniqueFiles = [...new Set(filesToCleanup)];
-        for (const tmpFile of uniqueFiles) {
-            if (tmpFile && fs.existsSync(tmpFile)) {
-                try { fs.unlinkSync(tmpFile); } catch { }
-            }
-        }
+    if (!file) {
+      return NextResponse.json({ error: "No se recibio ningun archivo" }, { status: 400 });
     }
+
+    const isPDF = file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf");
+    if (!isPDF) {
+      return NextResponse.json({ error: "Solo se aceptan archivos PDF en este endpoint" }, { status: 400 });
+    }
+
+    if (file.size > MAX_PDF_SIZE) {
+      return NextResponse.json({ error: "El PDF supera 20MB" }, { status: 413 });
+    }
+
+    uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const tempDir = os.tmpdir();
+    pdfPath = path.join(tempDir, `sigma-upload-${uniqueSuffix}.pdf`);
+
+    const bytes = await file.arrayBuffer();
+    fs.writeFileSync(pdfPath, Buffer.from(bytes));
+
+    console.log(`📄 [PDF-VISION] Processing ${file.name} (${Math.round(file.size / 1024)}KB)`);
+
+    const images = await convertPdfToImages(pdfPath, tempDir, uniqueSuffix);
+    if (images.length === 0) {
+      return NextResponse.json({ error: "No se pudieron generar imagenes del PDF" }, { status: 422 });
+    }
+
+    const { output, modelUsed } = await requestVisionWithOpenRouter({
+      images,
+      prompt,
+      requestedModel: model,
+    });
+
+    const result = [
+      `[PIPELINE]: pdf->imagenes->${modelUsed}->gpt`,
+      `[PAGINAS_ANALIZADAS]: ${images.length}`,
+      output,
+    ].join("\n");
+
+    return NextResponse.json({
+      result,
+      method: "gemma-vision-ocr-fast",
+      pages: images.length,
+      visionModel: modelUsed,
+    });
+  } catch (error) {
+    console.error("❌ [PDF-VISION] Error:", error);
+    const isAbort = error?.name === "AbortError";
+    return NextResponse.json(
+      { error: isAbort ? "Timeout analizando PDF" : `Error al procesar PDF: ${error.message || "desconocido"}` },
+      { status: isAbort ? 504 : 500 }
+    );
+  } finally {
+    const filesToRemove = [];
+    if (pdfPath) filesToRemove.push(pdfPath);
+
+    if (uniqueSuffix) {
+      const tempDir = os.tmpdir();
+      try {
+        const generated = fs.readdirSync(tempDir)
+          .filter((name) => name.includes(uniqueSuffix))
+          .map((name) => path.join(tempDir, name));
+        filesToRemove.push(...generated);
+      } catch (cleanupErr) {
+        console.warn("⚠️ [PDF-VISION] Cleanup scan failed:", cleanupErr.message);
+      }
+    }
+
+    for (const target of new Set(filesToRemove)) {
+      if (!target || !fs.existsSync(target)) continue;
+      try {
+        fs.unlinkSync(target);
+      } catch {
+        // No-op cleanup failure
+      }
+    }
+  }
 }

@@ -37,8 +37,7 @@ export async function uploadAndExtractFile(file) {
 }
 
 /**
- * PDF: Analiza un PDF usando extracción de texto + IA (principal)
- * Con fallback a visión si el PDF es escaneado
+ * PDF: Convierte páginas a imágenes y envía a visión (Gemma/fallback)
  */
 export async function uploadAndVisionPDF(file, prompt = "Resume este documento detalladamente y extrae los puntos clave.") {
   console.log('[FILE_PARSER] Starting PDF analysis:', {
@@ -54,6 +53,7 @@ export async function uploadAndVisionPDF(file, prompt = "Resume este documento d
   const formData = new FormData();
   formData.append('file', file);
   formData.append('prompt', prompt);
+  formData.append('model', 'google/gemma-3-4b-it:free');
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout
@@ -84,11 +84,9 @@ export async function uploadAndVisionPDF(file, prompt = "Resume este documento d
     console.log(`[FILE_PARSER] PDF analysis completed via ${method}${pages}`);
 
     // Añadir contexto sobre el método usado
-    const methodLabel = method === 'vision'
-      ? '[ANÁLISIS VISUAL DEL PDF]'
-      : method === 'text-fallback'
-        ? '[TEXTO EXTRAÍDO DEL PDF]'
-        : '[ANÁLISIS DEL PDF]';
+    const methodLabel = method === 'gemma-vision-ocr-fast'
+      ? '[OCR + DESCRIPCIÓN VISUAL (GEMMA)]'
+      : '[ANÁLISIS DEL PDF]';
 
     return `${methodLabel}:\n${result.result}`;
   } catch (err) {
