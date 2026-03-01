@@ -515,6 +515,12 @@
     filter: brightness(1.08);
 }
 
+.authUnavailableBtn {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+    filter: grayscale(0.2);
+}
+
 .moreMenuWrapper {
     position: relative;
 }

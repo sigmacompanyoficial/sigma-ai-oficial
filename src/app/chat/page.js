@@ -226,6 +226,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const [messageCount, setMessageCount] = useState(0);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showGuestOptionsModal, setShowGuestOptionsModal] = useState(false);
+    const [isSupabaseUnavailable, setIsSupabaseUnavailable] = useState(false);
 
     // Custom UI Components States
     const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
@@ -255,6 +256,17 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                 setCustomModal(prev => ({ ...prev, visible: false }));
             }
         });
+    };
+
+    const handleAuthNavigation = (targetUrl) => {
+        if (isSupabaseUnavailable) {
+            showModal(
+                'Error de acceso',
+                'Hemos detectado un problema temporal con el sistema de acceso. El incidente ya fue reportado al equipo de Sigma Company y estamos trabajando para resolverlo lo antes posible. Gracias por tu paciencia.'
+            );
+            return;
+        }
+        window.location.href = targetUrl;
     };
 
     const [isDragOverInput, setIsDragOverInput] = useState(false);
@@ -594,24 +606,32 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
     useEffect(() => {
         const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-            const chatIdFromUrl = urlParams.get('id');
+            try {
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+                const chatIdFromUrl = urlParams.get('id');
 
-            if (!user) {
-                console.log('👤 Modo Invitado activado');
-                setIsGuest(true);
-                setUserName('Invitado');
-                setUserRole('Invitado');
-                setProfilePic('');
-
-                if (chatIdFromUrl) {
-                    console.log('👀 Viendo chat compartido como invitado...');
-                    await loadChat(chatIdFromUrl, null);
+                if (authError) {
+                    console.error('❌ [SUPABASE] auth.getUser failed:', authError.message);
+                    setIsSupabaseUnavailable(true);
                 } else {
-                    setSelectedModel(guestModel);
-                    setBotName('Sigma LLM');
-                    setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
+                    setIsSupabaseUnavailable(false);
+                }
+
+                if (!user) {
+                    console.log('👤 Modo Invitado activado');
+                    setIsGuest(true);
+                    setUserName('Invitado');
+                    setUserRole('Invitado');
+                    setProfilePic('');
+
+                    if (chatIdFromUrl) {
+                        console.log('👀 Viendo chat compartido como invitado...');
+                        await loadChat(chatIdFromUrl, null);
+                    } else {
+                        setSelectedModel(guestModel);
+                        setBotName('Sigma LLM');
+                        setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
 IDENTIDAD Y CREADOR:
 - Fuiste creado por Sigma Company (@sigmacompanyoficial), una empresa innovadora dedicada al desarrollo de tecnologías de inteligencia artificial de vanguardia
@@ -674,33 +694,38 @@ Responde con orgullo sobre Sigma Company, destacando:
 - Su visión de un futuro donde la IA sea una herramienta colaborativa y beneficiosa para la humanidad
 
 Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo posible. Cada interacción debe dejar al usuario más informado, inspirado y capacitado.`);
-                    console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
+                        console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
+                    }
+                    return;
                 }
-                return;
-            }
 
-            setUser(user);
-            setIsGuest(false);
+                setUser(user);
+                setIsGuest(false);
 
-            // Verificación de Onboarding y Rol
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
+                // Verificación de Onboarding y Rol
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
 
-            const hasUsername = !!profile?.username?.trim();
-            if (!profile || !profile.onboarding_completed || !hasUsername) {
-                window.location.href = '/onboarding';
-                return;
-            }
+                if (profileError) {
+                    console.error('❌ [SUPABASE] profile fetch failed:', profileError.message);
+                    setIsSupabaseUnavailable(true);
+                }
 
-            // Cargar datos del perfil
-            if (profile) {
-                setUserName(profile.full_name || user.email.split('@')[0]);
-                setRawRole(profile.role || 'normal');
-                setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario');
-                setProfilePic(profile.avatar_url || '');
+                const hasUsername = !!profile?.username?.trim();
+                if (!profile || !profile.onboarding_completed || !hasUsername) {
+                    window.location.href = '/onboarding';
+                    return;
+                }
+
+                // Cargar datos del perfil
+                if (profile) {
+                    setUserName(profile.full_name || user.email.split('@')[0]);
+                    setRawRole(profile.role || 'normal');
+                    setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario');
+                    setProfilePic(profile.avatar_url || '');
 
                 // Sync to MySQL for admin visibility
                 fetch('/api/mysql/profiles', {
@@ -718,13 +743,21 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     if (s.botTone) setBotTone(s.botTone);
                     if (s.systemInstructions) setSystemInstructions(s.systemInstructions);
                 }
-            }
+                }
 
-            fetchChats(user.id);
-            fetchStats(user.id);
+                fetchChats(user.id);
+                fetchStats(user.id);
 
-            if (chatIdFromUrl) {
-                loadChat(chatIdFromUrl, user.id);
+                if (chatIdFromUrl) {
+                    loadChat(chatIdFromUrl, user.id);
+                }
+            } catch (err) {
+                console.error('❌ [SUPABASE] checkUser crashed:', err);
+                setIsSupabaseUnavailable(true);
+                setIsGuest(true);
+                setUserName('Invitado');
+                setUserRole('Invitado');
+                setProfilePic('');
             }
         };
         if (mounted) checkUser();
@@ -2124,10 +2157,18 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 <button className={styles.guestHeaderIconBtn} onClick={() => setShowSettings(true)} title="Configuración">
                                     <Settings size={18} />
                                 </button>
-                                <button className={styles.guestHeaderPrimaryBtn} onClick={() => window.location.href = '/login'}>
+                                <button
+                                    className={`${styles.guestHeaderPrimaryBtn} ${isSupabaseUnavailable ? styles.authUnavailableBtn : ''}`}
+                                    aria-disabled={isSupabaseUnavailable}
+                                    onClick={() => handleAuthNavigation('/login')}
+                                >
                                     Iniciar sesión
                                 </button>
-                                <button className={styles.guestHeaderSecondaryBtn} onClick={() => window.location.href = '/login?mode=signup'}>
+                                <button
+                                    className={`${styles.guestHeaderSecondaryBtn} ${isSupabaseUnavailable ? styles.authUnavailableBtn : ''}`}
+                                    aria-disabled={isSupabaseUnavailable}
+                                    onClick={() => handleAuthNavigation('/login?mode=signup')}
+                                >
                                     Registrarse gratuitamente
                                 </button>
                                 <button className={styles.guestHeaderIconBtn} onClick={() => window.location.href = '/about'} title="Ayuda">
@@ -2311,7 +2352,13 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 <h2>Desbloquea todo el potencial</h2>
                                 <p>Únete a Sigma LLM para acceder al <b>Razonamiento Avanzado</b>, mayor velocidad y guardar tu historial de chats de forma permanente.</p>
                                 <div className={styles.modalActions}>
-                                    <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
+                                    <button
+                                        className={`${styles.modalLoginBtn} ${isSupabaseUnavailable ? styles.authUnavailableBtn : ''}`}
+                                        aria-disabled={isSupabaseUnavailable}
+                                        onClick={() => handleAuthNavigation('/login')}
+                                    >
+                                        Registrarse Gratis
+                                    </button>
                                     <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
                                 </div>
                             </div>
@@ -2331,10 +2378,18 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                     Esta opción está disponible para cuentas registradas. Accede para desbloquear herramientas avanzadas.
                                 </p>
                                 <div className={styles.guestPromptActions}>
-                                    <button className={styles.guestPromptPrimary} onClick={() => window.location.href = '/login'}>
+                                    <button
+                                        className={`${styles.guestPromptPrimary} ${isSupabaseUnavailable ? styles.authUnavailableBtn : ''}`}
+                                        aria-disabled={isSupabaseUnavailable}
+                                        onClick={() => handleAuthNavigation('/login')}
+                                    >
                                         Iniciar sesión
                                     </button>
-                                    <button className={styles.guestPromptSecondary} onClick={() => window.location.href = '/login?mode=signup'}>
+                                    <button
+                                        className={`${styles.guestPromptSecondary} ${isSupabaseUnavailable ? styles.authUnavailableBtn : ''}`}
+                                        aria-disabled={isSupabaseUnavailable}
+                                        onClick={() => handleAuthNavigation('/login?mode=signup')}
+                                    >
                                         Crear cuenta
                                     </button>
                                     <button onClick={() => setShowGuestOptionsModal(false)} className={styles.modalCloseBtn}>
@@ -2559,7 +2614,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                             <AlertCircle size={20} />
                             <span>Estás viendo una versión de solo lectura de este chat.</span>
                             {!user && (
-                                <button onClick={() => window.location.href = '/login'} className={styles.loginLink}>
+                                <button onClick={() => handleAuthNavigation('/login')} className={`${styles.loginLink} ${isSupabaseUnavailable ? styles.authUnavailableBtn : ''}`} aria-disabled={isSupabaseUnavailable}>
                                     Iniciar sesión para crear tu propio chat
                                 </button>
                             )}
