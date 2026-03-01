@@ -18,19 +18,19 @@ export const models = [
         maxContext: 32768
     },
     {
-        modelId: "nvidia/nemotron-nano-12b-v2-vl:free",
+        modelId: "google/gemma-3-4b-it:free",
         modelName: "Sigma Vision",
         provider: "openrouter",
-        hostedId: "nvidia/nemotron-nano-12b-v2-vl:free",
+        hostedId: "google/gemma-3-4b-it:free",
         platformLink: "https://openrouter.ai",
         imageInput: true,
         maxContext: 32768
     },
     {
-        modelId: "openai/gpt-oss-120b:free",
+        modelId: "google/gemini-2.0-flash-001",
         modelName: "Sigma LLM Mini",
         provider: "openrouter",
-        hostedId: "openai/gpt-oss-120b:free",
+        hostedId: "google/gemini-2.0-flash-001",
         platformLink: "https://openrouter.ai",
         imageInput: false,
         maxContext: 128000

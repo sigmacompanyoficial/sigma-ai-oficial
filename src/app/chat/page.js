@@ -19,7 +19,7 @@ import { AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
 
 const guestModel = {
     modelId: "openai/gpt-oss-120b:free",
-    modelName: "Sigma LLM Mini",
+    modelName: "Sigma LLM",
     provider: "openrouter",
     hostedId: "openai/gpt-oss-120b:free",
     platformLink: "https://openrouter.ai",
@@ -610,7 +610,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     await loadChat(chatIdFromUrl, null);
                 } else {
                     setSelectedModel(guestModel);
-                    setBotName('Sigma LLM Mini');
+                    setBotName('Sigma LLM');
                     setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
 IDENTIDAD Y CREADOR:
@@ -2071,7 +2071,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 className={`${styles.modelSelector} ${isGuest ? styles.modelSelectorDisabled : ''}`}
                                 onClick={() => {
                                     if (isGuest) {
-                                        showModal('🔒 Funciones Premium', 'Inicia sesión para acceder a todos los modelos de Sigma LLM. Como invitado, solo puedes usar Sigma LLM Mini. Regístrate gratis para desbloquear modelos como Coder, Vision y Razonamiento Avanzado.');
+                                        showModal('🔒 Funciones Premium', 'Inicia sesión para acceder a modelos especializados. Como invitado, usas Sigma LLM (que incluye soporte para fotos y documentos). Regístrate gratis para desbloquear modelos como Coder y Razonamiento Avanzado.');
                                         return;
                                     }
                                     setShowModelDropdown(!showModelDropdown);
@@ -2311,7 +2311,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                             <div className={styles.modalContent}>
                                 <div className={styles.modalIcon}><Sparkles size={32} /></div>
                                 <h2>Desbloquea todo el potencial</h2>
-                                <p>Únete a Sigma LLM para acceder al <b>Razonamiento Avanzado</b>, mayor velocidad y poder <b>subir archivos e imágenes</b>.</p>
+                                <p>Únete a Sigma LLM para acceder al <b>Razonamiento Avanzado</b>, mayor velocidad y guardar tu historial de chats de forma permanente.</p>
                                 <div className={styles.modalActions}>
                                     <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
                                     <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
