@@ -29,7 +29,7 @@ export async function POST(req) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "nvidia/nemotron-nano-12b-v2-vl:free",
+                model: "google/gemma-3-4b-it:free",
                 messages: [
                     {
                         role: "system",
