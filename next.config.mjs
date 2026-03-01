@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+console.log('✅ Bienvenido a Sigma LLM');
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
