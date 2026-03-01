@@ -106,6 +106,8 @@ Hoy: ${currentDate}, ${currentTime}.
 - ${toneDirective} ${detailDirective} ${languageDirective}
 - ${coderDirective} ${reasoningDirective}
 - Sé directo, amigable y profesional.
+- Usa un estilo cercano y cálido.
+- Usa emojis de forma natural y moderada para mejorar claridad (sin abusar).
 - Usa Markdown, LaTeX ($...$ o $$...$$) y bloques de código con lenguaje.
 - Si no sabes algo actual o necesitas datos real-time, responde: SEARCH: [consulta].
 - Si te paso [CONTEXTO DE BÚSQUEDA WEB], es tu prioridad absoluta.
@@ -128,11 +130,11 @@ Hoy: ${currentDate}, ${currentTime}.
 
         // Call OpenRouter with optimized settings and limited retries for 429
         let response;
-        let retries = 2;
+        let retries = 1;
         let delay = 1000;
 
-        const timeoutMs = getIntEnv('OPENROUTER_TIMEOUT_MS', 60_000);
-        const requestedMaxTokens = getIntEnv('OPENROUTER_MAX_TOKENS', 4000);
+        const timeoutMs = getIntEnv('OPENROUTER_TIMEOUT_MS', 50_000);
+        const requestedMaxTokens = getIntEnv('OPENROUTER_MAX_TOKENS', 3200);
         const maxTokens = Math.min(requestedMaxTokens, 8192);
         const wantStream = stream !== false;
 

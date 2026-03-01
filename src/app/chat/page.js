@@ -18,10 +18,10 @@ import { AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
 
 
 const guestModel = {
-    modelId: "openai/gpt-oss-120b:free",
-    modelName: "Sigma LLM",
+    modelId: "google/gemini-2.0-flash-001",
+    modelName: "Sigma LLM Mini",
     provider: "openrouter",
-    hostedId: "openai/gpt-oss-120b:free",
+    hostedId: "google/gemini-2.0-flash-001",
     platformLink: "https://openrouter.ai",
     imageInput: false,
     maxContext: 128000
@@ -109,7 +109,9 @@ const translations = {
 export default function ChatPage() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
-    const [selectedModel, setSelectedModel] = useState(models[0]);
+    const [selectedModel, setSelectedModel] = useState(
+        models.find((m) => m.modelName === 'Sigma LLM Mini') || models[0]
+    );
     const [isGuest, setIsGuest] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [showModelDropdown, setShowModelDropdown] = useState(false);
