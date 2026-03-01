@@ -920,7 +920,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         const currentInput = input || ""; // Permitir input vacío si hay archivos
         const currentImages = [...imagePreviews];
         const legacyHiddenDocs = selectedDocs.filter((d) => d?.isHidden).length;
-        const currentDocs = selectedDocs.filter((d) => !d?.isHidden);
+        const currentDocs = selectedDocs.filter((d) => !d?.isHidden && !d?.isParsing);
         if (legacyHiddenDocs > 0) {
             dlog('🧹 [DOCS] Ignorando documentos OCR ocultos legacy en este envío:', legacyHiddenDocs);
         }
@@ -1444,7 +1444,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     const lastMsg = updatedMessages[updatedMessages.length - 1];
                     updatedMessages[updatedMessages.length - 1] = {
                         ...lastMsg,
-                        content: lastMsg.content + visionContext + searchContext + docContext + autoSearchContext
+                        content: lastMsg.content + visionContext + searchContext + (docContext || "") + autoSearchContext
                     };
 
                     setMessages(prev => {
@@ -1628,7 +1628,19 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
         const imageFiles = filesToProcess.filter(file => file.type.startsWith('image/'));
         const docFiles = filesToProcess.filter(file => !file.type.startsWith('image/'));
-        if (docFiles.length > 0) setIsParsingFile(true);
+        const newDocPlaceholders = docFiles.map((file, idx) => ({
+            id: `doc-${Date.now()}-${idx}-${Math.random().toString(36).substring(7)}`,
+            name: file.name,
+            type: file.type,
+            content: "",
+            isParsing: true,
+            progress: 15
+        }));
+
+        if (docFiles.length > 0) {
+            setIsParsingFile(true);
+            setSelectedDocs(prev => [...prev, ...newDocPlaceholders]);
+        }
 
         try {
             console.log('🖼️ [UPLOAD] Images:', imageFiles.length, '| Docs:', docFiles.length);
@@ -1666,9 +1678,16 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             }
 
             // 2) Extraer texto en background SOLO para documentos no-imagen.
-            const extractionTasks = docFiles.map(async (file) => {
+            const extractionTasks = docFiles.map(async (file, idx) => {
+                const tempId = newDocPlaceholders[idx]?.id;
                 try {
-                    console.log('🧠 [UPLOAD] Processing:', file.name, 'Type:', file.type);
+                    console.log('🧠 [UPLOAD] Processing:', file.name, 'Type:', file.type, 'tempId:', tempId);
+
+                    // Simular un poco de progreso inicial
+                    if (tempId) {
+                        setSelectedDocs(prev => prev.map(d => d.id === tempId ? { ...d, progress: 35 } : d));
+                    }
+
                     let textContent = "";
                     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
                         textContent = await uploadAndVisionPDF(file);
@@ -1676,33 +1695,43 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                         textContent = await uploadAndExtractFile(file);
                     }
 
+                    if (tempId) {
+                        setSelectedDocs(prev => prev.map(d => d.id === tempId ? { ...d, progress: 80 } : d));
+                    }
+
                     if (!textContent || !textContent.trim()) {
                         console.warn('⚠️ [UPLOAD] Empty content for:', file.name);
+                        if (tempId) {
+                            setSelectedDocs(prev => prev.filter(d => d.id !== tempId));
+                        }
                         return null;
                     }
 
-                    return {
+                    const finalDoc = {
+                        id: tempId,
                         name: file.name,
                         content: textContent.substring(0, MAX_DOC_CHARS_PER_FILE),
-                        type: file.type
+                        type: file.type,
+                        isParsing: false,
+                        progress: 100
                     };
+
+                    if (tempId) {
+                        setSelectedDocs(prev => prev.map(d => d.id === tempId ? finalDoc : d));
+                    }
+                    return finalDoc;
                 } catch (err) {
                     console.error(`❌ [UPLOAD] Extraction failed for ${file.name}:`, err);
                     showToast(`Error procesando ${file.name}: ${err.message}`, 'error');
+                    if (tempId) {
+                        setSelectedDocs(prev => prev.filter(d => d.id !== tempId));
+                    }
                     return null;
                 }
             });
 
-            const extractedResults = await Promise.allSettled(extractionTasks);
-            const extractedDocs = [];
-            extractedResults.forEach((result) => {
-                if (result.status === 'fulfilled' && result.value) extractedDocs.push(result.value);
-            });
-
-            if (extractedDocs.length > 0) {
-                setSelectedDocs(prev => [...prev, ...extractedDocs]);
-            }
-            console.log('✅ [UPLOAD] Background extraction completed. Docs added:', extractedDocs.length);
+            await Promise.allSettled(extractionTasks);
+            console.log('✅ [UPLOAD] Background extraction completed.');
         } finally {
             if (docFiles.length > 0) setIsParsingFile(false);
             if (source === 'picker' && fileInputRef.current) fileInputRef.current.value = '';
@@ -2437,53 +2466,80 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                         {selectedDocs
                                             .map((doc, idx) => ({ doc, idx }))
                                             .filter(({ doc }) => !doc.isHidden)
-                                            .map(({ doc, idx }) => (
-                                                <div key={idx} style={{
-                                                    position: 'relative',
-                                                    flexShrink: 0,
-                                                    width: '140px',
-                                                    height: '60px',
-                                                    background: 'rgba(255,255,255,0.05)',
-                                                    borderRadius: '12px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                    padding: '0 12px',
-                                                    border: '1px solid rgba(255,255,255,0.1)'
-                                                }}>
-                                                    <FileText size={20} color="#6366F1" />
-                                                    <span style={{
-                                                        fontSize: '0.75rem',
-                                                        color: 'white',
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        whiteSpace: 'nowrap',
-                                                        maxWidth: '80px'
+                                            .map(({ doc, idx }) => {
+                                                const progress = doc.progress || 0;
+                                                const isParsing = doc.isParsing;
+
+                                                return (
+                                                    <div key={doc.id || idx} style={{
+                                                        position: 'relative',
+                                                        flexShrink: 0,
+                                                        width: '140px',
+                                                        height: '60px',
+                                                        background: 'rgba(255,255,255,0.05)',
+                                                        borderRadius: '12px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px',
+                                                        padding: '0 12px',
+                                                        border: '1px solid rgba(255,255,255,0.1)',
+                                                        opacity: isParsing ? 0.7 : 1
                                                     }}>
-                                                        {doc.name}
-                                                    </span>
-                                                    <button
-                                                        onClick={() => removeDoc(idx)}
-                                                        style={{
-                                                            position: 'absolute',
-                                                            top: '-6px',
-                                                            right: '-6px',
-                                                            background: 'rgba(239, 68, 68, 0.9)',
-                                                            border: 'none',
-                                                            borderRadius: '50%',
-                                                            width: '18px',
-                                                            height: '18px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            cursor: 'pointer',
-                                                            color: 'white'
-                                                        }}
-                                                    >
-                                                        <X size={10} strokeWidth={3} />
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                        <FileText size={20} color="#6366F1" />
+                                                        <span style={{
+                                                            fontSize: '0.75rem',
+                                                            color: 'white',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                            maxWidth: '80px'
+                                                        }}>
+                                                            {doc.name}
+                                                        </span>
+
+                                                        {isParsing && (
+                                                            <div className={styles.analysisProgress} data-complete={progress === 100}>
+                                                                <svg viewBox="0 0 36 36" className={`${styles.circularChart} ${styles.circularChartMini}`}>
+                                                                    <path className={styles.circleBg}
+                                                                        d="M18 2.0845
+                                                                            a 15.9155 15.9155 0 0 1 0 31.831
+                                                                            a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                    />
+                                                                    <path className={styles.circle}
+                                                                        strokeDasharray={`${progress}, 100`}
+                                                                        d="M18 2.0845
+                                                                            a 15.9155 15.9155 0 0 1 0 31.831
+                                                                            a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                    />
+                                                                </svg>
+                                                            </div>
+                                                        )}
+
+                                                        {(!isParsing || progress === 100) && (
+                                                            <button
+                                                                onClick={() => removeDoc(idx)}
+                                                                style={{
+                                                                    position: 'absolute',
+                                                                    top: '-6px',
+                                                                    right: '-6px',
+                                                                    background: 'rgba(239, 68, 68, 0.9)',
+                                                                    border: 'none',
+                                                                    borderRadius: '50%',
+                                                                    width: '18px',
+                                                                    height: '18px',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    cursor: 'pointer',
+                                                                    color: 'white'
+                                                                }}
+                                                            >
+                                                                <X size={10} strokeWidth={3} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
                                     </div>
                                 )}
 
