@@ -1,40 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Countdown Logic ---
-    const targetDate = new Date('March 2, 2026 00:00:00').getTime();
-
-    function updateCountdown() {
-        const now = new Date().getTime();
-        const distance = targetDate - now;
-
-        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-        // Update Hero Countdown
-        const daysEl = document.getElementById('days');
-        if (daysEl) {
-            daysEl.innerText = days.toString().padStart(2, '0');
-            document.getElementById('hours').innerText = hours.toString().padStart(2, '0');
-            document.getElementById('minutes').innerText = minutes.toString().padStart(2, '0');
-            document.getElementById('seconds').innerText = seconds.toString().padStart(2, '0');
-        }
-
-        // Update CTA Countdown
-        const ctaCountdown = document.getElementById('cta-countdown');
-        if (ctaCountdown) {
-            ctaCountdown.innerText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
-        }
-
-        if (distance < 0) {
-            clearInterval(countdownInterval);
-            if (ctaCountdown) ctaCountdown.innerText = "¡YA DISPONIBLE!";
-        }
-    }
-
-    const countdownInterval = setInterval(updateCountdown, 1000);
-    updateCountdown();
-
     // --- Burger Menu Toggle ---
     const burger = document.querySelector('.burger');
     const nav = document.querySelector('.nav-links');
@@ -77,6 +41,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setTimeout(typeWriter, 1500); // Start after 1.5s
     }
+
+    // --- Keep Demo Videos Always Muted ---
+    const demoVideos = document.querySelectorAll('.video-wrapper video');
+    demoVideos.forEach(video => {
+        video.muted = true;
+        video.volume = 0;
+
+        video.addEventListener('volumechange', () => {
+            if (!video.muted || video.volume !== 0) {
+                video.muted = true;
+                video.volume = 0;
+            }
+        });
+    });
 
     // --- Intersection Observer for Scroll Animations ---
     const observerOptions = {

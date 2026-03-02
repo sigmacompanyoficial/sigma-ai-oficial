@@ -628,48 +628,6 @@ section {
     transition: opacity 0.5s, transform 0.5s;
 }
 
-/* Countdown Styles */
-#countdown-wrapper {
-    margin: 2rem 0;
-    text-align: left;
-}
-
-.countdown-label {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-
-#countdown {
-    display: flex;
-    gap: 1.5rem;
-}
-
-.time-unit {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: var(--glass-bg);
-    padding: 0.8rem 1rem;
-    border-radius: 12px;
-    border: 1px solid var(--glass-border);
-    min-width: 80px;
-}
-
-.time-unit span {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--secondary-color);
-}
-
-.time-unit label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-}
-
 /* Demo Section */
 .demo-section {
     background: radial-gradient(circle at center, rgba(108, 92, 231, 0.05), transparent);
@@ -747,14 +705,6 @@ section {
 .social-btn:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-}
-
-.countdown-large {
-    font-size: 3rem;
-    font-weight: 800;
-    margin: 2rem 0;
-    color: var(--primary-color);
-    letter-spacing: 5px;
 }
 
 /* Footer Socials */

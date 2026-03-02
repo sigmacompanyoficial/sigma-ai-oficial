@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { getRequiredEnv } from "@/lib/env";
+import { getOptionalEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 
@@ -17,6 +17,27 @@ const FALLBACK_VISION_MODELS = [
   "mistralai/pixtral-12b:free",
 ];
 const execFileAsync = promisify(execFile);
+const OPENROUTER_KEY_ENV_NAMES = [
+  "OPENROUTER_API_KEY_1",
+  "OPENROUTER_API_KEY_2",
+  "OPENROUTER_API_KEY_3",
+  "OPENROUTER_API_KEY_4",
+  "OPENROUTER_API_KEY_5",
+];
+
+function getOpenRouterApiKeys() {
+  const keys = OPENROUTER_KEY_ENV_NAMES.map((name) => getOptionalEnv(name)).filter(Boolean);
+  const legacyKey = getOptionalEnv("OPENROUTER_API_KEY");
+  if (legacyKey) keys.push(legacyKey);
+
+  const uniqueKeys = [...new Set(keys)];
+  if (!uniqueKeys.length) {
+    throw new Error(
+      "Missing OpenRouter API keys. Define OPENROUTER_API_KEY_1..OPENROUTER_API_KEY_5 or OPENROUTER_API_KEY"
+    );
+  }
+  return uniqueKeys;
+}
 
 /**
  * Convierte PDF a imágenes JPEG con pdftocairo para enviarlas al modelo de visión.
@@ -80,7 +101,7 @@ async function convertPdfToImages(pdfBuffer) {
 }
 
 async function requestVisionWithOpenRouter({ images, prompt, requestedModel }) {
-  const apiKey = getRequiredEnv("OPENROUTER_API_KEY");
+  const apiKeys = getOpenRouterApiKeys();
 
   const content = [
     {
@@ -100,46 +121,52 @@ async function requestVisionWithOpenRouter({ images, prompt, requestedModel }) {
   let lastError = null;
 
   for (const model of models) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 40_000);
+    for (let keyIndex = 0; keyIndex < apiKeys.length; keyIndex += 1) {
+      const apiKey = apiKeys[keyIndex];
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 40_000);
 
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://sigmacompany.ai",
-          "X-Title": "Sigma LLM",
-        },
-        body: JSON.stringify({
-          model,
-          stream: false,
-          temperature: 0.1,
-          max_tokens: 1800,
-          messages: [{ role: "user", content }],
-        }),
-        signal: controller.signal,
-      });
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://sigmacompany.ai",
+            "X-Title": "Sigma LLM",
+          },
+          body: JSON.stringify({
+            model,
+            stream: false,
+            temperature: 0.1,
+            max_tokens: 1800,
+            messages: [{ role: "user", content }],
+          }),
+          signal: controller.signal,
+        });
 
-      clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        throw new Error(`OpenRouter ${response.status}: ${body.slice(0, 200)}`);
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new Error(`OpenRouter ${response.status}: ${body.slice(0, 200)}`);
+        }
+
+        const data = await response.json();
+        const output = data?.choices?.[0]?.message?.content?.trim();
+        if (output) {
+          return { output, modelUsed: model, keyUsed: keyIndex + 1 };
+        }
+
+        throw new Error(`Modelo ${model} devolvio respuesta vacia`);
+      } catch (error) {
+        clearTimeout(timeoutId);
+        lastError = error;
+        console.warn(
+          `⚠️ [PDF-VISION] Fallo en ${model} con key #${keyIndex + 1}/${apiKeys.length}:`,
+          error.message
+        );
       }
-
-      const data = await response.json();
-      const output = data?.choices?.[0]?.message?.content?.trim();
-      if (output) {
-        return { output, modelUsed: model };
-      }
-
-      throw new Error(`Modelo ${model} devolvio respuesta vacia`);
-    } catch (error) {
-      clearTimeout(timeoutId);
-      lastError = error;
-      console.warn(`⚠️ [PDF-VISION] Fallo en ${model}:`, error.message);
     }
   }
 
@@ -178,14 +205,14 @@ export async function POST(req) {
 
     console.log(`🖼️ [PDF-VISION] Rendered ${images.length} page(s), sending to Gemma vision...`);
 
-    const { output, modelUsed } = await requestVisionWithOpenRouter({
+    const { output, modelUsed, keyUsed } = await requestVisionWithOpenRouter({
       images,
       prompt,
       requestedModel: model,
     });
 
     const result = [
-      `[PIPELINE]: pdf->imagenes->${modelUsed}->gpt`,
+      `[PIPELINE]: pdf->imagenes->${modelUsed}(key#${keyUsed})->gpt`,
       `[PAGINAS_ANALIZADAS]: ${images.length}`,
       output,
     ].join("\n");
