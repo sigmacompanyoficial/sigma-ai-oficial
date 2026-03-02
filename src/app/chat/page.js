@@ -228,6 +228,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const [messageCount, setMessageCount] = useState(0);
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [showGuestOptionsModal, setShowGuestOptionsModal] = useState(false);
+    const [isSupabaseUnavailable, setIsSupabaseUnavailable] = useState(false);
 
     // Custom UI Components States
     const [toast, setToast] = useState({ visible: false, message: '', type: 'info' });
@@ -259,6 +260,17 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         });
     };
 
+    const handleAuthNavigation = (targetUrl) => {
+        if (isSupabaseUnavailable) {
+            showModal(
+                'Error del servidor',
+                'Hay un error en el servidor, Sigma Company ha sido notificado y esta arreglando el problema muchas gracias por su pacienca'
+            );
+            return;
+        }
+        window.location.href = targetUrl;
+    };
+
     const [isDragOverInput, setIsDragOverInput] = useState(false);
     const [showCookieConsent, setShowCookieConsent] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -272,6 +284,8 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     const fileInputRef = useRef(null);
     const attachMenuRef = useRef(null);
     const messagesRef = useRef(messages);
+    const selectedDocsRef = useRef(selectedDocs);
+    const isParsingFileRef = useRef(isParsingFile);
     const streamAbortRef = useRef(null);
     const lastSentRef = useRef(0);
 
@@ -299,6 +313,19 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     };
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const hasPendingDocumentParsing = () => {
+        return isParsingFileRef.current || selectedDocsRef.current.some((doc) => doc?.isParsing);
+    };
+
+    const waitForDocumentParsing = async (timeoutMs = 120000) => {
+        const startedAt = Date.now();
+        while (hasPendingDocumentParsing()) {
+            if (Date.now() - startedAt > timeoutMs) {
+                throw new Error('El análisis del PDF tardó demasiado en completarse.');
+            }
+            await sleep(250);
+        }
+    };
 
     const optimizeImageForVision = (dataUrl) => new Promise((resolve) => {
         if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
@@ -514,6 +541,14 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
     }, [messages]);
 
     useEffect(() => {
+        selectedDocsRef.current = selectedDocs;
+    }, [selectedDocs]);
+
+    useEffect(() => {
+        isParsingFileRef.current = isParsingFile;
+    }, [isParsingFile]);
+
+    useEffect(() => {
         if (isGuest && activeSettingsTab !== 'General') {
             setActiveSettingsTab('General');
         }
@@ -528,9 +563,10 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
     const canSend = useMemo(() => {
         const hasInput = input.trim().length > 0;
-        const hasFiles = selectedImages.length > 0 || selectedDocs.length > 0;
-        return (hasInput || hasFiles) && !isLoading && !isProcessingImage;
-    }, [input, selectedImages, selectedDocs, isLoading, isProcessingImage]);
+        const hasReadyDocs = selectedDocs.some((d) => !d?.isHidden && !d?.isParsing);
+        const hasFiles = selectedImages.length > 0 || hasReadyDocs;
+        return (hasInput || hasFiles) && !isLoading && !isProcessingImage && !isParsingFile;
+    }, [input, selectedImages, selectedDocs, isLoading, isProcessingImage, isParsingFile]);
 
     const t = (key) => {
         const lang = translations[language] || translations['Español'];
@@ -596,24 +632,33 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
 
     useEffect(() => {
         const checkUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-            const chatIdFromUrl = urlParams.get('id');
-
-            if (!user) {
-                console.log('👤 Modo Invitado activado');
-                setIsGuest(true);
-                setUserName('Invitado');
-                setUserRole('Invitado');
-                setProfilePic('');
-
-                if (chatIdFromUrl) {
-                    console.log('👀 Viendo chat compartido como invitado...');
-                    await loadChat(chatIdFromUrl, null);
+            try {
+                const { data: { user }, error: authError } = await supabase.auth.getUser();
+                const isMissingSessionError = authError?.message?.toLowerCase().includes('auth session missing');
+                if (authError && !isMissingSessionError) {
+                    console.error('❌ [SUPABASE] auth.getUser failed:', authError.message);
+                    setIsSupabaseUnavailable(true);
                 } else {
-                    setSelectedModel(guestModel);
-                    setBotName('Sigma LLM');
-                    setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
+                    setIsSupabaseUnavailable(false);
+                }
+
+                const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+                const chatIdFromUrl = urlParams.get('id');
+
+                if (!user) {
+                    console.log('👤 Modo Invitado activado');
+                    setIsGuest(true);
+                    setUserName('Invitado');
+                    setUserRole('Invitado');
+                    setProfilePic('');
+
+                    if (chatIdFromUrl) {
+                        console.log('👀 Viendo chat compartido como invitado...');
+                        await loadChat(chatIdFromUrl, null);
+                    } else {
+                        setSelectedModel(guestModel);
+                        setBotName('Sigma LLM');
+                        setSystemInstructions(`Eres Sigma LLM 1, un asistente de inteligencia artificial avanzado desarrollado por Sigma Company.
 
 IDENTIDAD Y CREADOR:
 - Fuiste creado por Sigma Company (@sigmacompanyoficial), una empresa innovadora dedicada al desarrollo de tecnologías de inteligencia artificial de vanguardia
@@ -676,33 +721,37 @@ Responde con orgullo sobre Sigma Company, destacando:
 - Su visión de un futuro donde la IA sea una herramienta colaborativa y beneficiosa para la humanidad
 
 Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo posible. Cada interacción debe dejar al usuario más informado, inspirado y capacitado.`);
-                    console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
+                        console.log('🤖 Bot configurado:', 'Sigma LLM 1 Mini');
+                    }
+                    return;
                 }
-                return;
-            }
 
-            setUser(user);
-            setIsGuest(false);
+                setUser(user);
+                setIsGuest(false);
 
-            // Verificación de Onboarding y Rol
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
+                // Verificación de Onboarding y Rol
+                const { data: profile, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', user.id)
+                    .single();
+                if (profileError) {
+                    console.error('❌ [SUPABASE] profile fetch failed:', profileError.message);
+                    setIsSupabaseUnavailable(true);
+                }
 
-            const hasUsername = !!profile?.username?.trim();
-            if (!profile || !profile.onboarding_completed || !hasUsername) {
-                window.location.href = '/onboarding';
-                return;
-            }
+                const hasUsername = !!profile?.username?.trim();
+                if (!profile || !profile.onboarding_completed || !hasUsername) {
+                    window.location.href = '/onboarding';
+                    return;
+                }
 
-            // Cargar datos del perfil
-            if (profile) {
-                setUserName(profile.full_name || user.email.split('@')[0]);
-                setRawRole(profile.role || 'normal');
-                setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario');
-                setProfilePic(profile.avatar_url || '');
+                // Cargar datos del perfil
+                if (profile) {
+                    setUserName(profile.full_name || user.email.split('@')[0]);
+                    setRawRole(profile.role || 'normal');
+                    setUserRole(profile.role === 'admin' ? 'Administrador' : profile.role === 'premium' ? 'Usuario Premium' : 'Usuario');
+                    setProfilePic(profile.avatar_url || '');
 
                 // Sync to MySQL for admin visibility
                 fetch('/api/mysql/profiles', {
@@ -720,13 +769,21 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                     if (s.botTone) setBotTone(s.botTone);
                     if (s.systemInstructions) setSystemInstructions(s.systemInstructions);
                 }
-            }
+                }
 
-            fetchChats(user.id);
-            fetchStats(user.id);
+                fetchChats(user.id);
+                fetchStats(user.id);
 
-            if (chatIdFromUrl) {
-                loadChat(chatIdFromUrl, user.id);
+                if (chatIdFromUrl) {
+                    loadChat(chatIdFromUrl, user.id);
+                }
+            } catch (err) {
+                console.error('❌ [SUPABASE] checkUser crashed:', err);
+                setIsSupabaseUnavailable(true);
+                setIsGuest(true);
+                setUserName('Invitado');
+                setUserRole('Invitado');
+                setProfilePic('');
             }
         };
         if (mounted) checkUser();
@@ -919,10 +976,24 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
             return;
         }
 
+        if (hasPendingDocumentParsing()) {
+            showToast('Esperando a que termine el análisis del PDF...');
+            setIsProcessingImage(true);
+            try {
+                await waitForDocumentParsing();
+            } catch (waitError) {
+                setIsProcessingImage(false);
+                showToast(waitError.message || 'No se pudo terminar de analizar el PDF.', 'error');
+                return;
+            }
+            setIsProcessingImage(false);
+        }
+
         const currentInput = input || ""; // Permitir input vacío si hay archivos
         const currentImages = [...imagePreviews];
-        const legacyHiddenDocs = selectedDocs.filter((d) => d?.isHidden).length;
-        const currentDocs = selectedDocs.filter((d) => !d?.isHidden && !d?.isParsing);
+        const liveDocs = selectedDocsRef.current;
+        const legacyHiddenDocs = liveDocs.filter((d) => d?.isHidden).length;
+        const currentDocs = liveDocs.filter((d) => !d?.isHidden && !d?.isParsing);
         if (legacyHiddenDocs > 0) {
             dlog('🧹 [DOCS] Ignorando documentos OCR ocultos legacy en este envío:', legacyHiddenDocs);
         }
@@ -2157,10 +2228,10 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 <button className={styles.guestHeaderIconBtn} onClick={() => setShowSettings(true)} title="Configuración">
                                     <Settings size={18} />
                                 </button>
-                                <button className={styles.guestHeaderPrimaryBtn} onClick={() => window.location.href = '/login'}>
+                                <button className={styles.guestHeaderPrimaryBtn} onClick={() => handleAuthNavigation('/login')}>
                                     Iniciar sesión
                                 </button>
-                                <button className={styles.guestHeaderSecondaryBtn} onClick={() => window.location.href = '/login?mode=signup'}>
+                                <button className={styles.guestHeaderSecondaryBtn} onClick={() => handleAuthNavigation('/login?mode=signup')}>
                                     Registrarse gratuitamente
                                 </button>
                                 <button className={styles.guestHeaderIconBtn} onClick={() => window.location.href = '/about'} title="Ayuda">
@@ -2344,7 +2415,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                 <h2>Desbloquea todo el potencial</h2>
                                 <p>Únete a Sigma LLM para acceder al <b>Razonamiento Avanzado</b>, mayor velocidad y guardar tu historial de chats de forma permanente.</p>
                                 <div className={styles.modalActions}>
-                                    <button className={styles.modalLoginBtn} onClick={() => window.location.href = '/login'}>Registrarse Gratis</button>
+                                    <button className={styles.modalLoginBtn} onClick={() => handleAuthNavigation('/login')}>Registrarse Gratis</button>
                                     <button onClick={() => setShowRegisterModal(false)} className={styles.modalCloseBtn}>Seguir como invitado</button>
                                 </div>
                             </div>
@@ -2364,10 +2435,10 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                                     Esta opción está disponible para cuentas registradas. Accede para desbloquear herramientas avanzadas.
                                 </p>
                                 <div className={styles.guestPromptActions}>
-                                    <button className={styles.guestPromptPrimary} onClick={() => window.location.href = '/login'}>
+                                    <button className={styles.guestPromptPrimary} onClick={() => handleAuthNavigation('/login')}>
                                         Iniciar sesión
                                     </button>
-                                    <button className={styles.guestPromptSecondary} onClick={() => window.location.href = '/login?mode=signup'}>
+                                    <button className={styles.guestPromptSecondary} onClick={() => handleAuthNavigation('/login?mode=signup')}>
                                         Crear cuenta
                                     </button>
                                     <button onClick={() => setShowGuestOptionsModal(false)} className={styles.modalCloseBtn}>
@@ -2592,7 +2663,7 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
                             <AlertCircle size={20} />
                             <span>Estás viendo una versión de solo lectura de este chat.</span>
                             {!user && (
-                                <button onClick={() => window.location.href = '/login'} className={styles.loginLink}>
+                                <button onClick={() => handleAuthNavigation('/login')} className={styles.loginLink}>
                                     Iniciar sesión para crear tu propio chat
                                 </button>
                             )}

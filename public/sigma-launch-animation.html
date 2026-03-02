@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sigma AI – Launch Animation</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Google+Sans:wght@400;500;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #0d0d0f;
+            --surface: #18181b;
+            --surface2: #232329;
+            --border: #2e2e38;
+            --accent: #7c6ff7;
+            --accent2: #a78bfa;
+            --text: #f4f4f5;
+            --muted: #9ca3af;
+            --google-blue: #4285f4;
+            --google-red: #ea4335;
+            --google-yellow: #fbbc05;
+            --google-green: #34a853;
+            --chat-bg: #0f0f11;
+            --user-bubble: #1e1e2e;
+            --ai-bubble: #16161f;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            color: var(--text);
+            cursor: none;
+        }
+
+        /* ═══════════════════════════════════════════
+       CURSOR
+    ═══════════════════════════════════════════ */
+        #cursor {
+            position: fixed;
+            width: 28px;
+            height: 28px;
+            pointer-events: none;
+            z-index: 99999;
+            /* The hot-spot of an arrow cursor is at the top-left tip */
+            transform: translate(0, 0);
+            transition: transform 0.08s ease;
+            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 8px rgba(124, 111, 247, 0.35));
+        }
+
+        #cursor svg {
+            width: 28px;
+            height: 28px;
+            transition: transform 0.13s cubic-bezier(.34, 1.56, .64, 1);
+        }
+
+        #cursor.click svg {
+            transform: scale(0.82);
+        }
+
+        /* ═══════════════════════════════════════════
+       SCENES WRAPPER
+    ═══════════════════════════════════════════ */
+        .scene {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .scene.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* ═══════════════════════════════════════════
+       SCENE 1 – GOOGLE
+    ═══════════════════════════════════════════ */
+        #scene-google {
+            background: #fff;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .google-logo {
+            font-family: 'Google Sans', 'Inter', sans-serif;
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: -2px;
+            line-height: 1;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+
+        .google-logo.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .google-logo span:nth-child(1) {
+            color: var(--google-blue);
+        }
+
+        .google-logo span:nth-child(2) {
+            color: var(--google-red);
+        }
+
+        .google-logo span:nth-child(3) {
+            color: var(--google-yellow);
+        }
+
+        .google-logo span:nth-child(4) {
+            color: var(--google-blue);
+        }
+
+        .google-logo span:nth-child(5) {
+            color: var(--google-green);
+        }
+
+        .google-logo span:nth-child(6) {
+            color: var(--google-red);
+        }
+
+        .google-search-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1.5px solid #ddd;
+            border-radius: 28px;
+            padding: 14px 20px 14px 20px;
+            width: 560px;
+            background: #fff;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.4s 0.2s ease, transform 0.4s 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .google-search-box.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .google-search-box:hover {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.14);
+        }
+
+        .google-search-box svg {
+            width: 22px;
+            height: 22px;
+            color: #9aa0a6;
+            flex-shrink: 0;
+        }
+
+        #google-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            color: #202124;
+            background: transparent;
+            caret-color: var(--google-blue);
+        }
+
+        .cursor-blink {
+            display: inline-block;
+            width: 2px;
+            height: 20px;
+            background: var(--google-blue);
+            vertical-align: middle;
+            animation: blink 0.8s step-end infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0
+            }
+        }
+
+        /* ═══════════════════════════════════════════
+       SCENE 2 – GOOGLE RESULTS
+    ═══════════════════════════════════════════ */
+        #scene-results {
+            background: #fff;
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 0 0 0 160px;
+            overflow: hidden;
+        }
+
+        .results-header {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 14px 0 8px;
+            border-bottom: 1px solid #ebebeb;
+            width: 100%;
+            padding-left: 0;
+        }
+
+        .results-logo {
+            font-family: 'Google Sans', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .results-logo span:nth-child(1) {
+            color: var(--google-blue);
+        }
+
+        .results-logo span:nth-child(2) {
+            color: var(--google-red);
+        }
+
+        .results-logo span:nth-child(3) {
+            color: var(--google-yellow);
+        }
+
+        .results-logo span:nth-child(4) {
+            color: var(--google-blue);
+        }
+
+        .results-logo span:nth-child(5) {
+            color: var(--google-green);
+        }
+
+        .results-logo span:nth-child(6) {
+            color: var(--google-red);
+        }
+
+        .results-search-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1.5px solid #ddd;
+            border-radius: 24px;
+            padding: 10px 16px;
+            width: 520px;
+            background: #fff;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
+        }
+
+        .results-search-bar svg {
+            width: 18px;
+            height: 18px;
+            color: #9aa0a6;
+        }
+
+        .results-search-bar span {
+            font-size: 16px;
+            color: #202124;
+        }
+
+        .results-meta {
+            font-size: 13px;
+            color: #70757a;
+            padding: 8px 0 4px;
+        }
+
+        .result-card {
+            max-width: 660px;
+            padding: 12px 0;
+            opacity: 0;
+            transform: translateY(16px);
+            transition: opacity 0.35s ease, transform 0.35s ease;
+            cursor: pointer;
+        }
+
+        .result-card.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .result-card:hover .result-title {
+            text-decoration: underline;
+        }
+
+        .result-favicon {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .result-favicon img {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+        }
+
+        .result-favicon-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .result-site {
+            font-size: 13px;
+            color: #202124;
+            font-weight: 500;
+        }
+
+        .result-url {
+            font-size: 12px;
+            color: #70757a;
+        }
+
+        .result-title {
+            font-size: 20px;
+            color: #1a0dab;
+            font-weight: 400;
+            margin-bottom: 4px;
+            line-height: 1.3;
+        }
+
+        .result-snippet {
+            font-size: 14px;
+            color: #4d5156;
+            line-height: 1.5;
+        }
+
+        .result-snippet b {
+            font-weight: 600;
+            color: #202124;
+        }
+
+        .result-card.highlight-hover .result-title {
+            color: #1155cc;
+        }
+
+        .result-card.highlight-hover {
+            background: #f8f9ff;
+            border-radius: 8px;
+            padding: 12px 8px;
+            margin: 0 -8px;
+        }
+
+        /* ═══════════════════════════════════════════
+       SCENE 3 – CHAT (Sigma AI style)
+    ═══════════════════════════════════════════ */
+        #scene-chat {
+            background: var(--chat-bg);
+            flex-direction: column;
+            align-items: stretch;
+            padding: 0;
+        }
+
+        .chat-topbar {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 18px 28px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(15, 15, 17, 0.95);
+            backdrop-filter: blur(12px);
+        }
+
+        .chat-topbar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sigma-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #7c6ff7, #a78bfa);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 800;
+            color: white;
+            font-style: italic;
+        }
+
+        .chat-topbar-name {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #a78bfa, #7c6ff7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .chat-topbar-model {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--muted);
+            background: var(--surface2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .msg-row {
+            display: flex;
+            padding: 16px 28px;
+            gap: 16px;
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .msg-row.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .msg-row.user-row {
+            flex-direction: row-reverse;
+            justify-content: flex-start;
+        }
+
+        .msg-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .msg-avatar.user-av {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+        }
+
+        .msg-avatar.ai-av {
+            background: linear-gradient(135deg, #7c6ff7, #a78bfa);
+            color: white;
+            font-style: italic;
+        }
+
+        .msg-bubble {
+            max-width: 680px;
+            padding: 14px 18px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .user-row .msg-bubble {
+            background: linear-gradient(135deg, #312e81, #4c1d95);
+            color: #e0e7ff;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 2px 16px rgba(124, 111, 247, 0.2);
+        }
+
+        .ai-row .msg-bubble {
+            background: var(--surface);
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .msg-bubble strong {
+            color: #a78bfa;
+        }
+
+        .msg-bubble em {
+            color: #67e8f9;
+            font-style: normal;
+        }
+
+        .msg-bubble .highlight {
+            background: linear-gradient(90deg, rgba(124, 111, 247, 0.15), rgba(167, 139, 250, 0.08));
+            border-left: 3px solid var(--accent);
+            padding: 10px 14px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 16px;
+        }
+
+        .msg-bubble .highlight .date {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--accent2);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            padding: 6px 0;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: translateY(0);
+                opacity: 0.6;
+            }
+
+            40% {
+                transform: translateY(-8px);
+                opacity: 1;
+            }
+        }
+
+        .chat-input-bar {
+            padding: 20px 28px;
+            border-top: 1px solid var(--border);
+            background: rgba(15, 15, 17, 0.98);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .chat-input-field {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 18px;
+            font-size: 15px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            resize: none;
+        }
+
+        .chat-send-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #7c6ff7, #a78bfa);
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 4px 16px rgba(124, 111, 247, 0.4);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .chat-send-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 6px 20px rgba(124, 111, 247, 0.5);
+        }
+
+        .chat-send-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* streaming cursor */
+        .stream-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 18px;
+            background: var(--accent2);
+            vertical-align: middle;
+            margin-left: 2px;
+            animation: blink 0.5s step-end infinite;
+        }
+
+        /* glow pulse on AI bubble while streaming */
+        @keyframes glowPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 4px 28px rgba(124, 111, 247, 0.25);
+            }
+        }
+
+        .ai-row .msg-bubble.streaming {
+            animation: glowPulse 1s ease-in-out infinite;
+        }
+
+        /* Ripple on click */
+        .ripple {
+            position: fixed;
+            border-radius: 50%;
+            background: rgba(124, 111, 247, 0.35);
+            width: 60px;
+            height: 60px;
+            transform: translate(-50%, -50%) scale(0);
+            animation: rippleAnim 0.5s ease-out forwards;
+            pointer-events: none;
+            z-index: 99998;
+        }
+
+        @keyframes rippleAnim {
+            0% {
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(3);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- CURSOR: real arrow pointer -->
+    <div id="cursor">
+        <svg viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
+            <!-- Arrow body -->
+            <polygon points="3,1 3,22 8,17 12,26 15,25 11,16 18,16" fill="white" stroke="#333" stroke-width="1.2"
+                stroke-linejoin="round" />
+        </svg>
+    </div>
+
+    <!-- ═══════════ SCENE 1: GOOGLE HOMEPAGE ═══════════ -->
+    <div class="scene active" id="scene-google">
+        <div class="google-logo" id="glogo">
+            <span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span>
+        </div>
+        <div class="google-search-box" id="gsearch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input id="google-input" type="text" readonly placeholder="" />
+            <span class="cursor-blink" id="gcursor"></span>
+        </div>
+    </div>
+
+    <!-- ═══════════ SCENE 2: GOOGLE RESULTS ═══════════ -->
+    <div class="scene" id="scene-results">
+        <!-- Header -->
+        <div class="results-header"
+            style="position:fixed;top:0;left:0;right:0;padding:14px 160px;background:#fff;z-index:10;border-bottom:1px solid #ebebeb;display:flex;align-items:center;gap:20px;">
+            <div class="results-logo">
+                <span>G</span><span>o</span><span>o</span><span>g</span><span>l</span><span>e</span>
+            </div>
+            <div class="results-search-bar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <span>Sigma LLM</span>
+            </div>
+        </div>
+
+        <!-- Results container -->
+        <div
+            style="margin-top:80px;padding:0 160px;width:100%;overflow-y:auto;height:100vh;padding-top:90px;padding-bottom:40px;">
+            <div class="results-meta" id="results-meta" style="opacity:0;transition:opacity 0.4s 0.3s ease;">
+                Aproximadamente 9.340.000 resultados (0.38 segundos)
+            </div>
+
+            <!-- Result 1 – Sigma LLM Official -->
+            <div class="result-card" id="r1" onclick="clickResult(event, this)">
+                <div class="result-favicon">
+                    <div class="result-favicon-icon"
+                        style="background:linear-gradient(135deg,#7c6ff7,#a78bfa);font-style:italic;">Σ</div>
+                    <span class="result-site">Sigma AI</span>
+                    <span class="result-url">sigma-ai.com › sigma-llm</span>
+                </div>
+                <div class="result-title">Sigma LLM – El modelo de lenguaje más avanzado de Sigma AI</div>
+                <div class="result-snippet">
+                    <b>Sigma LLM</b> es el modelo de lenguaje de gran escala desarrollado por Sigma Company. Con
+                    capacidades
+                    avanzadas de razonamiento, generación multimodal y respuestas en tiempo real. Disponible ahora
+                    en sigma-ai.com con acceso gratuito...
+                </div>
+            </div>
+
+            <!-- Result 2 -->
+            <div class="result-card" id="r2">
+                <div class="result-favicon">
+                    <div class="result-favicon-icon" style="background:#ff6600;">▶</div>
+                    <span class="result-site">TechCrunch</span>
+                    <span class="result-url">techcrunch.com › 2026 › sigma-llm-review</span>
+                </div>
+                <div class="result-title">Sigma LLM review: A powerful new AI model taking on GPT-5 and Gemini</div>
+                <div class="result-snippet">
+                    <b>Sigma LLM</b> from Sigma Company is making waves in the AI world. The model features real-time
+                    web search,
+                    multimodal reasoning and blazing-fast response times. We tested it against all major competitors...
+                </div>
+            </div>
+
+            <!-- Result 3 -->
+            <div class="result-card" id="r3">
+                <div class="result-favicon">
+                    <div class="result-favicon-icon" style="background:#ff0000;">▶</div>
+                    <span class="result-site">YouTube</span>
+                    <span class="result-url">youtube.com › watch</span>
+                </div>
+                <div class="result-title">SIGMA LLM: El mejor modelo de IA en español – Demo completa 2026</div>
+                <div class="result-snippet">
+                    En este vídeo probamos <b>Sigma LLM</b> en profundidad: razonamiento, código, imágenes, búsqueda web
+                    en tiempo real y mucho más. ¿El mejor modelo de IA en español? Descúbrelo aquí...
+                </div>
+            </div>
+
+            <!-- Result 4 -->
+            <div class="result-card" id="r4">
+                <div class="result-favicon">
+                    <div class="result-favicon-icon" style="background:#2d2d2d;">W</div>
+                    <span class="result-site">Wikipedia</span>
+                    <span class="result-url">es.wikipedia.org › wiki › Sigma_LLM</span>
+                </div>
+                <div class="result-title">Sigma LLM – Wikipedia, la enciclopedia libre</div>
+                <div class="result-snippet">
+                    <b>Sigma LLM</b> es un modelo de lenguaje de gran escala (LLM) desarrollado por Sigma Company.
+                    Anunciado en 2026, es el motor de inteligencia artificial detrás del asistente Sigma AI,
+                    diseñado para razonamiento avanzado, creatividad y productividad...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ SCENE 3: CHAT ═══════════ -->
+    <div class="scene" id="scene-chat">
+        <!-- Topbar -->
+        <div class="chat-topbar">
+            <div class="chat-topbar-logo">
+                <div class="sigma-icon">Σ</div>
+                <span class="chat-topbar-name">Sigma AI</span>
+            </div>
+            <div class="chat-topbar-model">Sigma LLM Pro</div>
+        </div>
+
+        <!-- Messages -->
+        <div class="chat-messages" id="chat-messages">
+            <!-- messages injected dynamically -->
+        </div>
+
+        <!-- Input bar -->
+        <div class="chat-input-bar">
+            <textarea class="chat-input-field" id="chat-input" rows="1"
+                placeholder="Escribe un mensaje a Sigma AI..."></textarea>
+            <button class="chat-send-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* ─── CURSOR TRACKING ─── */
+        const cursor = document.getElementById('cursor');
+        let cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+        let tx = cx, ty = cy;
+        document.addEventListener('mousemove', e => { tx = e.clientX; ty = e.clientY; });
+        (function animCursor() {
+            cx += (tx - cx) * 0.18;
+            cy += (ty - cy) * 0.18;
+            // Arrow hot-spot is tip top-left: no offset needed
+            cursor.style.left = cx + 'px';
+            cursor.style.top = cy + 'px';
+            requestAnimationFrame(animCursor);
+        })();
+
+        function moveCursorTo(x, y, duration = 600) {
+            return new Promise(resolve => {
+                const startX = tx, startY = ty;
+                const startTime = performance.now();
+                function step(now) {
+                    const t = Math.min((now - startTime) / duration, 1);
+                    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                    tx = startX + (x - startX) * ease;
+                    ty = startY + (y - startY) * ease;
+                    if (t < 1) requestAnimationFrame(step);
+                    else { tx = x; ty = y; resolve(); }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        function ripple(x, y) {
+            const el = document.createElement('div');
+            el.className = 'ripple';
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 600);
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function showScene(id) {
+            document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        /* ─── SCENE 1: TYPE IN GOOGLE ─── */
+        async function runScene1() {
+            await sleep(400);
+            document.getElementById('glogo').classList.add('show');
+            await sleep(300);
+            document.getElementById('gsearch').classList.add('show');
+            await sleep(600);
+
+            // Move cursor to search box center
+            const box = document.getElementById('gsearch').getBoundingClientRect();
+            await moveCursorTo(box.left + box.width / 2, box.top + box.height / 2, 700);
+            await sleep(200);
+
+            // Type query
+            const query = 'Sigma LLM';
+            const input = document.getElementById('google-input');
+            const gcursor = document.getElementById('gcursor');
+            gcursor.style.display = 'none';
+            for (let ch of query) {
+                input.value += ch;
+                await sleep(55 + Math.random() * 40);
+            }
+            await sleep(400);
+
+            // Move to fake search button area and click
+            await moveCursorTo(box.left + box.width / 2, box.top + box.height + 60, 400);
+            cursor.classList.add('click');
+            ripple(tx, ty);
+            await sleep(150);
+            cursor.classList.remove('click');
+            await sleep(300);
+
+            // Transition to results
+            await sleep(200);
+            showScene('scene-results');
+            runScene2();
+        }
+
+        /* ─── SCENE 2: GOOGLE RESULTS ─── */
+        async function runScene2() {
+            await sleep(300);
+            document.getElementById('results-meta').style.opacity = '1';
+            await sleep(100);
+
+            const ids = ['r1', 'r2', 'r3', 'r4'];
+            for (let id of ids) {
+                document.getElementById(id).classList.add('show');
+                await sleep(120);
+            }
+
+            await sleep(800);
+
+            // Move cursor to first result
+            const r1 = document.getElementById('r1').getBoundingClientRect();
+            await moveCursorTo(r1.left + r1.width * 0.3, r1.top + r1.height / 2, 900);
+            document.getElementById('r1').classList.add('highlight-hover');
+            await sleep(500);
+
+            // Click it
+            cursor.classList.add('click');
+            ripple(tx, ty);
+            await sleep(160);
+            cursor.classList.remove('click');
+            await sleep(400);
+
+            showScene('scene-chat');
+            runScene3();
+        }
+
+        /* ─── SCENE 3: CHAT ─── */
+        async function clickResult(e, el) {
+            // if user clicks result manually
+            e.stopPropagation();
+            showScene('scene-chat');
+            runScene3();
+        }
+
+        async function runScene3() {
+            const msgs = document.getElementById('chat-messages');
+            await sleep(500);
+
+            // 1. Move cursor to the textarea and click it
+            const inputField = document.getElementById('chat-input');
+            const inputRect = inputField.getBoundingClientRect();
+            await moveCursorTo(inputRect.left + inputRect.width * 0.35, inputRect.top + inputRect.height / 2, 900);
+            await sleep(200);
+
+            // Click the textarea
+            cursor.classList.add('click');
+            ripple(tx, ty);
+            inputField.focus();
+            await sleep(180);
+            cursor.classList.remove('click');
+            await sleep(500);
+
+            // 2. Type the user message in the textarea
+            const userQuery = '¿Qué es Sigma LLM y cuáles son sus capacidades?';
+            for (let ch of userQuery) {
+                inputField.value += ch;
+                await sleep(45 + Math.random() * 35);
+            }
+            await sleep(500);
+
+            // 3. Move cursor to send button and click
+            const sendBtn = document.querySelector('.chat-send-btn');
+            const sendRect = sendBtn.getBoundingClientRect();
+            await moveCursorTo(sendRect.left + sendRect.width / 2, sendRect.top + sendRect.height / 2, 500);
+            await sleep(200);
+            cursor.classList.add('click');
+            ripple(tx, ty);
+            await sleep(160);
+            cursor.classList.remove('click');
+
+            // Clear textarea
+            inputField.value = '';
+            await sleep(300);
+
+            // 4. USER MESSAGE appears in chat
+            const userRow = createMsg('user', userQuery);
+            msgs.appendChild(userRow);
+            await sleep(80);
+            userRow.classList.add('show');
+            msgs.scrollTop = msgs.scrollHeight;
+
+            await sleep(700);
+
+            // TYPING INDICATOR
+            const typingRow = document.createElement('div');
+            typingRow.className = 'msg-row ai-row show';
+            typingRow.innerHTML = `
+      <div class="msg-avatar ai-av">Σ</div>
+      <div class="msg-bubble" style="display:flex;align-items:center;background:var(--surface);border:1px solid var(--border);">
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>`;
+            msgs.appendChild(typingRow);
+            await sleep(200);
+            typingRow.classList.add('show');
+            msgs.scrollTop = msgs.scrollHeight;
+
+            await sleep(1400);
+
+            // Remove typing, add real AI row
+            typingRow.remove();
+
+            // Create AI bubble
+            const aiRow = createMsg('ai', '');
+            aiRow.querySelector('.msg-bubble').classList.add('streaming');
+            msgs.appendChild(aiRow);
+            aiRow.classList.add('show');
+
+            const bubbleContent = aiRow.querySelector('.msg-bubble');
+            msgs.scrollTop = msgs.scrollHeight;
+
+            // STREAMING TEXT - ultra fast
+            const fullText = buildAIResponse();
+            await streamText(bubbleContent, fullText, msgs);
+
+            // Remove streaming class
+            aiRow.querySelector('.msg-bubble').classList.remove('streaming');
+
+            // Animate cursor back to center of screen after
+            await sleep(200);
+            await moveCursorTo(window.innerWidth / 2, window.innerHeight / 2, 800);
+        }
+
+        function createMsg(role, text) {
+            const row = document.createElement('div');
+            row.className = `msg-row ${role === 'user' ? 'user-row' : 'ai-row'}`;
+            row.innerHTML = `
+      <div class="msg-avatar ${role === 'user' ? 'user-av' : 'ai-av'}">${role === 'user' ? 'Tú' : 'Σ'}</div>
+      <div class="msg-bubble">${text}</div>`;
+            return row;
+        }
+
+        function buildAIResponse() {
+            return [
+                `¡Buena pregunta! 🚀 Te explico todo sobre **Sigma LLM**.\n\n`,
+                `**Sigma LLM** es el modelo de lenguaje de gran escala desarrollado por **Sigma Company**, diseñado para ser el asistente de IA más avanzado en lengua española y multilingüe.\n\n`,
+                `<div class="highlight"><span class="date">🧠 Sigma LLM — Modelo de próxima generación</span>Construido con arquitectura transformer optimizada, entrenado con billones de tokens en español, inglés y más de 40 idiomas. Supera en benchmarks a modelos de referencia en razonamiento, código y comprensión lectora.</div>\n\n`,
+                `**¿Cuáles son sus capacidades principales?**\n\n`,
+                `• **Razonamiento avanzado** — Resuelve problemas complejos de matemáticas, lógica y ciencia paso a paso\n\n`,
+                `• **Búsqueda web en tiempo real** — Accede a internet para darte información actualizada al minuto\n\n`,
+                `• **Análisis multimodal** — Lee documentos PDF, interpreta imágenes, analiza código fuente y datos\n\n`,
+                `• **Respuestas ultrarrápidas** — Latencia inferior a **500ms** en Sigma LLM Mini y streaming instantáneo en Pro\n\n`,
+                `• **Memoria contextual** — Recuerda tus preferencias y el historial de conversaciones (plan Pro)\n\n`,
+                `**Modelos disponibles:**\n\n`,
+                `1. **Sigma LLM Pro** — Máxima potencia, razonamiento de alto nivel, ideal para tareas complejas\n`,
+                `2. **Sigma LLM Mini** — Rápido y eficiente para uso cotidiano, gratuito sin límites\n\n`,
+                `**¿Dónde probarlo?**\n\n`,
+                `Puedes acceder ahora mismo en **sigma-ai.com** — el plan gratuito incluye acceso a Sigma LLM Mini sin registro. ¡Empieza a chatear en segundos! 🎯\n\n`,
+                `¿Quieres que te muestre ejemplos de lo que puede hacer? 😊`
+            ];
+        }
+
+        async function streamText(container, chunks, scrollEl) {
+            // We'll render HTML incrementally
+            let rendered = '';
+            const streamCursorEl = document.createElement('span');
+            streamCursorEl.className = 'stream-cursor';
+
+            for (const chunk of chunks) {
+                // Stream each chunk char by char, ultra fast
+                for (let i = 0; i < chunk.length; i++) {
+                    rendered += chunk[i];
+                    // Render markdown-lite
+                    container.innerHTML = renderMarkdown(rendered);
+                    container.appendChild(streamCursorEl);
+                    scrollEl.scrollTop = scrollEl.scrollHeight;
+                    // Ultra fast: 6-12ms per char
+                    await sleep(8 + Math.random() * 8);
+                }
+            }
+
+            // Remove stream cursor
+            streamCursorEl.remove();
+            container.innerHTML = renderMarkdown(rendered);
+        }
+
+        function renderMarkdown(text) {
+            // Simple markdown-lite renderer
+            let html = text;
+            // Bold
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            // Newlines to <br>
+            html = html.replace(/\n/g, '<br>');
+            // Highlight block
+            html = html.replace(/<div class="highlight">([\s\S]*?)<\/div>/g, (_, inner) => {
+                // keep as-is with parsed strong inside
+                return `<div class="highlight">${inner.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`;
+            });
+            return html;
+        }
+
+        /* ─── START ANIMATION ─── */
+        window.addEventListener('load', () => {
+            runScene1();
+        });
+    </script>
+</body>
+
+</html>

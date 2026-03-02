@@ -1,0 +1,520 @@
+================================================================================
+SIGMA LLM - DOCUMENTO EXTENSO PARA WEB OFICIAL DE SIGMA COMPANY
+Versión editorial: 1.0
+Idioma: Español
+Uso recomendado: landing page, sección "Sobre Nosotros", dossier de producto,
+material de prensa y presentación comercial/técnica.
+================================================================================
+
+INDICE
+1. Introducción general
+2. Que es Sigma LLM
+3. Quien es Sigma Company
+4. Quien es el creador
+5. Problema que resuelve Sigma LLM
+6. Propuesta de valor
+7. Como funciona Sigma LLM (arquitectura y flujo)
+8. Modelos disponibles y sus usos
+9. Capacidades principales de la plataforma
+10. Experiencia de usuario e interfaz
+11. Seguridad, privacidad y buenas practicas
+12. Casos de uso por perfil
+13. Diferenciadores frente a otras soluciones
+14. Limitaciones actuales y enfoque honesto
+15. Vision y roadmap
+16. Mensaje institucional de Sigma Company
+17. FAQ para web
+18. Textos listos para usar en secciones de la web
+19. Cierre
+
+
+================================================================================
+1) INTRODUCCION GENERAL
+================================================================================
+
+Sigma LLM es una plataforma de inteligencia artificial orientada a personas que
+necesitan resolver tareas reales con rapidez, calidad y contexto. No es solo
+"un chat"; es un entorno de trabajo que combina modelos de lenguaje, analisis
+multimodal, busqueda web en tiempo real y procesamiento de documentos para
+convertir una pregunta en una respuesta util, accionable y clara.
+
+El proyecto nace desde una filosofia concreta: acercar capacidades avanzadas de
+IA a cualquier usuario, sin complicaciones innecesarias y con una experiencia
+moderna, fluida y humana.
+
+Sigma LLM no pretende prometer "magia". Pretende algo mas serio:
+- ayudarte a pensar mejor,
+- ejecutar mas rapido,
+- y tomar decisiones con mejor informacion.
+
+
+================================================================================
+2) QUE ES SIGMA LLM
+================================================================================
+
+Sigma LLM es el producto principal del ecosistema Sigma Company. Es una
+plataforma web de IA que integra:
+
+- Conversacion inteligente con multiples modelos.
+- Analisis de imagenes y documentos.
+- Extraccion de contenido desde URLs.
+- Busqueda web para informacion actualizada.
+- Herramientas para productividad, codigo, estudio y negocio.
+
+En terminos simples:
+Sigma LLM es un asistente de nueva generacion que no solo responde texto, sino
+que tambien "ve", "lee" documentos y "consulta" internet para darte respuestas
+mas completas y mas utiles.
+
+
+================================================================================
+3) QUIEN ES SIGMA COMPANY
+================================================================================
+
+Sigma Company es la organizacion creadora y mantenedora de Sigma LLM.
+Su identidad se apoya en cuatro pilares:
+
+1. Accesibilidad tecnologica:
+   Construir herramientas de IA potentes, pero usables por cualquier persona.
+
+2. Innovacion responsable:
+   Avanzar rapido, sin perder de vista la seguridad, la transparencia y la
+   utilidad real para el usuario.
+
+3. Calidad de producto:
+   Diseñar experiencias claras, modernas y orientadas a resultados.
+
+4. Mejora continua:
+   Evolucion constante del sistema, modelos, rendimiento e interfaz.
+
+Sigma Company entiende la IA como una tecnologia colaborativa, no como un fin
+en si mismo. El objetivo no es "impresionar" con complejidad tecnica, sino
+producir impacto real en trabajo, estudio y creatividad.
+
+Canales de marca y comunidad:
+- TikTok: @sigmacompanyoficial
+- Instagram: @sigmacompanyoficial
+- YouTube: @sigmacompanyoficial
+- GitHub: sigmacompanyoficial
+
+
+================================================================================
+4) QUIEN ES EL CREADOR
+================================================================================
+
+Sigma LLM ha sido impulsado y desarrollado por Ayoub Louah, fundador de
+Sigma Company.
+
+Este proyecto tiene un componente personal muy fuerte: nace desde la practica,
+la iteracion diaria y la ambicion de construir una IA util para el mundo real.
+La historia del producto demuestra que una vision clara, junto con disciplina
+tecnica y mejora continua, puede transformar una idea en una plataforma viva
+con usuarios reales.
+
+Mensaje clave para web:
+Sigma LLM es un proyecto construido con enfoque artesanal y de alto compromiso,
+con mejoras constantes y escucha activa de la comunidad.
+
+
+================================================================================
+5) PROBLEMA QUE RESUELVE SIGMA LLM
+================================================================================
+
+Antes de Sigma LLM, muchos usuarios enfrentan fricciones como:
+
+- Herramientas de IA fragmentadas (una para texto, otra para imagen, otra para
+  busqueda, otra para documentos).
+- Respuestas superficiales o sin contexto.
+- Dificultad para usar IA en flujos reales de trabajo.
+- Falta de personalizacion de tono, detalle e idioma.
+- Tiempo perdido saltando entre plataformas.
+
+Sigma LLM aborda ese problema con una solucion unificada:
+una sola interfaz para pensar, investigar, analizar y producir.
+
+
+================================================================================
+6) PROPUESTA DE VALOR
+================================================================================
+
+La propuesta de valor de Sigma LLM puede resumirse en:
+
+"Todo el poder de la IA moderna en una experiencia unica, clara y orientada a
+resultados concretos."
+
+Beneficios directos:
+- Menos tiempo buscando.
+- Mejor calidad de respuesta.
+- Mayor contexto en cada interaccion.
+- Flujo de trabajo continuo sin cambiar de herramienta.
+- Adaptacion al perfil del usuario (estudiante, programador, creador, negocio).
+
+
+================================================================================
+7) COMO FUNCIONA SIGMA LLM (ARQUITECTURA Y FLUJO)
+================================================================================
+
+Sigma LLM funciona como una capa inteligente de orquestacion:
+
+1. Entrada del usuario
+   El usuario escribe una consulta o adjunta imagen/documento.
+
+2. Enriquecimiento de contexto
+   Segun el caso, la plataforma puede:
+   - analizar imagenes,
+   - procesar documentos,
+   - extraer contenido de URLs,
+   - consultar busqueda web.
+
+3. Enrutamiento al modelo adecuado
+   Se selecciona el modelo mas conveniente segun el tipo de tarea y
+   configuraciones del usuario.
+
+4. Generacion y streaming
+   La respuesta se genera y se muestra de forma progresiva para una experiencia
+   rapida y natural.
+
+5. Persistencia y continuidad
+   El historial de chat se guarda para mantener contexto y trazabilidad.
+
+Tecnologias principales (alto nivel):
+- Frontend y backend sobre Next.js.
+- Integracion de modelos via OpenRouter.
+- Persistencia y autenticacion con Supabase y soporte de MySQL.
+- Busqueda y extraccion web con proveedores especializados.
+- Modulo multimodal para imagenes y PDFs.
+
+
+================================================================================
+8) MODELOS DISPONIBLES Y SUS USOS
+================================================================================
+
+Actualmente Sigma LLM integra diferentes perfiles de modelo para optimizar
+resultado, costo y latencia.
+
+A) Sigma LLM
+- Perfil: modelo general de alta capacidad.
+- Uso recomendado: conversaciones complejas, analisis profundos, explicaciones
+  completas, asistencia integral.
+
+B) Sigma LLM Mini
+- Perfil: rapido y eficiente.
+- Uso recomendado: tareas de respuesta breve, consultas frecuentes, interaccion
+  agil para usuarios invitados o flujos de alta velocidad.
+
+C) Sigma LLM Coder
+- Perfil: orientado a desarrollo de software.
+- Uso recomendado: escribir codigo, depurar errores, refactorizar, documentar,
+  diseñar arquitectura de aplicaciones.
+
+D) Sigma Vision
+- Perfil: multimodal (analisis visual/documental).
+- Uso recomendado: interpretar imagenes, extraer texto de capturas o documentos,
+  describir elementos visuales y apoyar respuestas sobre contenido adjunto.
+
+Nota editorial:
+El catalogo puede evolucionar con el tiempo para incorporar modelos nuevos,
+mejor rendimiento y mejor disponibilidad.
+
+
+================================================================================
+9) CAPACIDADES PRINCIPALES DE LA PLATAFORMA
+================================================================================
+
+1. Chat inteligente con contexto amplio
+- Conversaciones fluidas y continuas.
+- Respuestas estructuradas y claras.
+
+2. Analisis de documentos
+- Soporte para archivos comunes y contexto documental en chat.
+- Extraccion de texto y resumen de contenido relevante.
+
+3. Vision artificial aplicada
+- Analisis de imagenes y documentos visuales.
+- Deteccion y descripcion de contenido grafico.
+
+4. Busqueda web en tiempo real
+- Consulta de informacion reciente cuando el tema lo requiere.
+- Integracion de resultados como contexto para mejorar precision.
+
+5. Extraccion de contenido de URLs
+- Lectura de paginas para responder sobre su contenido.
+- Reduccion de ruido y enfoque en puntos clave.
+
+6. Modo razonamiento para tareas complejas
+- Soporte para problemas logicos y tecnicos exigentes.
+
+7. Personalizacion de respuestas
+- Tono, nivel de detalle e idioma configurables.
+
+8. Productividad para uso diario
+- Desde redaccion y estudio hasta codigo y analisis profesional.
+
+
+================================================================================
+10) EXPERIENCIA DE USUARIO E INTERFAZ
+================================================================================
+
+Sigma LLM esta diseñado para ofrecer una UX de alto nivel:
+
+- Interfaz moderna, clara y centrada en el contenido.
+- Streaming de respuestas para sensacion de inmediatez.
+- Soporte de markdown, bloques de codigo y matematicas.
+- Flujo de adjuntos (imagenes/documentos) integrado en el chat.
+- Estructura pensada para usuarios tecnicos y no tecnicos.
+
+Principio de diseño:
+Menos friccion, mas foco.
+
+
+================================================================================
+11) SEGURIDAD, PRIVACIDAD Y BUENAS PRACTICAS
+================================================================================
+
+Sigma LLM incorpora una estrategia de seguridad practica:
+
+- Control de acceso por usuario y roles.
+- Manejo de sesiones y autenticacion mediante servicios confiables.
+- Separacion de responsabilidades entre capa de aplicacion y capa de datos.
+- Principios de minima exposicion de claves y configuracion sensible.
+
+Compromiso de producto:
+La seguridad no es un "extra"; es una parte esencial del ciclo de mejora.
+
+Recomendacion para web:
+Incluir siempre la nota de transparencia:
+"Como toda IA, Sigma LLM puede cometer errores. Recomendamos verificar
+informacion critica antes de tomar decisiones importantes."
+
+
+================================================================================
+12) CASOS DE USO POR PERFIL
+================================================================================
+
+A) Estudiantes
+- Resumen de temas complejos.
+- Explicaciones paso a paso.
+- Preparacion de examenes y ejercicios.
+
+B) Programadores
+- Generacion y revision de codigo.
+- Diagnostico de bugs.
+- Refactor y buenas practicas.
+
+C) Creadores de contenido
+- Ideas de guiones, copies, estructuras y calendarios.
+- Mejoras de claridad, tono y estilo.
+
+D) Profesionales y negocios
+- Analisis rapido de informacion.
+- Borradores de documentos y comunicaciones.
+- Soporte para investigacion y toma de decisiones.
+
+E) Usuarios generales
+- Dudas del dia a dia.
+- Aprendizaje guiado.
+- Productividad personal.
+
+
+================================================================================
+13) DIFERENCIADORES FRENTE A OTRAS SOLUCIONES
+================================================================================
+
+1. Enfoque integral
+Sigma LLM unifica texto, vision, documentos y web en un mismo flujo.
+
+2. Enfoque humano
+La experiencia esta pensada para ser clara, amigable y orientada a utilidad.
+
+3. Velocidad con contexto
+No se limita a responder rapido: busca responder bien.
+
+4. Evolucion constante
+El producto cambia y mejora de forma iterativa, impulsado por uso real.
+
+5. Identidad de marca fuerte
+Sigma Company comunica una vision clara: IA accesible, potente y responsable.
+
+
+================================================================================
+14) LIMITACIONES ACTUALES Y ENFOQUE HONESTO
+================================================================================
+
+Sigma LLM adopta una postura transparente:
+
+- Puede haber respuestas incompletas o inexactas en ciertos contextos.
+- El rendimiento puede variar segun modelo, carga y proveedor.
+- Algunas funciones avanzadas pueden depender del tipo de cuenta o estado del
+  servicio.
+
+Filosofia de mejora:
+Detectar, corregir, aprender y publicar mejoras rapidamente.
+
+Mensaje sugerido para web:
+"Sigma LLM esta en evolucion continua. Si detectas una incidencia, tu feedback
+nos ayuda a mejorar el sistema para todos."
+
+
+================================================================================
+15) VISION Y ROADMAP
+================================================================================
+
+Vision de Sigma Company:
+Construir una plataforma de IA colaborativa que ayude a millones de personas a
+pensar mejor, crear mejor y trabajar mejor.
+
+Lineas de evolucion previstas:
+- Mejoras de rendimiento y latencia.
+- Mayor estabilidad en picos de uso.
+- Nuevas capacidades de automatizacion.
+- Personalizacion mas profunda por usuario.
+- Mejor trazabilidad y control del contexto.
+- Integraciones orientadas a entornos profesionales.
+
+
+================================================================================
+16) MENSAJE INSTITUCIONAL DE SIGMA COMPANY
+================================================================================
+
+En Sigma Company creemos que la inteligencia artificial debe estar al servicio
+de las personas.
+
+No construimos para reemplazar criterio humano.
+Construimos para potenciarlo.
+
+No construimos para complicar.
+Construimos para simplificar tareas complejas.
+
+No construimos para "vender humo".
+Construimos producto real, con mejora continua y enfoque responsable.
+
+Sigma LLM representa ese compromiso:
+tecnologia avanzada, experiencia clara y una comunidad en crecimiento.
+
+
+================================================================================
+17) FAQ PARA WEB
+================================================================================
+
+Q1: Que es Sigma LLM?
+Es una plataforma de IA que combina chat inteligente, analisis de imagenes y
+PDFs, busqueda web en tiempo real y extraccion de contenido para ayudarte a
+resolver tareas de forma mas rapida y completa.
+
+Q2: Quien desarrollo Sigma LLM?
+Sigma LLM fue desarrollado por Sigma Company, bajo la direccion de Ayoub Louah.
+
+Q3: Sigma LLM sirve para programar?
+Si. Incluye un perfil especializado para desarrollo de software, depuracion y
+buenas practicas de codigo.
+
+Q4: Puedo subir archivos?
+Si. Puedes adjuntar documentos e imagenes para analizarlos dentro del flujo de
+chat.
+
+Q5: Usa informacion de internet?
+Si, cuando corresponde, integra busqueda web para responder con datos mas
+actualizados.
+
+Q6: Es perfecto?
+No. Como cualquier sistema de IA, puede cometer errores. Por eso recomendamos
+verificar la informacion importante.
+
+Q7: En que idiomas puedo usarlo?
+Sigma LLM puede adaptarse al idioma del usuario y configurar idioma de salida.
+
+Q8: Para quien esta pensado?
+Para estudiantes, desarrolladores, creadores, profesionales y cualquier persona
+que quiera aumentar su productividad con IA.
+
+Q9: Como contacto con Sigma Company?
+A traves de sus canales oficiales: @sigmacompanyoficial y GitHub.
+
+Q10: Sigma LLM seguira mejorando?
+Si. Es un proyecto vivo con mejoras constantes en rendimiento, calidad y UX.
+
+
+================================================================================
+18) TEXTOS LISTOS PARA USAR EN SECCIONES DE LA WEB
+================================================================================
+
+A) HERO (version corta)
+Titulo:
+Sigma LLM, la IA de nueva generacion creada por Sigma Company.
+
+Subtitulo:
+Habla, analiza imagenes, entiende documentos y consulta la web en tiempo real,
+todo en una sola plataforma.
+
+CTA principal:
+Probar Sigma LLM
+
+CTA secundario:
+Conocer Sigma Company
+
+
+B) HERO (version premium)
+Titulo:
+Una sola plataforma. Todo el poder de la IA moderna.
+
+Subtitulo:
+Sigma LLM integra modelos avanzados, vision artificial, analisis documental y
+busqueda web para convertir tus ideas en resultados.
+
+CTA:
+Empezar ahora
+
+
+C) SECCION "QUE ES SIGMA LLM"
+Sigma LLM es la plataforma de inteligencia artificial de Sigma Company.
+Nace para democratizar el acceso a herramientas de IA avanzadas con una
+experiencia clara, potente y util para el trabajo real.
+
+
+D) SECCION "POR QUE ELEGIR SIGMA LLM"
+- Todo en uno: chat, documentos, vision y web.
+- Rapido, flexible y orientado a resultados.
+- Diseñado para uso real, no solo para demos.
+- En evolucion continua.
+
+
+E) SECCION "SOBRE SIGMA COMPANY"
+Sigma Company impulsa herramientas de IA accesibles, responsables y de alto
+impacto. Nuestro compromiso es convertir la inteligencia artificial en una
+tecnologia practica y util para todos.
+
+
+F) MENSAJE DEL CREADOR (web)
+"Sigma LLM es una apuesta por una IA mas util, mas cercana y mas humana.
+Construimos cada mejora pensando en personas reales y problemas reales."
+- Ayoub Louah, fundador de Sigma Company.
+
+
+G) DISCLAIMER RECOMENDADO
+Sigma LLM puede cometer errores. Verifica siempre informacion critica,
+medica, legal o financiera con fuentes especializadas.
+
+
+H) MENSAJE DE AGRADECIMIENTO A LA COMUNIDAD
+Gracias por confiar en Sigma Company y por usar Sigma LLM.
+Este proyecto evoluciona gracias a vuestra confianza, vuestro feedback y
+vuestra energia.
+
+
+================================================================================
+19) CIERRE
+================================================================================
+
+Sigma LLM no es solo una herramienta de IA:
+es una vision de producto construida con enfoque, disciplina y mejora continua.
+
+Con Sigma Company, la tecnologia no se queda en promesas.
+Se transforma en experiencia, resultados y valor real para las personas.
+
+Si buscas una IA potente, practica y en constante evolucion,
+Sigma LLM es tu plataforma.
+
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================

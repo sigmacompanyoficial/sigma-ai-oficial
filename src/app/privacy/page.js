@@ -4,15 +4,15 @@ import { Shield, ChevronLeft, Lock } from 'lucide-react';
 import styles from '../legal.module.css';
 
 export default function PrivacyPage() {
-    const lastUpdated = '15 de febrero de 2026';
+    const lastUpdated = '1 de marzo de 2026';
     const year = new Date().getFullYear();
 
     return (
         <div className={styles.legalContainer}>
             <div className={styles.legalContent}>
-                <Link href="/" className={styles.backBtn}>
+                <Link href="/about" className={styles.backBtn}>
                     <ChevronLeft size={20} />
-                    <span>Volver</span>
+                    <span>Volver a Sobre Nosotros</span>
                 </Link>
 
                 <header className={styles.legalHeader}>
@@ -22,90 +22,82 @@ export default function PrivacyPage() {
                 </header>
 
                 <section className={styles.legalSection}>
-                    <h2><Lock size={20} /> 1. Responsable del tratamiento</h2>
+                    <h2><Lock size={20} /> 1. Nuestro compromiso con tu privacidad</h2>
                     <p>
-                        Sigma Company es responsable del tratamiento de los datos personales obtenidos a través de Sigma LLM.
-                        Para asuntos de privacidad puedes escribir a sigmacompanyoficial@gmail.com.
+                        En Sigma Company, la confianza y la transparencia son fundamentales. Esta Política de Privacidad explica cómo recopilamos, usamos y protegemos tu información personal cuando utilizas Sigma LLM. Nuestro objetivo es ser claros y honestos sobre nuestras prácticas de datos.
                     </p>
                 </section>
 
                 <section className={styles.legalSection}>
-                    <h2>2. Datos que recopilamos</h2>
+                    <h2>2. ¿Quién es el responsable de tus datos?</h2>
+                    <p>
+                        <strong>Sigma Company</strong> es el responsable del tratamiento de tus datos personales. Si tienes alguna pregunta sobre esta política o sobre cómo manejamos tus datos, puedes contactarnos en: <strong>sigmacompanyoficial@gmail.com</strong>.
+                    </p>
+                </section>
+
+                <section className={styles.legalSection}>
+                    <h2>3. ¿Qué información recopilamos?</h2>
+                    <p>Recopilamos la información estrictamente necesaria para ofrecer y mejorar nuestro servicio:</p>
                     <ul>
-                        <li>Datos de cuenta: email, nombre de usuario e identificadores técnicos.</li>
-                        <li>Datos de uso: interacción con funciones, eventos de sesión y métricas operativas.</li>
-                        <li>Datos de contenido: mensajes y archivos enviados para procesar tus solicitudes.</li>
+                        <li><strong>Datos de la cuenta:</strong> Cuando te registras, recopilamos tu dirección de correo electrónico y tu nombre de usuario para crear y gestionar tu cuenta.</li>
+                        <li><strong>Contenido:</strong> Almacenamos los mensajes que envías y los archivos que subes (imágenes, documentos) para poder procesar tus solicitudes y mostrarte tu historial de conversaciones.</li>
+                        <li><strong>Información de uso:</strong> Recopilamos datos sobre cómo utilizas la plataforma, como las funciones que usas y la frecuencia de uso. Esto nos ayuda a entender qué es lo más útil y a mejorar el servicio.</li>
                     </ul>
                 </section>
 
                 <section className={styles.legalSection}>
-                    <h2>3. Finalidades y base legal</h2>
-                    <p>Tratamos datos para prestar el servicio, asegurar la plataforma y mejorar su rendimiento.</p>
+                    <h2>4. ¿Cómo usamos tu información?</h2>
+                    <p>Utilizamos tu información para los siguientes propósitos:</p>
                     <ul>
-                        <li>Ejecución del contrato de servicio con el usuario.</li>
-                        <li>Interés legítimo en seguridad, prevención de abuso y continuidad operativa.</li>
-                        <li>Consentimiento cuando sea exigible (por ejemplo, cookies no esenciales).</li>
+                        <li><strong>Para proporcionar el servicio:</strong> Usamos tus datos de cuenta y contenido para operar la plataforma, procesar tus peticiones a los modelos de IA y mostrarte tus conversaciones.</li>
+                        <li><strong>Para mejorar la plataforma:</strong> Analizamos la información de uso para identificar tendencias, corregir errores y desarrollar nuevas funcionalidades.</li>
+                        <li><strong>Por seguridad:</strong> Monitorizamos la actividad para prevenir abusos, proteger la integridad de nuestra plataforma y cumplir con nuestras obligaciones legales.</li>
+                    </ul>
+                    <p><strong>Importante:</strong> No utilizamos tus conversaciones privadas ni tus archivos para entrenar nuestros modelos de inteligencia artificial.</p>
+                </section>
+                
+                <section className={styles.legalSection}>
+                    <h2>5. ¿Con quién compartimos tu información?</h2>
+                    <p>No vendemos tus datos personales. Solo compartimos información con proveedores de servicios de confianza que nos ayudan a operar la plataforma, siempre bajo estrictos acuerdos de confidencialidad:</p>
+                    <ul>
+                        <li><strong>Supabase:</strong> Para la autenticación de usuarios y el almacenamiento seguro en la base de datos.</li>
+                        <li><strong>Vercel:</strong> Para alojar nuestra aplicación web y garantizar un rendimiento rápido y fiable.</li>
+                        <li><strong>OpenRouter:</strong> Para procesar las peticiones a los diferentes modelos de lenguaje (LLM). Solo se comparte el contenido de la petición actual, sin datos personales que te identifiquen.</li>
                     </ul>
                 </section>
 
                 <section className={styles.legalSection}>
-                    <h2>4. Conservación de datos</h2>
+                    <h2>6. Seguridad de tus datos</h2>
                     <p>
-                        Conservamos la información durante el tiempo necesario para cumplir las finalidades indicadas,
-                        obligaciones legales y resolución de disputas. Al cerrar la cuenta, aplicamos periodos de retención
-                        mínimos y eliminación progresiva según requisitos técnicos y legales.
+                        Nos tomamos la seguridad muy en serio. Implementamos medidas técnicas y organizativas para proteger tu información contra el acceso no autorizado, la alteración o la destrucción. Esto incluye el cifrado de datos en tránsito y en reposo.
                     </p>
                 </section>
 
                 <section className={styles.legalSection}>
-                    <h2>5. Compartición con terceros</h2>
+                    <h2>7. ¿Durante cuánto tiempo conservamos tus datos?</h2>
                     <p>
-                        Podemos apoyarnos en proveedores tecnológicos para autenticación, infraestructura, almacenamiento
-                        y análisis operativo bajo acuerdos de confidencialidad y tratamiento de datos.
-                    </p>
-                    <p>
-                        No vendemos datos personales a terceros para publicidad comportamental.
+                        Conservamos tu información mientras tengas una cuenta activa en Sigma LLM. Si decides eliminar tu cuenta, tus datos personales serán eliminados de nuestros sistemas de producción de acuerdo con nuestros plazos de retención, que están diseñados para cumplir con nuestras obligaciones legales y técnicas.
                     </p>
                 </section>
 
                 <section className={styles.legalSection}>
-                    <h2>6. Seguridad</h2>
+                    <h2>8. Tus derechos</h2>
                     <p>
-                        Aplicamos medidas técnicas y organizativas razonables para proteger la información frente a acceso
-                        no autorizado, alteración, pérdida o destrucción, incluyendo controles de acceso y cifrado en tránsito
-                        cuando corresponde.
-                    </p>
-                </section>
-
-                <section className={styles.legalSection}>
-                    <h2>7. Derechos del usuario</h2>
-                    <p>
-                        Puedes solicitar acceso, rectificación, supresión, oposición, limitación del tratamiento y portabilidad,
-                        cuando aplique conforme a la normativa de tu jurisdicción. Atendemos solicitudes en plazos razonables.
-                    </p>
-                </section>
-
-                <section className={styles.legalSection}>
-                    <h2>8. Menores de edad</h2>
-                    <p>
-                        Sigma LLM no está dirigido a menores sin supervisión legal suficiente. Si detectamos tratamiento de datos
-                        de menores sin base válida, adoptaremos medidas para su eliminación.
+                        Tienes derecho a acceder, rectificar o suprimir tus datos personales. También puedes oponerte al tratamiento de tus datos o solicitar la limitación del mismo. Para ejercer estos derechos, por favor, contáctanos en la dirección de correo electrónico proporcionada anteriormente.
                     </p>
                 </section>
 
                 <section className={styles.legalSection}>
                     <h2>9. Cambios en esta política</h2>
                     <p>
-                        Podemos actualizar esta política para reflejar cambios legales, técnicos u operativos. Publicaremos
-                        la fecha de actualización y, cuando proceda, avisos adicionales dentro del producto.
+                        Podemos actualizar esta Política de Privacidad periódicamente. Cuando lo hagamos, publicaremos la versión actualizada en esta página e indicaremos la fecha de la última revisión.
                     </p>
                 </section>
-
+                
                 <section className={styles.legalSection}>
                     <h2>10. Copyright</h2>
                     <p>
-                        © {year} Sigma Company. Todos los derechos reservados. Los materiales, textos, interfaces y activos
-                        de Sigma LLM están protegidos por copyright y propiedad intelectual.
+                        © {year} Sigma Company. Todos los derechos reservados.
                     </p>
                 </section>
             </div>

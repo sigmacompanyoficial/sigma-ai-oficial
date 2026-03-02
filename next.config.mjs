@@ -6,6 +6,9 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
 
+  // canvas is a native addon and pdfjs-dist is large — both must be excluded from bundling
+  serverExternalPackages: ['canvas', 'pdfjs-dist'],
+
   // Fijar el root de Turbopack al directorio del proyecto para evitar conflictos
   // con otros package-lock.json en directorios padres
   turbopack: {

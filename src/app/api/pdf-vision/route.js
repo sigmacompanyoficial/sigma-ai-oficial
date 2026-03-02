@@ -8,47 +8,75 @@ import { getRequiredEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 
-const execFileAsync = promisify(execFile);
 const MAX_PDF_SIZE = 20 * 1024 * 1024;
 const MAX_PAGES_FOR_VISION = 4;
-const CONVERT_DPI = 130;
+const CONVERT_DPI = 160;
 const DEFAULT_VISION_MODEL = "google/gemma-3-4b-it:free";
 const FALLBACK_VISION_MODELS = [
   "google/gemini-2.0-flash:free",
   "mistralai/pixtral-12b:free",
 ];
+const execFileAsync = promisify(execFile);
 
-function sortByPageNumber(fileA, fileB) {
-  const pageA = Number((fileA.match(/-(\d+)\.(?:jpg|jpeg|png)$/i) || [])[1] || 0);
-  const pageB = Number((fileB.match(/-(\d+)\.(?:jpg|jpeg|png)$/i) || [])[1] || 0);
-  return pageA - pageB;
-}
+/**
+ * Convierte PDF a imágenes JPEG con pdftocairo para enviarlas al modelo de visión.
+ */
+async function convertPdfToImages(pdfBuffer) {
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "sigma-pdf-vision-"));
+  const pdfPath = path.join(tempDir, "input.pdf");
+  const outputPrefix = path.join(tempDir, "page");
 
-async function convertPdfToImages(pdfPath, tempDir, suffix) {
-  const prefix = path.join(tempDir, `sigma-page-${suffix}`);
+  try {
+    await fs.promises.writeFile(pdfPath, pdfBuffer);
 
-  // Convertimos en lote para reducir latencia total frente a convertir página a página.
-  await execFileAsync(
-    "pdftocairo",
-    [
-      "-jpeg",
-      "-r", String(CONVERT_DPI),
-      "-f", "1",
-      "-l", String(MAX_PAGES_FOR_VISION),
-      pdfPath,
-      prefix,
-    ],
-    { timeout: 25_000 }
-  );
+    await execFileAsync(
+      "pdftocairo",
+      [
+        "-jpeg",
+        "-r", String(CONVERT_DPI),
+        "-f", "1",
+        "-l", String(MAX_PAGES_FOR_VISION),
+        pdfPath,
+        outputPrefix,
+      ],
+      { timeout: 30_000 }
+    );
 
-  const files = fs.readdirSync(tempDir)
-    .filter((name) => name.startsWith(`sigma-page-${suffix}-`) && /\.(jpg|jpeg|png)$/i.test(name))
-    .sort(sortByPageNumber);
+    const files = (await fs.promises.readdir(tempDir))
+      .filter((name) => /^page-\d+\.jpe?g$/i.test(name))
+      .sort((a, b) => {
+        const pa = Number((a.match(/(\d+)/) || [0, 0])[1]);
+        const pb = Number((b.match(/(\d+)/) || [0, 0])[1]);
+        return pa - pb;
+      });
 
-  return files.map((name) => ({
-    path: path.join(tempDir, name),
-    mimeType: /\.png$/i.test(name) ? "image/png" : "image/jpeg",
-  }));
+    if (!files.length) {
+      throw new Error("No se pudieron generar imágenes del PDF");
+    }
+
+    const images = await Promise.all(
+      files.map(async (name) => {
+        const buffer = await fs.promises.readFile(path.join(tempDir, name));
+        return {
+          base64: buffer.toString("base64"),
+          mimeType: "image/jpeg",
+        };
+      })
+    );
+
+    return images;
+  } catch (error) {
+    if ((error?.message || "").includes("ENOENT")) {
+      throw new Error("Falta 'pdftocairo' en el servidor para convertir PDFs a imágenes");
+    }
+    throw error;
+  } finally {
+    try {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    } catch {
+      // No-op de limpieza
+    }
+  }
 }
 
 async function requestVisionWithOpenRouter({ images, prompt, requestedModel }) {
@@ -57,25 +85,14 @@ async function requestVisionWithOpenRouter({ images, prompt, requestedModel }) {
   const content = [
     {
       type: "text",
-      text: `Extrae el contenido de este documento de forma MUY rápida y precisa.
-
-Objetivo:
-1) OCR fiel del texto clave (titulos, datos, tablas, cifras).
-2) Si hay dibujos, diagramas, esquemas o graficos, describelos claramente.
-3) Resume lo esencial para que otro modelo de texto responda al usuario.
-
-Formato de salida:
-[OCR CLAVE]\n...\n\n[DIBUJOS Y ELEMENTOS VISUALES]\n...\n\n[RESUMEN PARA RESPUESTA]\n...
-
-Peticion del usuario: ${prompt || "Analiza este documento"}`,
+      text: `Extrae el contenido de este documento de forma MUY rápida y precisa.\n\nObjetivo:\n1) OCR fiel del texto clave (titulos, datos, tablas, cifras).\n2) Si hay dibujos, diagramas, esquemas o graficos, describelos claramente.\n3) Resume lo esencial para que otro modelo de texto responda al usuario.\n\nFormato de salida:\n[OCR CLAVE]\\n...\\n\\n[DIBUJOS Y ELEMENTOS VISUALES]\\n...\\n\\n[RESUMEN PARA RESPUESTA]\\n...\n\nPeticion del usuario: ${prompt || "Analiza este documento"}`,
     },
   ];
 
   for (const image of images) {
-    const base64 = fs.readFileSync(image.path, { encoding: "base64" });
     content.push({
       type: "image_url",
-      image_url: { url: `data:${image.mimeType};base64,${base64}` },
+      image_url: { url: `data:${image.mimeType};base64,${image.base64}` },
     });
   }
 
@@ -130,9 +147,6 @@ Peticion del usuario: ${prompt || "Analiza este documento"}`,
 }
 
 export async function POST(req) {
-  let pdfPath = null;
-  let uniqueSuffix = null;
-
   try {
     const formData = await req.formData();
     const file = formData.get("file");
@@ -152,19 +166,17 @@ export async function POST(req) {
       return NextResponse.json({ error: "El PDF supera 20MB" }, { status: 413 });
     }
 
-    uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const tempDir = os.tmpdir();
-    pdfPath = path.join(tempDir, `sigma-upload-${uniqueSuffix}.pdf`);
-
-    const bytes = await file.arrayBuffer();
-    fs.writeFileSync(pdfPath, Buffer.from(bytes));
-
     console.log(`📄 [PDF-VISION] Processing ${file.name} (${Math.round(file.size / 1024)}KB)`);
 
-    const images = await convertPdfToImages(pdfPath, tempDir, uniqueSuffix);
-    if (images.length === 0) {
-      return NextResponse.json({ error: "No se pudieron generar imagenes del PDF" }, { status: 422 });
+    const bytes = await file.arrayBuffer();
+    const pdfBuffer = Buffer.from(bytes);
+
+    const images = await convertPdfToImages(pdfBuffer);
+    if (!images.length) {
+      throw new Error("No se pudieron generar imágenes del PDF");
     }
+
+    console.log(`🖼️ [PDF-VISION] Rendered ${images.length} page(s), sending to Gemma vision...`);
 
     const { output, modelUsed } = await requestVisionWithOpenRouter({
       images,
@@ -180,7 +192,7 @@ export async function POST(req) {
 
     return NextResponse.json({
       result,
-      method: "gemma-vision-ocr-fast",
+      method: "pdftocairo-gemma-vision-ocr",
       pages: images.length,
       visionModel: modelUsed,
     });
@@ -191,29 +203,5 @@ export async function POST(req) {
       { error: isAbort ? "Timeout analizando PDF" : `Error al procesar PDF: ${error.message || "desconocido"}` },
       { status: isAbort ? 504 : 500 }
     );
-  } finally {
-    const filesToRemove = [];
-    if (pdfPath) filesToRemove.push(pdfPath);
-
-    if (uniqueSuffix) {
-      const tempDir = os.tmpdir();
-      try {
-        const generated = fs.readdirSync(tempDir)
-          .filter((name) => name.includes(uniqueSuffix))
-          .map((name) => path.join(tempDir, name));
-        filesToRemove.push(...generated);
-      } catch (cleanupErr) {
-        console.warn("⚠️ [PDF-VISION] Cleanup scan failed:", cleanupErr.message);
-      }
-    }
-
-    for (const target of new Set(filesToRemove)) {
-      if (!target || !fs.existsSync(target)) continue;
-      try {
-        fs.unlinkSync(target);
-      } catch {
-        // No-op cleanup failure
-      }
-    }
   }
 }
