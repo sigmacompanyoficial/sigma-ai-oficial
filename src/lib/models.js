@@ -1,9 +1,9 @@
 export const models = [
     {
-        modelId: "openai/gpt-oss-120b:free",
+        modelId: "tencent/hy3-preview:free",
         modelName: "Sigma LLM",
         provider: "openrouter",
-        hostedId: "openai/gpt-oss-120b:free",
+        hostedId: "tencent/hy3-preview:free",
         platformLink: "https://openrouter.ai",
         imageInput: false,
         maxContext: 128000

@@ -22,7 +22,7 @@ export default function GuestChat() {
     const textareaRef = useRef(null);
     const messagesEndRef = useRef(null);
 
-    const modelId = "arcee-ai/trinity-large-preview:free";
+    const modelId = "tencent/hy3-preview:free";
     const systemInstructions = `Eres Sigma LLM 1 Mini, un asistente de IA de vanguardia. Fecha actual: ${new Date().toLocaleDateString('es-ES')}. Tienes acceso a una herramienta de búsqueda en tiempo real. Si el usuario te pregunta por algo actual (como el tiempo, noticias o eventos recientes), DEBES usar el comando SEARCH: 'consulta' para obtener datos reales antes de responder. Ejemplo: Si preguntan por el clima en Madrid, responde primero solo con SEARCH: clima en Madrid. Tu tono debe ser profesional y eficiente.`;
 
     useEffect(() => {

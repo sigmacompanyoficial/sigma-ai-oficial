@@ -18,15 +18,15 @@ import { AppleEmojiRenderer } from '@/components/AppleEmojiRenderer';
 
 
 const guestModel = {
-    modelId: "google/gemini-2.0-flash-001",
-    modelName: "Sigma LLM Mini",
+    modelId: "tencent/hy3-preview:free",
+    modelName: "Sigma LLM",
     provider: "openrouter",
-    hostedId: "google/gemini-2.0-flash-001",
+    hostedId: "tencent/hy3-preview:free",
     platformLink: "https://openrouter.ai",
     imageInput: false,
     maxContext: 128000
 };
-const PRO_MODEL_ID = 'openai/gpt-oss-120b:free'; // Sigma LLM is now the pro/standard one
+const PRO_MODEL_ID = 'tencent/hy3-preview:free'; // Sigma LLM is now the pro/standard one
 
 const translations = {
     'Español': {
@@ -110,7 +110,7 @@ export default function ChatPage() {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [selectedModel, setSelectedModel] = useState(
-        models.find((m) => m.modelName === 'Sigma LLM Mini') || models[0]
+        models.find((m) => m.modelName === 'Sigma LLM') || models[0]
     );
     const [isGuest, setIsGuest] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -3035,3 +3035,4 @@ Recuerda: Tu objetivo es ser el asistente de IA más útil, completo y educativo
         </div >
     );
 }
+
